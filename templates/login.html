@@ -8,9 +8,11 @@
     <p class="login-sub">Sistema de Gestão de Estoque</p>
 
     {% if bloqueio_info and bloqueio_info.bloqueado %}
-    <div class="lockout-warning" id="lockoutBox">
+    <div class="lockout-warning"
+         id="lockoutBox"
+         data-segundos="{{ bloqueio_info.segundos|int }}">
       ⚠️ Número máximo de tentativas excedido.<br>
-      Aguarde <span class="lockout-countdown" id="lockoutCountdown">{{ bloqueio_info.segundos_restantes }}s</span>
+      Aguarde <span class="lockout-countdown" id="lockoutCountdown">{{ bloqueio_info.segundos|int }}s</span>
     </div>
     {% endif %}
 
@@ -34,31 +36,6 @@
 {% endblock %}
 {% block scripts %}
 {% if bloqueio_info and bloqueio_info.bloqueado %}
-<script>
-(function(){
-  var seg = {{ bloqueio_info.segundos_restantes }};
-  var el = document.getElementById('lockoutCountdown');
-  var btn = document.getElementById('loginBtn');
-  var box = document.getElementById('lockoutBox');
-  var timer = setInterval(function(){
-    seg--;
-    if (seg <= 0) {
-      clearInterval(timer);
-      if (btn) btn.disabled = false;
-      if (box) {
-        box.style.background = '#E4EEE1';
-        box.style.color = '#2F5233';
-        box.style.borderColor = 'rgba(47,82,51,0.25)';
-        box.innerHTML = '✓ Bloqueio terminado. Pode tentar novamente.';
-      }
-      if (el) el.textContent = '0s';
-      return;
-    }
-    var mm = Math.floor(seg / 60);
-    var ss = seg % 60;
-    if (el) el.textContent = (mm > 0 ? mm + 'm ' : '') + ss + 's';
-  }, 1000);
-})();
-</script>
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
 {% endif %}
 {% endblock %}

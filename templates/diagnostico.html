@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block page_title %}Diagnóstico do Sistema{% endblock %}
+{% block title %}Diagnóstico · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Diagnóstico do Sistema</h1>
+    <p class="page-sub">
+      Corrido em <strong>{{ rel.corrido_em }}</strong>
+      {% if rel.tem_alertas %}
+        · <span class="tag tag-danger">{{ rel.contagens.values()|sum }} alerta(s)</span>
+      {% else %}
+        · <span class="tag tag-good">Tudo OK</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('diagnostico_view') }}" class="btn btn-secondary">↻ Correr de novo</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">← Painel</a>
+  </div>
+</div>
+
+{% if rel.erro_interno %}
+<div class="panel" style="border-left:4px solid var(--perigo); background:#FFFBF9;">
+  <h3 style="color: var(--perigo); text-align: left;">Erro interno</h3>
+  <pre style="white-space: pre-wrap; font-size:12px; color:#555">{{ rel.erro_interno }}</pre>
+</div>
+{% endif %}
+
+{% if not rel.integridade.ok %}
+<div class="panel" style="border-left:4px solid var(--perigo); background:#FFFBF9;">
+  <h3 style="color: var(--perigo); text-align: left;">❌ Integridade da base de dados</h3>
+  <ul>
+    {% for e in rel.integridade.erros %}
+    <li>{{ e }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# 1. Stock negativo #}
+{% if rel.stock_negativo %}
+<div class="panel">
+  <h3>🔴 Stock negativo ({{ rel.stock_negativo|length }})</h3>
+  <p class="muted">Produtos com saldo inferior a zero. Corrija via inventário ou ajuste.</p>
+  <table class="data-table">
+    <thead><tr>
+      <th>Código</th><th>Produto</th><th>Unid.</th><th class="num-right">Saldo</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for p in rel.stock_negativo %}
+      <tr>
+        <td class="mono">{{ p.codigo }}</td>
+        <td>{{ p.nome }}</td>
+        <td>{{ p.unidade }}</td>
+        <td class="num-right text-danger"><strong>{{ p.saldo }}</strong></td>
+        <td class="actions-cell">
+          <a class="link-action" href="{{ url_for('movimento_entrada') }}">Repor</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# 2. Margens negativas no cadastro #}
+{% if rel.margens_negativas %}
+<div class="panel">
+  <h3>⚠️ Produtos com margem negativa no cadastro ({{ rel.margens_negativas|length }})</h3>
+  <p class="muted">Preço de venda ≤ preço de custo. Corrija em Produtos → Editar.</p>
+  <table class="data-table">
+    <thead><tr>
+      <th>Código</th><th>Produto</th><th>Unid.</th>
+      <th class="num-right">Qtd/Embal.</th>
+      <th class="num-right">Custo</th>
+      <th class="num-right">Venda</th>
+      <th class="num-right">Margem</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      {% for p in rel.margens_negativas %}
+      <tr>
+        <td class="mono">{{ p.codigo }}</td>
+        <td>{{ p.nome }}</td>
+        <td>{{ p.unidade }}</td>
+        <td class="num-right">{{ p.qtd_por_unidade }}</td>
+        <td class="num-right">{{ '%.2f'|format(p.preco_custo) }}</td>
+        <td class="num-right">{{ '%.2f'|format(p.preco_venda) }}</td>
+        <td class="num-right text-danger">
+          <strong>{{ '%.1f'|format(p.margem_pct or 0) }}%</strong>
+        </td>
+        <td class="actions-cell">
+          <a class="link-action" href="{{ url_for('produtos_list') }}">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# 3. Embalagem suspeita #}
+{% if rel.embalagem_suspeita %}
+<div class="panel">
+  <h3>📦 Produtos com embalagem suspeita ({{ rel.embalagem_suspeita|length }})</h3>
+  <p class="muted">
+    O preço de venda cadastrado parece ser <strong>por embalagem</strong> e não
+    por unidade base. Isto faz com que vendas fraccionadas (1 rolo, 1 kg) gerem
+    margem negativa.
+  </p>
+  <table class="data-table">
+    <thead><tr>
+      <th>Código</th><th>Produto</th><th>Unid.</th>
+      <th class="num-right">Qtd/Embal.</th>
+      <th class="num-right">Preço Venda (catálogo)</th>
+      <th class="num-right">Média vendida/un.</th>
+      <th class="num-right">Sugestão preço base</th>
+      <th class="num-right">Sugestão preço embal.</th>
+    </tr></thead>
+    <tbody>
+      {% for p in rel.embalagem_suspeita %}
+      <tr>
+        <td class="mono">{{ p.codigo }}</td>
+        <td>{{ p.nome }}</td>
+        <td>{{ p.unidade }}</td>
+        <td class="num-right">{{ p.qtd_por_unidade }}</td>
+        <td class="num-right">{{ '%.2f'|format(p.preco_venda) }}</td>
+        <td class="num-right text-danger">{{ '%.2f'|format(p.media_venda_unidade) }}</td>
+        <td class="num-right"><strong>{{ '%.2f'|format(p.sugestao_preco_base) }}</strong></td>
+        <td class="num-right text-success">{{ '%.2f'|format(p.sugestao_preco_embalagem) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:10px">
+    <strong>Como corrigir:</strong> edite o produto e altere
+    <code>preco_venda</code> para <code>Sugestão preço base</code>
+    (preço por unidade/rolo). Vendas em caixa continuam a funcionar porque o
+    sistema multiplica por <code>qtd_por_unidade</code>.
+  </p>
+</div>
+{% endif %}
+
+{# 4. Vendas com lucro negativo #}
+{% if rel.vendas_lucro_negativo %}
+<div class="panel">
+  <h3>📉 Vendas recentes com lucro negativo ({{ rel.vendas_lucro_negativo|length }})</h3>
+  <p class="muted">Últimos 30 dias. Reveja o preço destes produtos ou a política de descontos.</p>
+  <table class="data-table">
+    <thead><tr>
+      <th>Código</th><th>Produto</th><th>Unid.</th>
+      <th class="num-right">Nº vendas</th>
+      <th class="num-right">Pior lucro</th>
+      <th class="num-right">Lucro total</th>
+      <th>Última venda</th>
+    </tr></thead>
+    <tbody>
+      {% for p in rel.vendas_lucro_negativo %}
+      <tr>
+        <td class="mono">{{ p.codigo }}</td>
+        <td>{{ p.nome }}</td>
+        <td>{{ p.unidade }}</td>
+        <td class="num-right">{{ p.n_vendas }}</td>
+        <td class="num-right text-danger">{{ '%.2f'|format(p.pior_lucro) }}</td>
+        <td class="num-right text-danger"><strong>{{ '%.2f'|format(p.lucro_total) }}</strong></td>
+        <td class="mono">{{ (p.ultima_venda or '')[:16] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# 5. Vendas com preço muito abaixo do catálogo #}
+{% if rel.preco_venda_baixo %}
+<div class="panel">
+  <h3>🔻 Vendas abaixo do preço de catálogo ({{ rel.preco_venda_baixo|length }})</h3>
+  <p class="muted">O preço praticado foi >20% inferior ao preço cadastrado.</p>
+  <table class="data-table">
+    <thead><tr>
+      <th>Código</th><th>Produto</th><th>Unid.</th>
+      <th class="num-right">Preço catálogo</th>
+      <th class="num-right">Última venda</th>
+      <th>Unid. vendida</th>
+      <th class="num-right">Nº</th>
+      <th>Data</th>
+    </tr></thead>
+    <tbody>
+      {% for p in rel.preco_venda_baixo %}
+      <tr>
+        <td class="mono">{{ p.codigo }}</td>
+        <td>{{ p.nome }}</td>
+        <td>{{ p.unidade }}</td>
+        <td class="num-right">{{ '%.2f'|format(p.preco_catalogo) }}</td>
+        <td class="num-right text-danger">{{ '%.2f'|format(p.preco_vendido_ultima) }}</td>
+        <td>{{ p.unidade_original_ultima }}</td>
+        <td class="num-right">{{ p.n_ocorrencias }}</td>
+        <td class="mono">{{ (p.ultima_venda or '')[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# 6. Faturas em atraso #}
+{% if rel.faturas_atraso %}
+<div class="panel">
+  <h3>💸 Faturas em atraso ({{ rel.faturas_atraso|length }})</h3>
+  <table class="data-table">
+    <thead><tr>
+      <th>Fatura</th><th>Cliente</th>
+      <th>Vencimento</th>
+      <th class="num-right">Dias atraso</th>
+      <th class="num-right">Saldo</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      {% for f in rel.faturas_atraso %}
+      <tr>
+        <td class="mono">{{ f.numero_fatura or f.id_conta }}</td>
+        <td>{{ f.nome_cliente }}</td>
+        <td>{{ f.data_vencimento }}</td>
+        <td class="num-right text-danger"><strong>{{ f.dias_atraso }}</strong></td>
+        <td class="num-right">{{ '%.2f'|format(f.saldo) }}</td>
+        <td class="actions-cell">
+          <a class="link-action" href="{{ url_for('conta_receber_detalhe', id_conta=f.id_conta) }}">Ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not rel.tem_alertas %}
+<div class="panel">
+  <p class="empty-hint" style="padding:40px">✅ Nenhum alerta detectado. O sistema está saudável.</p>
+</div>
+{% endif %}
+{% endblock %}

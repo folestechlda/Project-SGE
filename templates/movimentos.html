@@ -57,25 +57,31 @@
         <th>Tipo</th>
         <th>Produto</th>
         <th>Categoria</th>
-        <th>Qtd. origem</th>
-        <th>Qtd. (un. base)</th>
-        <th>Preço Unit.</th>
-        <th>Total</th>
+        <th class="num-right">Qtd. Origem</th>
+        <th class="num-right">Preço Unit. Origem</th>
+        <th class="num-right">Total</th>
+        <th class="num-right" title="Quantidade convertida para unidade base (kg, unidade)">Equivalência Base</th>
         <th>Usuário</th>
         <th>Detalhe</th>
       </tr>
     </thead>
     <tbody>
     {% for m in movimentos %}
+      {% set qtd_orig = m.quantidade_original or 0 %}
+      {% set preco_orig = (m.valor_total / qtd_orig) if qtd_orig else 0 %}
       <tr>
         <td class="mono">{{ m.data_hora }}</td>
         <td>{% if m.tipo == 'Entrada' %}<span class="tag tag-good">Entrada</span>{% else %}<span class="tag tag-warn">Saída</span>{% endif %}</td>
         <td>{{ m.produto_nome }} <span class="muted">({{ m.produto_codigo }})</span></td>
         <td class="muted">{{ m.categoria_nome or '—' }}</td>
-        <td>{{ m.quantidade_original }} {{ m.unidade_original }}</td>
-        <td class="mono num-right">{{ m.quantidade }}</td>
-        <td class="num-right">{{ "%.2f"|format(m.preco_unitario) }}</td>
+        <td class="num-right">
+          <strong>{{ "%.2f"|format(qtd_orig) }} {{ m.unidade_original }}</strong>
+        </td>
+        <td class="num-right">
+          {{ "%.2f"|format(preco_orig) }} <span class="muted" style="font-size:11px">/ {{ m.unidade_original }}</span>
+        </td>
         <td class="num-right"><strong>{{ "%.2f"|format(m.valor_total) }}</strong></td>
+        <td class="num-right muted" style="font-size:11px">{{ "%.2f"|format(m.quantidade) }} un.</td>
         <td class="muted">{{ m.usuario_nome or '—' }}</td>
         <td class="muted">{{ m.fornecedor or m.cliente or '—' }}</td>
       </tr>

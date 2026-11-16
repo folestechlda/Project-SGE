@@ -15,14 +15,14 @@
     {% if aud.estado == 'aberta' and current_user.perfil in ['Admin','Gerente'] %}
     <form method="POST" action="{{ url_for('auditoria_congelar', id_auditoria=aud.id_auditoria) }}"
           style="display:inline"
-          onsubmit="return confirm('Congelar o estoque teórico agora?');">
+          data-confirmar="Congelar o estoque teórico agora? A partir deste momento a contagem passa a ser feita contra os valores actuais.">
       <button type="submit" class="btn btn-primary">❄️ Congelar estoque teórico</button>
     </form>
     {% endif %}
     {% if aud.estado == 'em_contagem' and current_user.perfil in ['Admin','Gerente'] %}
     <form method="POST" action="{{ url_for('auditoria_fechar', id_auditoria=aud.id_auditoria) }}"
           style="display:inline"
-          onsubmit="return confirm('Fechar a auditoria e gerar os ajustes?');">
+          id="formFecharAuditoria">
       <button type="submit" class="btn btn-primary">✓ Fechar e gerar ajustes</button>
     </form>
     {% endif %}
@@ -125,7 +125,7 @@
 <div class="panel" style="margin-top:16px">
   <h3>Divergências ({{ divergencias|length }})</h3>
   <div style="overflow-x:auto">
-  <table class="data-table">
+  <table class="data-table" id="tabelaDivergencias">
     <thead>
       <tr>
         <th>Código</th>
@@ -144,7 +144,7 @@
     <tbody>
       {% for d in divergencias %}
       {% set dentro = (d.diferenca_qtd|abs) < 0.001 %}
-      <tr>
+      <tr data-estado="{{ d.estado }}">
         <td class="mono">{{ d.codigo }}</td>
         <td>{{ d.nome }}</td>
         <td class="muted">{{ d.categoria_nome or '—' }}</td>
@@ -167,12 +167,16 @@
         </td>
         <td class="actions-cell no-print">
           {% if d.estado == 'pendente' %}
-          <button type="button" class="link-action"
-        onclick='abrirJustificar({{ d.id_divergencia }}, {{ d.nome|tojson }})'>Justificar</button>
+          <button type="button" class="link-action btn-justificar"
+                  data-div-id="{{ d.id_divergencia }}"
+                  data-produto="{{ d.nome }}">Justificar</button>
           <form method="POST" action="{{ url_for('auditoria_recontar', id_div=d.id_divergencia) }}" class="inline-form">
             <button type="submit" class="link-action">↻ Recontar</button>
           </form>
-          <form method="POST" action="{{ url_for('auditoria_aceitar', id_div=d.id_divergencia) }}" class="inline-form">
+          {% elif d.estado == 'justificada' %}
+          <form method="POST" action="{{ url_for('auditoria_aceitar', id_div=d.id_divergencia) }}"
+                class="inline-form"
+                data-confirmar="Aceitar esta divergência como justificada? O estado ficará definitivo.">
             <button type="submit" class="link-action">✓ Aceitar</button>
           </form>
           {% else %}
@@ -227,5 +231,55 @@ function abrirJustificar(idDiv, nomeProd) {
   document.getElementById('lblJustProd').textContent = 'Produto: ' + nomeProd;
   document.getElementById('dlgJustificar').style.display = 'block';
 }
+
+// Botões "Justificar": ler data-* (sem onclick inline — sem lint do parser JS)
+document.querySelectorAll('.btn-justificar').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var d = this.dataset;
+    abrirJustificar(d.divId, d.produto);
+  });
+});
+
+// --- Resumo Dinâmico para Fechar Auditoria ---
+(function() {
+  var formFechar = document.getElementById('formFecharAuditoria');
+  if (!formFechar) return;
+
+  formFechar.addEventListener('submit', function(ev) {
+    // Se já foi confirmado, deixa passar
+    if (formFechar.getAttribute('data-confirmado') === '1') {
+      formFechar.removeAttribute('data-confirmado');
+      return;
+    }
+    ev.preventDefault();
+
+    // Conta as divergências abertas
+    var rows = document.querySelectorAll('#tabelaDivergencias tbody tr[data-estado]');
+    var abertas = 0;
+    rows.forEach(function(r) {
+      var estado = r.getAttribute('data-estado');
+      if (estado !== 'aceita' && estado !== 'justificada') {
+        abertas++;
+      }
+    });
+
+    var msg;
+    var tipo = abertas === 0 ? 'info' : 'erro';
+    var labelOk = abertas === 0 ? 'Fechar' : 'Fechar auditoria';
+
+    if (abertas === 0) {
+      msg = "Não há divergências pendentes em aberto.\n\nA auditoria será fechada sem gerar ajustes adicionais.";
+    } else {
+      msg = "Existem " + abertas + " divergência(s) em aberto.\n\nO sistema irá aplicar ajustes automáticos nas que estiverem fora da tolerância.\n\nEsta operação é definitiva. Deseja fechar?";
+    }
+
+    window.AppModal.confirmar(msg, { tipo: tipo, labelConfirmar: labelOk }).then(function(ok) {
+      if (ok) {
+        formFechar.setAttribute('data-confirmado', '1');
+        formFechar.submit();
+      }
+    });
+  });
+})();
 </script>
 {% endblock %}

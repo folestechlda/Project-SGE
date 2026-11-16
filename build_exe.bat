@@ -1,13 +1,7 @@
-@echo off
-<<<<<<< HEAD
+﻿@echo off
 setlocal EnableDelayedExpansion
 chcp 65001 >nul
 title SGE — Build do Executável
-
-REM ============================================================================
-REM SGE — Script de build (Windows)
-REM Gera um executável .exe com PyInstaller e prepara a pasta para o Inno Setup
-REM ============================================================================
 
 cd /d "%~dp0"
 
@@ -96,10 +90,10 @@ REM ---------------------------------------------------------------------------
 REM 6. Criar icone padrao (se nao existir)
 REM ---------------------------------------------------------------------------
 if not exist "static\img\app.ico" (
-    echo [AVISO] static\img\icone.ico nao encontrado. O executavel usara o icone padrao.
+    echo [AVISO] static\img\app.ico nao encontrado. O executavel usara o icone padrao.
     set "ICONE="
 ) else (
-    set "ICONE=--icon=static\img\favicon.ico"
+    set "ICONE=--icon=static\img\app.ico"
 )
 
 REM ---------------------------------------------------------------------------
@@ -158,6 +152,37 @@ echo [INFO] Compilacao concluida com sucesso.
 echo.
 
 REM ---------------------------------------------------------------------------
+REM 7.1. Copiar código-fonte para dentro de dist\SGE (launcher e instalador)
+REM ---------------------------------------------------------------------------
+echo [INFO] A copiar codigo-fonte Python para dist\SGE\_codigo e raiz...
+if not exist "dist\SGE\_codigo"            mkdir "dist\SGE\_codigo"
+if not exist "dist\SGE\_codigo\templates"  mkdir "dist\SGE\_codigo\templates"
+if not exist "dist\SGE\_codigo\static"     mkdir "dist\SGE\_codigo\static"
+
+copy /Y "app.py"           "dist\SGE\_codigo\app.py"           >nul
+copy /Y "services.py"      "dist\SGE\_codigo\services.py"      >nul
+copy /Y "database.py"      "dist\SGE\_codigo\database.py"      >nul
+copy /Y "reports.py"       "dist\SGE\_codigo\reports.py"       >nul
+copy /Y "diagnostico.py"   "dist\SGE\_codigo\diagnostico.py"   >nul
+copy /Y "requirements.txt" "dist\SGE\_codigo\requirements.txt" >nul
+
+xcopy /E /I /Y "templates\*" "dist\SGE\_codigo\templates\" >nul
+xcopy /E /I /Y "static\*"    "dist\SGE\_codigo\static\"    >nul
+
+copy /Y "app.py"           "dist\SGE\app.py"           >nul
+copy /Y "services.py"      "dist\SGE\services.py"      >nul
+copy /Y "database.py"      "dist\SGE\database.py"      >nul
+copy /Y "reports.py"       "dist\SGE\reports.py"       >nul
+copy /Y "diagnostico.py"   "dist\SGE\diagnostico.py"   >nul
+copy /Y "requirements.txt" "dist\SGE\requirements.txt" >nul
+
+if not exist "dist\SGE\templates" mkdir "dist\SGE\templates"
+if not exist "dist\SGE\static"    mkdir "dist\SGE\static"
+xcopy /E /I /Y "templates\*" "dist\SGE\templates\" >nul
+xcopy /E /I /Y "static\*"    "dist\SGE\static\"    >nul
+echo [INFO] Codigo-fonte copiado.
+
+REM ---------------------------------------------------------------------------
 REM 8. Copiar dados iniciais (se existirem) para a pasta dist
 REM ---------------------------------------------------------------------------
 if exist "dados" (
@@ -167,7 +192,6 @@ if exist "dados" (
 
 if exist "backups" (
     if not exist "dist\SGE\backups" mkdir "dist\SGE\backups"
-    echo [INFO] Pasta 'backups' criada em dist\SGE\backups
 )
 
 REM ---------------------------------------------------------------------------
@@ -177,11 +201,13 @@ if exist "README.md"      copy /Y "README.md"      "dist\SGE\README.md" >nul
 if exist "LEIA-ME.txt"    copy /Y "LEIA-ME.txt"    "dist\SGE\LEIA-ME.txt" >nul
 
 REM ---------------------------------------------------------------------------
-REM 10. Verificar se o Inno Setup esta instalado
+REM 10. Verificar Inno Setup (7 e 6) e compilar instalador
 REM ---------------------------------------------------------------------------
 set "ISCC="
+if exist "%ProgramFiles%\Inno Setup 7\ISCC.exe"      set "ISCC=%ProgramFiles%\Inno Setup 7\ISCC.exe"
+if exist "%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 7\ISCC.exe"
+if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe"      set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe"     set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 
 if defined ISCC (
     echo.
@@ -196,19 +222,14 @@ if defined ISCC (
     )
 ) else (
     echo.
-    echo [AVISO] Inno Setup 6 nao encontrado.
+    echo [AVISO] Inno Setup nao encontrado.
     echo         Instale de: https://jrsoftware.org/isdl.php
-    echo         Depois, execute manualmente: installer.iss
 )
 
-REM ---------------------------------------------------------------------------
-REM Fim
-REM ---------------------------------------------------------------------------
 echo.
 echo ============================================================
 echo   BUILD CONCLUIDO
 echo ============================================================
-echo.
 echo   Executavel:  dist\SGE\SGE.exe
 if exist "instalador" (
     echo   Instalador:  instalador\
@@ -216,85 +237,3 @@ if exist "instalador" (
 echo.
 pause
 endlocal
-=======
-REM ============================================================
-REM  Script de build do SGE — Sistema de Gestão de Estoque
-REM  Gera SGE.exe usando PyInstaller (compatível com todas as versões)
-REM ============================================================
-
-echo.
-echo ============================================================
-echo   SGE — Sistema de Gestao de Estoque
-echo   Build: empacotar SGE.exe (PyInstaller)
-echo ============================================================
-
-echo.
-echo === 1/6 Criando ambiente virtual (venv) ===
-python -m venv venv
-call venv\Scripts\activate.bat
-
-echo.
-echo === 2/6 Instalando dependencias ===
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install --upgrade pyinstaller
-
-echo.
-echo === 3/6 Limpando builds anteriores ===
-if exist "dist" rmdir /s /q "dist"
-if exist "build" rmdir /s /q "build"
-
-echo.
-echo === 4/6 Preparando icone (PNG -^> ICO) ===
-if exist "static\img\iconsetup.ico" (
-  echo Usando icone ja existente em static\img\iconsetup.ico
-) else if exist "%USERPROFILE%\Downloads\sge.ico" (
-  copy /Y "%USERPROFILE%\Downloads\sge.ico" "static\img\iconsetup.ico" >nul
-  echo Icone copiado de Downloads\sge.ico
-) else (
-  echo AVISO: nao encontrei nenhum icone. O executavel sera gerado sem icone personalizado.
-)
-
-echo.
-echo === 5/6 Compilando executavel com PyInstaller ===
-if exist "SGE.spec" (
-  echo Usando arquivo SGE.spec...
-  python -m PyInstaller --noconfirm SGE.spec
-) else (
-  echo Usando parametros otimizados para maxima compatibilidade...
-  python -m PyInstaller --noconfirm --onedir --windowed ^
-    --name "SGE" ^
-    --icon "static\img\iconsetup.ico" ^
-    --add-data "templates;templates" ^
-    --add-data "static;static" ^
-    --add-data "dados;dados" ^
-    --hidden-import "PIL._imaging" ^
-    --hidden-import "PIL._imagingcms" ^
-    --hidden-import "PIL._imagingmath" ^
-    --hidden-import "openpyxl" ^
-    --hidden-import "reportlab" ^
-    --hidden-import "reportlab.pdfbase" ^
-    --hidden-import "reportlab.pdfgen" ^
-    --hidden-import "reportlab.platypus" ^
-    --hidden-import "reportlab.lib" ^
-    --hidden-import "reportlab.graphics" ^
-    --collect-all "PIL" ^
-    --collect-all "openpyxl" ^
-    --collect-all "reportlab" ^
-    --noupx ^
-    app.py
-)
-
-echo.
-echo === 6/6 Concluido! ===
-echo O executavel foi gerado em: dist\SGE.exe
-echo.
-echo IMPORTANTE: Se ainda ocorrer erro de DLL, certifique-se de que o
-echo Visual C++ Redistributable (2015-2022) esta instalado no sistema.
-echo Descarregue de: https://aka.ms/vs/17/release/vc_redist.x64.exe
-echo.
-echo Proximo passo: abra o Inno Setup, carregue o arquivo installer.iss
-echo e clique em "Compile" para gerar o instalador SGE.Setup.exe final.
-echo O instalador sera gravado na pasta installer_output\ .
-pause
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9

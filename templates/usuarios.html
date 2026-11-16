@@ -72,19 +72,25 @@
           <td><span class="tag tag-neutral">{{ u.perfil }}</span></td>
           <td>{% if u.ativo %}<span class="tag tag-good">Activo</span>{% else %}<span class="tag tag-danger">Inactivo</span>{% endif %}</td>
           <td class="actions-cell">
-            <button class="link-action"
-                    onclick="editarUsuario('{{ u.id_usuario }}',
-                                            {{ u.nome|tojson }},
-                                            {{ u.login|tojson }},
-                                            '{{ u.perfil }}',
-                                            {{ (u.email or '')|tojson }},
-                                            {{ (u.telefone or '')|tojson }})">
+            <button type="button" class="link-action btn-editar-user"
+                    data-id="{{ u.id_usuario }}"
+                    data-nome="{{ u.nome }}"
+                    data-login="{{ u.login }}"
+                    data-perfil="{{ u.perfil }}"
+                    data-email="{{ u.email or '' }}"
+                    data-telefone="{{ u.telefone or '' }}">
               Editar
             </button>
-            <form method="POST" action="{{ url_for('usuarios_toggle', id_usuario=u.id_usuario) }}" class="inline-form">
+            <form method="POST" action="{{ url_for('usuarios_toggle', id_usuario=u.id_usuario) }}"
+                  class="inline-form"
+                  data-confirmar="{{ 'Desactivar o utilizador ' ~ u.login ~ '? Não poderá autenticar-se até ser reactivado.' if u.ativo else 'Activar o utilizador ' ~ u.login ~ '?' }}">
               <button type="submit" class="link-action">{{ 'Desactivar' if u.ativo else 'Activar' }}</button>
             </form>
-            <form method="POST" action="{{ url_for('usuarios_excluir', id_usuario=u.id_usuario) }}" class="inline-form" onsubmit="return confirm('Deseja realmente excluir este usuário?');">
+            <form method="POST" action="{{ url_for('usuarios_excluir', id_usuario=u.id_usuario) }}"
+                  class="inline-form"
+                  data-confirmar="Excluir o utilizador {{ u.login }}? Esta operação não pode ser desfeita."
+                  data-confirmar-tipo="erro"
+                  data-confirmar-ok="Excluir">
               <button type="submit" class="link-action link-danger">Excluir</button>
             </form>
           </td>
@@ -121,5 +127,13 @@ function limparFormUsuario() {
   document.getElementById('senha-hint').textContent = '(mínimo 8 caracteres, com letra, nº e símbolo)';
   document.getElementById('form-title').textContent = 'Novo Usuário';
 }
+
+// Botões "Editar": ler data-* e abrir o form de edição.
+document.querySelectorAll('.btn-editar-user').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var d = this.dataset;
+    editarUsuario(d.id, d.nome, d.login, d.perfil, d.email, d.telefone);
+  });
+});
 </script>
 {% endblock %}

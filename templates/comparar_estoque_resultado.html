@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block page_title %}Resultado da Comparação{% endblock %}
+{% block title %}Resultado · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Resultado — {{ 'Estoque' if modo == 'estoque' else 'Vendas' }}</h1>
+    <p class="page-sub">
+      Ficheiro: <strong>{{ nome_ficheiro }}</strong>
+      {% if modo == 'vendas' and data_ini %}
+        · Período: {{ data_ini }} a {{ data_fim }}
+      {% endif %}
+    </p>
+  </div>
+  <div class="header-actions no-print">
+    <a href="{{ url_for('comparar_estoque_exportar', comp_id=comp_id, formato='pdf') }}"
+       class="btn btn-secondary">⬇ PDF</a>
+    <a href="{{ url_for('comparar_estoque_exportar', comp_id=comp_id, formato='excel') }}"
+       class="btn btn-secondary">⬇ Excel</a>
+    <a href="{{ url_for('comparar_estoque') }}" class="btn btn-ghost">↻ Nova comparação</a>
+  </div>
+</div>
+
+<div class="cards-grid">
+  <div class="stat-card">
+    <span class="stat-label">Linhas no ficheiro</span>
+    <span class="stat-value">{{ total_ficheiro }}</span>
+  </div>
+  <div class="stat-card accent-good">
+    <span class="stat-label">Encontrados no sistema</span>
+    <span class="stat-value">{{ total_encontrados }}</span>
+  </div>
+  <div class="stat-card {{ 'accent-amber' if total_divergencias > 0 else 'accent-good' }}">
+    <span class="stat-label">Com divergência</span>
+    <span class="stat-value">{{ total_divergencias }}</span>
+  </div>
+  <div class="stat-card {{ 'accent-amber' if total_nao_encontrados > 0 else '' }}">
+    <span class="stat-label">Não encontrados</span>
+    <span class="stat-value">{{ total_nao_encontrados }}</span>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Produtos encontrados ({{ encontrados|length }})</h3>
+  <p class="muted">Diferença = quantidade do ficheiro − quantidade do sistema.</p>
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Produto (sistema)</th>
+        <th>Código</th>
+        <th>Unid.</th>
+        <th class="num-right">Qtd. Ficheiro</th>
+        <th class="num-right">
+          {% if modo == 'vendas' %}Qtd. Vendida (Sistema){% else %}Qtd. Atual (Sistema){% endif %}
+        </th>
+        <th class="num-right">Diferença</th>
+        <th class="num-right">Similaridade</th>
+        <th>Texto no ficheiro</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in encontrados %}
+      <tr>
+        <td><strong>{{ r.nome_sistema }}</strong></td>
+        <td class="mono">{{ r.codigo }}</td>
+        <td>{{ r.unidade }}</td>
+        <td class="num-right">{{ "%.2f"|format(r.quantidade_ficheiro) }}</td>
+        <td class="num-right">{{ "%.2f"|format(r.saldo_sistema) }}</td>
+        <td class="num-right">
+          {% if r.diferenca|abs < 0.001 %}
+            <span class="text-success">0.00</span>
+          {% elif r.diferenca > 0 %}
+            <strong class="text-warn">+{{ "%.2f"|format(r.diferenca) }}</strong>
+          {% else %}
+            <strong class="text-danger">{{ "%.2f"|format(r.diferenca) }}</strong>
+          {% endif %}
+        </td>
+        <td class="num-right muted">{{ r.similaridade }}%</td>
+        <td class="muted" style="font-size:12px">{{ r.nome_ficheiro }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="empty-hint">Nenhum produto cruzado.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if nao_encontrados %}
+<div class="panel" style="margin-top:16px">
+  <h3>Produtos no ficheiro mas não no sistema ({{ nao_encontrados|length }})</h3>
+  <p class="muted">Nenhum produto activo ficou acima do limiar de 65% de similaridade.</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Texto no ficheiro</th>
+        <th class="num-right">Quantidade</th>
+        <th class="num-right">Melhor similaridade</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in nao_encontrados %}
+      <tr>
+        <td>{{ r.nome_ficheiro }}</td>
+        <td class="num-right">{{ "%.2f"|format(r.quantidade_ficheiro) }}</td>
+        <td class="num-right muted">{{ r.melhor_score }}%</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

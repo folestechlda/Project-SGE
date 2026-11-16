@@ -11,7 +11,6 @@
 
 <div class="panel form-panel">
   <form method="POST" enctype="multipart/form-data" class="config-sections">
-
     <!-- Cartão 1: Dados da Empresa -->
     <div class="config-card">
       <div class="config-card-header">
@@ -21,44 +20,37 @@
       <div class="config-card-body">
         <div class="grid-form">
           <label class="span-2">Nome da empresa *
-            <input type="text" name="nome_empresa" required value="{{ config.nome_empresa }}"
-                   placeholder="Nome da sua empresa">
+            <input type="text" name="nome_empresa" required value="{{ config.nome_empresa }}" placeholder="Nome da sua empresa">
             <span class="hint">Aparecerá em todos os relatórios, PDF, Excel e no painel após primeira configuração.</span>
           </label>
           <label class="span-2">Morada / Endereço
-            <input type="text" name="morada_empresa" value="{{ config.morada_empresa }}"
-                   placeholder="Rua, número, bairro, cidade">
+            <input type="text" name="morada_empresa" value="{{ config.morada_empresa }}" placeholder="Rua, número, bairro, cidade">
           </label>
           <label>NUIT (Nº de Identificação Fiscal)
-            <input type="text" name="nuit_empresa" maxlength="20" value="{{ config.nuit_empresa }}"
-                   placeholder="Ex.: 123456789">
+            <input type="text" name="nuit_empresa" maxlength="20" value="{{ config.nuit_empresa }}" placeholder="Ex.: 123456789">
           </label>
           <label>Contacto telefónico
-            <input type="text" name="contacto_empresa" maxlength="30" value="{{ config.contacto_empresa }}"
-                   placeholder="Ex.: +258 84 000 0000">
+            <input type="text" name="contacto_empresa" maxlength="30" value="{{ config.contacto_empresa }}" placeholder="Ex.: +258 84 000 0000">
           </label>
           <label class="span-2">Email da empresa
-            <input type="email" name="email_empresa" value="{{ config.email_empresa }}"
-                   placeholder="geral@empresa.co.mz">
+            <input type="email" name="email_empresa" value="{{ config.email_empresa }}" placeholder="geral@empresa.co.mz">
           </label>
           <label class="span-2">Logo da empresa
             <div class="logo-preview-box">
               {% if logo_url %}
-                <img src="{{ logo_url }}" alt="Logo" class="logo-preview-img">
+                <img src="{{ logo_url }}" alt="Logo" class="logo-preview-img" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=&quot;logo-placeholder&quot;>Falha ao carregar<br>(reenvie o logo)</div>');">
               {% else %}
                 <div class="logo-placeholder">Sem logo<br>(PNG/JPG/GIF, máx. 4MB)</div>
               {% endif %}
               <div class="logo-actions">
-                <input type="file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp">
+                <input type="file" name="logo_arquivo" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp">
                 {% if logo_url %}
                 <label class="checkbox-label" style="margin-top:8px">
                   <input type="checkbox" name="remover_logo" value="1">
                   Remover logótipo actual
                 </label>
                 {% endif %}
-                <span class="hint">
-                  Recomendado: PNG transparente, tamanho quadrado. A imagem será usada no cabeçalho de todos os relatórios impressos.
-                </span>
+                <span class="hint">Recomendado: PNG transparente, tamanho quadrado. A imagem será usada no cabeçalho de todos os relatórios impressos.</span>
               </div>
             </div>
           </label>
@@ -81,7 +73,13 @@
             <select name="metodo_custeio">
               <option value="media_ponderada" {{ 'selected' if config.metodo_custeio=='media_ponderada' }}>Média Ponderada Móvel</option>
               <option value="ultimo_preco" {{ 'selected' if config.metodo_custeio=='ultimo_preco' }}>Último Preço</option>
+              <option value="manual" {{ 'selected' if config.metodo_custeio=='manual' }}>Custo Fixo (definido manualmente no produto)</option>
             </select>
+            <span class="hint">
+              <b>Média Ponderada:</b> recalcula o custo a cada entrada.<br>
+              <b>Último Preço:</b> usa o preço da entrada mais recente.<br>
+              <b>Custo Fixo:</b> o custo só muda quando o editar no cadastro do produto — as entradas não o alteram.
+            </span>
           </label>
           <label>Dias de antecedência p/ alerta de validade
             <input type="number" min="1" name="dias_alerta_validade" value="{{ config.dias_alerta_validade }}">
@@ -111,6 +109,69 @@
       </div>
     </div>
 
+    <!-- Cartão: Documentos Fiscais / Fatura -->
+    <div class="config-card">
+      <div class="config-card-header">
+        <div class="card-icon">🧾</div>
+        <h3>Documentos Fiscais / Fatura</h3>
+      </div>
+      <div class="config-card-body">
+        <div class="grid-form">
+          <label>Tipo do documento
+            <input type="text" name="tipo_documento" maxlength="40" value="{{ config.tipo_documento }}" placeholder="Factura">
+          </label>
+          <label>Série da fatura
+            <input type="text" name="serie_fatura" maxlength="6" value="{{ config.serie_fatura }}" placeholder="FT">
+          </label>
+          <label>Próximo nº sequencial
+            <input type="number" min="1" name="proximo_num_fatura" value="{{ config.proximo_num_fatura }}">
+            <span class="hint">Ex.: 1 → gera <code>FT 2026/00001</code></span>
+          </label>
+          <label>Condições de pagamento padrão
+            <input type="text" name="condicoes_pagamento_padrao" maxlength="40" value="{{ config.condicoes_pagamento_padrao }}" placeholder="30 dias">
+          </label>
+          <label>Câmbio padrão
+            <input type="text" name="cambio_padrao" maxlength="20" value="{{ config.cambio_padrao }}" placeholder="0,00">
+          </label>
+          <label>Moeda do câmbio
+            <input type="text" name="moeda_cambio" maxlength="6" value="{{ config.moeda_cambio }}" placeholder="USD">
+          </label>
+          <label>Taxa de IVA padrão (%)
+            <input type="number" step="0.01" min="0" max="100" name="taxa_iva_padrao" value="{{ config.taxa_iva_padrao }}">
+          </label>
+          <label>Regime de IVA
+            <select name="regime_iva">
+              <option value="Regime Geral" {{ 'selected' if config.regime_iva=='Regime Geral' }}>Regime Geral</option>
+              <option value="Regime Simplificado" {{ 'selected' if config.regime_iva=='Regime Simplificado' }}>Regime Simplificado</option>
+              <option value="Isento" {{ 'selected' if config.regime_iva=='Isento' }}>Isento</option>
+            </select>
+          </label>
+          <label class="span-2">Motivo de isenção (aparece no "Quadro Resumo de Impostos")
+            <input type="text" name="motivo_isencao_iva" maxlength="120" value="{{ config.motivo_isencao_iva }}">
+          </label>
+          <label class="span-2">Texto legal do rodapé
+            <textarea name="texto_rodape_fatura" rows="2">{{ config.texto_rodape_fatura }}</textarea>
+          </label>
+        </div>
+
+        <h4 style="margin-top:18px">Coordenadas Bancárias</h4>
+        <div class="grid-form">
+          <label>Nome do banco
+            <input type="text" name="banco_nome" maxlength="40" value="{{ config.banco_nome }}" placeholder="Ex.: BAI">
+          </label>
+          <label>Nº Conta
+            <input type="text" name="numero_conta" maxlength="40" value="{{ config.numero_conta }}">
+          </label>
+          <label>IBAN
+            <input type="text" name="iban_empresa" maxlength="60" value="{{ config.iban_empresa }}">
+          </label>
+          <label>NIB
+            <input type="text" name="nib_empresa" maxlength="40" value="{{ config.nib_empresa }}">
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Cartão 3: Segurança -->
     <div class="config-card">
       <div class="config-card-header">
@@ -119,15 +180,11 @@
       </div>
       <div class="config-card-body">
         <p class="hint-security" style="margin-bottom:16px">
-          <strong>Protecção adicional:</strong> este código será exigido SEMPRE que um produto cadastrado seja editado
-          (actualização de preços, quantidades por embalagem, etc.). Fornecido uma vez ao Administrador e poderá
-          ser renovado nesta tela a qualquer momento.
+          <strong>Protecção adicional:</strong> este código será exigido SEMPRE que um produto cadastrado seja editado (actualização de preços, quantidades por embalagem, etc.). Fornecido uma vez ao Administrador e poderá ser renovado nesta tela a qualquer momento.
         </p>
         <div class="grid-form">
           <label class="span-2">Código de segurança p/ actualização de produtos
-            <input type="password" name="codigo_alteracao_produto"
-                   autocomplete="new-password"
-                   placeholder="{{ '•••••••• (definido)' if config.codigo_alteracao_produto else 'Digite um código forte' }}">
+            <input type="password" name="codigo_alteracao_produto" autocomplete="new-password" placeholder="{{ '•••••••• (definido)' if config.codigo_alteracao_produto else 'Digite um código forte' }}">
             <span class="hint">Deixe em branco para manter o código actual. Para o desativar, marque a opção abaixo.</span>
           </label>
           {% if config.codigo_alteracao_produto %}
@@ -156,10 +213,30 @@
     <div class="form-actions" style="flex-wrap:wrap">
       <a href="{{ url_for('configuracoes_backup') }}" class="btn btn-secondary">⬇ Baixar backup actual</a>
       <form method="POST" action="{{ url_for('configuracoes_restaurar') }}" enctype="multipart/form-data" class="inline-form"
-            onsubmit="return confirm('⚠️ A restauração irá substituir TODOS os dados actuais. Deseja continuar?');">
+            data-confirmar="A restauração irá substituir TODOS os dados actuais. Deseja continuar?"
+            data-confirmar-tipo="erro"
+            data-confirmar-ok="Restaurar">
         <input type="file" name="arquivo_backup" accept=".db,.sqlite,.sqlite3" required>
         <button type="submit" class="btn btn-ghost">↺ Restaurar backup</button>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Cartão separado: Zona de Perigo (NOVO) -->
+<div class="config-card" style="border: 1px solid var(--perigo); margin-top: 16px;">
+  <div class="config-card-header" style="background: #FFFBF9;">
+    <div class="card-icon">⚠️</div>
+    <h3 style="color: var(--perigo);">Zona de Perigo</h3>
+  </div>
+  <div class="config-card-body">
+    <p class="hint-security" style="color: var(--perigo); margin-bottom: 16px;">
+      Operações irreversíveis na base de dados. Um backup automático será gerado antes.
+    </p>
+    <div class="form-actions">
+      <a href="{{ url_for('configuracoes_formatar') }}" class="btn btn-danger">
+        🗑 Formatar / Limpar Base de Dados
+      </a>
     </div>
   </div>
 </div>

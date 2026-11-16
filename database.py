@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
-<<<<<<< HEAD
 """Módulo database: definição do schema SQLite e funções de acesso."""
-=======
-"""Módulo database: definição do schema SQLite e funções de acesso.
-
-Contém a definição do esquema (SCHEMA), inicialização do banco de dados
-(init_db), utilitários para obter/definir configurações, e abstrações de
-conexão com o ficheiro de base de dados embutido. Usado como camada de
-persistência pelo restante da aplicação.
-"""
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 import sqlite3
 import os
 import sys
@@ -21,11 +11,27 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
-DB_PATH = os.path.join(get_base_dir(), "dados", "estoque.db")
+# SGE_DATA_DIR permite apontar a base de dados para outra pasta (testes, instalações).
+DB_PATH = os.path.join(os.environ.get("SGE_DATA_DIR") or os.path.join(get_base_dir(), "dados"),
+                       "estoque.db")
+ 
+
+def copiar_base_dados(destino):
+    """Cópia consistente da base de dados usando a API de backup do SQLite
+    (seguro mesmo com a base em uso/WAL, ao contrário de copiar o ficheiro)."""
+    origem = sqlite3.connect(DB_PATH)
+    try:
+        dest = sqlite3.connect(destino)
+        try:
+            origem.backup(dest)
+        finally:
+            dest.close()
+    finally:
+        origem.close()
+    return destino
 
 def get_conn():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-<<<<<<< HEAD
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
@@ -37,11 +43,6 @@ def get_conn():
         pass
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA synchronous = NORMAL")
-=======
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     return conn
 
 SCHEMA = """
@@ -89,13 +90,8 @@ CREATE TABLE IF NOT EXISTS movimentos (
     tipo TEXT NOT NULL CHECK (tipo IN ('Entrada','Saida')),
     id_produto INTEGER NOT NULL,
     data_hora TEXT NOT NULL,
-<<<<<<< HEAD
     quantidade INTEGER NOT NULL,
     quantidade_original INTEGER NOT NULL,
-=======
-    quantidade INTEGER NOT NULL,             -- quantidade na unidade base (inteira)
-    quantidade_original INTEGER NOT NULL,    -- quantidade na unidade original (inteira)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     unidade_original TEXT NOT NULL,
     preco_unitario REAL NOT NULL,
     valor_total REAL NOT NULL,
@@ -112,11 +108,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
 
 CREATE TABLE IF NOT EXISTS estoque (
     id_produto INTEGER PRIMARY KEY,
-<<<<<<< HEAD
     saldo_atual INTEGER NOT NULL DEFAULT 0,
-=======
-    saldo_atual INTEGER NOT NULL DEFAULT 0,   -- quantidade inteira
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     ultima_atualizacao TEXT,
     FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
 );
@@ -167,10 +159,6 @@ CREATE TABLE IF NOT EXISTS codigos_provisorios (
     data_criacao TEXT NOT NULL
 );
 
-<<<<<<< HEAD
-=======
--- Tabelas para cotações
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 CREATE TABLE IF NOT EXISTS cotacoes (
     id_cotacao INTEGER PRIMARY KEY AUTOINCREMENT,
     numero TEXT NOT NULL UNIQUE,
@@ -199,7 +187,6 @@ CREATE TABLE IF NOT EXISTS itens_cotacao (
     FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
 );
 
-<<<<<<< HEAD
 CREATE INDEX IF NOT EXISTS idx_cotacoes_status ON cotacoes(status);
 
 CREATE TABLE IF NOT EXISTS contas_receber (
@@ -248,7 +235,8 @@ CREATE TABLE IF NOT EXISTS contas_receber_itens (
     FOREIGN KEY (id_movimento) REFERENCES movimentos(id_movimento),
     FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
 );
-    CREATE TABLE IF NOT EXISTS auditorias (
+
+CREATE TABLE IF NOT EXISTS auditorias (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT,
     data_inicio TEXT NOT NULL,
     data_fim TEXT NOT NULL,
@@ -318,6 +306,7 @@ CREATE TABLE IF NOT EXISTS auditoria_ajustes (
     FOREIGN KEY (id_produto) REFERENCES produtos(id_produto),
     FOREIGN KEY (id_usuario_aprovador) REFERENCES usuarios(id_usuario)
 );
+
 CREATE TABLE IF NOT EXISTS fechos_mensais (
     id_fecho INTEGER PRIMARY KEY AUTOINCREMENT,
     ano INTEGER NOT NULL,
@@ -348,19 +337,15 @@ CREATE TABLE IF NOT EXISTS fechos_mensais_itens (
 
 CREATE INDEX IF NOT EXISTS idx_fecho_ano_mes ON fechos_mensais(ano, mes);
 CREATE INDEX IF NOT EXISTS idx_fechoitens_fecho ON fechos_mensais_itens(id_fecho);
-
-CREATE INDEX IF NOT EXISTS idx_aud_estado ON auditorias(estado);
-CREATE INDEX IF NOT EXISTS idx_aud_data ON auditorias(data_inicio, data_fim);
+CREATE INDEX IF NOT EXISTS idxs_aud_estado ON auditorias(estado);
+CREATE INDEX IF NOT EXISTS idx_auditoria_data ON auditoria(data_hora);
+CREATE INDEX IF NOT EXISTS idx_auditorias_periodo ON auditorias(data_inicio, data_fim);
 CREATE INDEX IF NOT EXISTS idx_audcont_aud ON auditoria_contagens(id_auditoria);
 CREATE INDEX IF NOT EXISTS idx_auddiv_aud ON auditoria_divergencias(id_auditoria);
 CREATE INDEX IF NOT EXISTS idx_cri_conta ON contas_receber_itens(id_conta);
-
 CREATE INDEX IF NOT EXISTS idx_cr_status ON contas_receber(status);
 CREATE INDEX IF NOT EXISTS idx_cr_venc ON contas_receber(data_vencimento);
 CREATE INDEX IF NOT EXISTS idx_rec_conta ON recibos(id_conta);
-=======
--- Índices
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 CREATE INDEX IF NOT EXISTS idx_mov_data ON movimentos(data_hora);
 CREATE INDEX IF NOT EXISTS idx_mov_prod ON movimentos(id_produto);
 CREATE INDEX IF NOT EXISTS idx_aud_data ON auditoria(data_hora);
@@ -387,7 +372,6 @@ DEFAULT_CONFIG = {
     "max_tentativas_login": "5",
     "tempo_bloqueio_login_min": "5",
     "primeira_instalacao": "1",
-<<<<<<< HEAD
     # ---- Fatura ----
     "serie_fatura": "FT",
     "proximo_num_fatura": "1",
@@ -408,10 +392,6 @@ DEFAULT_CONFIG = {
     "numero_conta": "",
     "nib_empresa": "",
 }
-=======
-}
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 DEFAULT_CATEGORIAS = [
     ("Alimentos", "Produtos alimentícios em geral"),
     ("Bebidas", "Bebidas em geral"),
@@ -424,28 +404,20 @@ def init_db():
     cur = conn.cursor()
     cur.executescript(SCHEMA)
 
-<<<<<<< HEAD
     # Migração: colunas de usuarios
-=======
-    # Atualiza colunas existentes se necessário (migrações)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     cur.execute("PRAGMA table_info(usuarios)")
     cols = [c[1] for c in cur.fetchall()]
     for col in ["email", "telefone", "token_recuperacao", "token_expira"]:
         if col not in cols:
             cur.execute(f"ALTER TABLE usuarios ADD COLUMN {col} TEXT")
 
-<<<<<<< HEAD
     # Migração: colunas de inventarios
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     cur.execute("PRAGMA table_info(inventarios)")
     cols = [c[1] for c in cur.fetchall()]
     for col, tipo in [("exportado", "INTEGER DEFAULT 0"), ("valor_anterior", "INTEGER")]:
         if col not in cols:
             cur.execute(f"ALTER TABLE inventarios ADD COLUMN {col} {tipo}")
 
-<<<<<<< HEAD
     conn.commit()  # FIX: commit antes de PRAGMA foreign_keys
 
     # Migração: colunas de movimentos (data_vencimento, tipo_pagamento)
@@ -544,12 +516,6 @@ def init_db():
             cur.execute(f"ALTER TABLE contas_receber ADD COLUMN {col} {tipo}")
 
     # Cria utilizador admin se não existir
-=======
-    # Ajustar tipos de colunas se necessário (ex: quantidade para INTEGER)
-    # (Na prática, para SQLite, alterar tipo é complicado; recomenda-se recriar a tabela.
-    # Para este exemplo, assumimos que as tabelas já foram criadas com os tipos corretos.)
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     cur.execute("SELECT COUNT(*) AS c FROM usuarios")
     if cur.fetchone()["c"] == 0:
         cur.execute(
@@ -557,10 +523,7 @@ def init_db():
             ("Administrador", "admin", generate_password_hash("admin123"), "Admin"),
         )
 
-<<<<<<< HEAD
     # Cria categorias padrão
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     cur.execute("SELECT COUNT(*) AS c FROM categorias")
     if cur.fetchone()["c"] == 0:
         cur.executemany(
@@ -568,7 +531,6 @@ def init_db():
             DEFAULT_CATEGORIAS,
         )
 
-<<<<<<< HEAD
     # Configurações padrão
     for chave, valor in DEFAULT_CONFIG.items():
         cur.execute("SELECT COUNT(*) AS c FROM configuracoes WHERE chave=?", (chave,))
@@ -578,18 +540,6 @@ def init_db():
     conn.commit()
     conn.close()
     
-=======
-    for chave, valor in DEFAULT_CONFIG.items():
-        cur.execute("SELECT COUNT(*) AS c FROM configuracoes WHERE chave=?", (chave,))
-        if cur.fetchone()["c"] == 0:
-            cur.execute(
-                "INSERT INTO configuracoes (chave, valor) VALUES (?,?)", (chave, valor)
-            )
-
-    conn.commit()
-    conn.close()
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 def get_config(chave, default=None):
     conn = get_conn()
     row = conn.execute("SELECT valor FROM configuracoes WHERE chave=?", (chave,)).fetchone()
@@ -615,7 +565,6 @@ def get_company_info():
         "contacto": get_config("contacto_empresa", ""),
         "email": get_config("email_empresa", ""),
         "moeda": get_config("moeda", "MZN"),
-<<<<<<< HEAD
         "serie_fatura": get_config("serie_fatura", "FT"),
         "proximo_num_fatura": get_config("proximo_num_fatura", "1"),
         "tipo_documento": get_config("tipo_documento", "Factura"),
@@ -631,8 +580,6 @@ def get_company_info():
         "iban": get_config("iban_empresa", ""),
         "numero_conta": get_config("numero_conta", ""),
         "nib": get_config("nib_empresa", ""),
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     }
 
 def registrar_auditoria(conn, id_usuario, tabela, id_registro, acao, dados_anteriores=None, dados_novos=None, ip_address=None):
@@ -642,12 +589,7 @@ def registrar_auditoria(conn, id_usuario, tabela, id_registro, acao, dados_anter
            (id_usuario, tabela, id_registro, acao, dados_anteriores, dados_novos, data_hora, ip_address)
            VALUES (?,?,?,?,?,?,?,?)""",
         (id_usuario, tabela, id_registro, acao,
-<<<<<<< HEAD
          json.dumps(dados_anteriores, ensure_ascii=False, default=str) if dados_anteriores is not None else None,
          json.dumps(dados_novos, ensure_ascii=False, default=str) if dados_novos is not None else None,
-=======
-         json.dumps(dados_anteriores, ensure_ascii=False) if dados_anteriores is not None else None,
-         json.dumps(dados_novos, ensure_ascii=False) if dados_novos is not None else None,
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
          datetime.now().isoformat(timespec="seconds"), ip_address),
     )

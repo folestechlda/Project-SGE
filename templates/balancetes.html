@@ -3,7 +3,7 @@
 {% block title %}Balancetes & Extratos · {{ app_name }}{% endblock %}
 {% block content %}
 
-{# Cabeçalho para impressão (company header) #}
+{# Cabeçalho para impressão #}
 <div class="print-only">
   <div class="report-header-block">
     <div class="empresa-linha">{{ empresa.nome or app_name }}</div>
@@ -21,9 +21,7 @@
 <div class="page-header">
   <div>
     <h1>Balancetes & Extratos</h1>
-    <p class="page-sub">
-      Balancete mensal, trimestral e anual.
-    </p>
+    <p class="page-sub">Balancete mensal, trimestral, anual ou extracto por produto/categoria.</p>
   </div>
 </div>
 
@@ -43,6 +41,9 @@
       <label class="radio-option {{ 'active' if tipo=='extrato_cat' }}">
         <input type="radio" name="tipo" value="extrato_cat" {{ 'checked' if tipo=='extrato_cat' }} onchange="this.form.submit()">Extrato categoria
       </label>
+      <label class="radio-option {{ 'active' if tipo=='extrato_prod' }}">
+        <input type="radio" name="tipo" value="extrato_prod" {{ 'checked' if tipo=='extrato_prod' }} onchange="this.form.submit()">Extrato produto
+      </label>
     </div>
   </label>
 </form>
@@ -56,39 +57,53 @@
   <label>Data fim
     <input type="date" name="data_fim" value="{{ data_fim or '' }}" required>
   </label>
+
   {% if tipo == 'extrato_cat' %}
-  <label>Categoria *
-    <select name="categoria_id" required>
-      <option value="">Seleccione...</option>
-      {% for c in categorias %}
-      <option value="{{ c.id_categoria }}" {{ 'selected' if categoria_id==c.id_categoria }}>{{ c.nome }}</option>
-      {% endfor %}
-    </select>
-  </label>
+    <label>Categoria *
+      <select name="categoria_id" required>
+        <option value="">Seleccione...</option>
+        {% for c in categorias %}
+        <option value="{{ c.id_categoria }}" {{ 'selected' if categoria_id==c.id_categoria }}>{{ c.nome }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+  {% elif tipo == 'extrato_prod' %}
+    <label>Produto *
+      <select name="id_produto" required>
+        <option value="">Seleccione...</option>
+        {% for p in todos_produtos %}
+        <option value="{{ p.id_produto }}" {{ 'selected' if id_produto==p.id_produto }}>{{ p.codigo }} · {{ p.nome }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
   {% else %}
-  <label>Categoria
-    <select name="categoria_id">
-      <option value="">Todas</option>
-      {% for c in categorias %}
-      <option value="{{ c.id_categoria }}" {{ 'selected' if categoria_id==c.id_categoria }}>{{ c.nome }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>Produto (opcional)
-    <select name="id_produto">
-      <option value="">Todos</option>
-      {% for p in todos_produtos %}
-      <option value="{{ p.id_produto }}" {{ 'selected' if id_produto==p.id_produto }}>{{ p.codigo }} · {{ p.nome }}</option>
-      {% endfor %}
-    </select>
-  </label>
+    <label>Categoria
+      <select name="categoria_id">
+        <option value="">Todas</option>
+        {% for c in categorias %}
+        <option value="{{ c.id_categoria }}" {{ 'selected' if categoria_id==c.id_categoria }}>{{ c.nome }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Produto (opcional)
+      <select name="id_produto">
+        <option value="">Todos</option>
+        {% for p in todos_produtos %}
+        <option value="{{ p.id_produto }}" {{ 'selected' if id_produto==p.id_produto }}>{{ p.codigo }} · {{ p.nome }}</option>
+        {% endfor %}
+      </select>
+    </label>
   {% endif %}
+
   <button type="submit" class="btn btn-secondary">Actualizar</button>
   <a href="{{ url_for('balancetes') }}" class="btn btn-ghost">Limpar</a>
 </form>
 
 {# Conteúdo principal #}
 {% if linhas %}
+
 <div class="report-toolbar no-print">
   <span class="muted">
     Período: <strong>{{ data_ini }}</strong> até <strong>{{ data_fim }}</strong>
@@ -103,7 +118,9 @@
   </div>
 </div>
 
-{# Extrato de Categoria (modo movimento cronológico com saldo acumulado) #}
+{# ============================================================ #}
+{# EXTRATO DE CATEGORIA (movimento-a-movimento) #}
+{# ============================================================ #}
 {% if tipo == 'extrato_cat' %}
 <div class="panel">
   <h3>Extrato — {{ categoria_nome }}
@@ -132,8 +149,8 @@
           {% else %}<span class="tag tag-warn">Saída (Crédito)</span>{% endif %}
         </td>
         <td>{{ l.codigo }}</td>
-        <td>{{ l.produto }} <span class="muted">({{ l.codigo }})</span></td>
-        <td class="num-right">{{ l.quantidade }}</td>  {# inteiro #}
+        <td>{{ l.produto }}</td>
+        <td class="num-right">{{ l.quantidade }}</td>
         <td>{{ l.unidade }}</td>
         <td class="num-right">{{ "%.2f"|format(l.preco_unitario or 0) }}</td>
         <td class="num-right"><strong>{{ "%.2f"|format(l.valor_total or 0) }}</strong></td>
@@ -146,7 +163,7 @@
       <td class="num-right"><strong>{{ totais.subtotais.qtd_entradas + totais.subtotais.qtd_saidas }}</strong></td>
       <td></td>
       <td class="num-right"><strong>{{ "%.2f"|format(totais.subtotais.valor_entradas + totais.subtotais.valor_saidas) }}</strong></td>
-      <td class="num-right"><strong>{{ totais.saldo_acumulado_final }}</strong></td>
+      <td class="num-right"><strong>{{ totais.subtotais.qtd_saldo }}</strong></td>
     </tr>
   </table>
   {% if totais.subtotais %}
@@ -176,7 +193,102 @@
   {% endif %}
 </div>
 
-{# Balancete (mensal/trimestral/anual) — por produto #}
+{# ============================================================ #}
+{# EXTRATO DE PRODUTO (movimento-a-movimento com saldo) #}
+{# ============================================================ #}
+{% elif tipo == 'extrato_prod' %}
+<div class="panel">
+  <h3>Extrato do Produto — {{ extrato_produto.nome if extrato_produto else '—' }}
+    {% if extrato_produto %}
+    <span class="muted" style="font-size:12px;font-weight:normal">
+      ({{ extrato_produto.codigo }} · {{ extrato_produto.unidade }})
+      · de {{ data_ini }} até {{ data_fim }}
+    </span>
+    {% endif %}
+  </h3>
+
+  {% if extrato_resumo %}
+  <div class="cards-grid" style="margin-bottom:16px">
+    <div class="stat-card">
+      <span class="stat-label">Saldo inicial</span>
+      <span class="stat-value">{{ extrato_resumo.saldo_inicial|format_num(3) }}</span>
+    </div>
+    <div class="stat-card accent-good">
+      <span class="stat-label">Comprado</span>
+      <span class="stat-value">{{ extrato_resumo.qtd_comprada|format_num(3) }}</span>
+      <span class="hint">{{ extrato_resumo.valor_comprado|format_currency }}</span>
+    </div>
+    <div class="stat-card accent-amber">
+      <span class="stat-label">Vendido</span>
+      <span class="stat-value">{{ extrato_resumo.qtd_vendida|format_num(3) }}</span>
+      <span class="hint">{{ extrato_resumo.valor_vendido|format_currency }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Lucro do período</span>
+      <span class="stat-value">{{ extrato_resumo.lucro_periodo|format_currency }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Saldo final</span>
+      <span class="stat-value">{{ extrato_resumo.saldo_final|format_num(3) }}</span>
+      <span class="hint">{{ extrato_resumo.n_movimentos }} movimento(s)</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Data/Hora</th>
+        <th>Tipo</th>
+        <th>Doc.</th>
+        <th class="num-right">Qtd. Orig.</th>
+        <th>Unid.</th>
+        <th class="num-right">Qtd. Base</th>
+        <th class="num-right">Preço Unit.</th>
+        <th class="num-right">Valor Total</th>
+        <th class="num-right">Lucro</th>
+        <th class="num-right">Saldo Acum.</th>
+        <th>Forn./Cli.</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for l in linhas %}
+      <tr>
+        <td class="mono">{{ l.data_hora }}</td>
+        <td>
+          {% if l.tipo == 'Entrada' %}<span class="tag tag-good">Entrada</span>
+          {% else %}<span class="tag tag-warn">Saída</span>{% endif %}
+        </td>
+        <td class="mono">{{ l.documento or '—' }}</td>
+        <td class="num-right">
+          {% if l.unidade_original == 'kg' %}
+            {{ l.quantidade_original|format_num(3) }}
+          {% else %}
+            {{ l.quantidade_original|format_num(0) }}
+          {% endif %}
+        </td>
+        <td>{{ l.unidade_original }}</td>
+        <td class="num-right">{{ l.quantidade_base|format_num(3) }}</td>
+        <td class="num-right">{{ l.preco_unitario|format_currency }}</td>
+        <td class="num-right"><strong>{{ l.valor_total|format_currency }}</strong></td>
+        <td class="num-right text-success">
+          {{ l.lucro|format_currency if l.tipo == 'Saida' else '—' }}
+        </td>
+        <td class="num-right"><strong>{{ l.saldo_acumulado|format_num(3) }}</strong></td>
+        <td class="muted">{{ l.terceiro or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="11" class="empty-hint">Sem movimentos do produto no período indicado.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{# ============================================================ #}
+{# BALANCETE AGREGADO (mensal/trimestral/anual) #}
+{# ============================================================ #}
 {% else %}
 <div class="panel">
   <h3>{{ titulo }}
@@ -235,7 +347,13 @@
 {% else %}
 <div class="panel">
   <p class="empty-hint" style="padding:40px">
-    Seleccione um período (datas de início e fim) e clique em "Actualizar" para gerar o balancete.
+    {% if tipo == 'extrato_prod' %}
+      Seleccione um produto e um período (datas de início e fim) e clique em "Actualizar" para ver o extracto.
+    {% elif tipo == 'extrato_cat' %}
+      Seleccione uma categoria e um período (datas de início e fim) e clique em "Actualizar" para ver o extracto.
+    {% else %}
+      Seleccione um período (datas de início e fim) e clique em "Actualizar" para gerar o balancete.
+    {% endif %}
   </p>
 </div>
 {% endif %}

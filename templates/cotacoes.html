@@ -56,7 +56,8 @@
         <td class="actions-cell">
           <a href="{{ url_for('cotacao_detalhe', id_cotacao=c.id_cotacao) }}" class="link-action">Ver</a>
           {% if c.status == 'Aberta' %}
-          <a href="{{ url_for('cotacao_detalhe', id_cotacao=c.id_cotacao) }}" class="link-action">Editar</a>
+          {# FIX: antes apontava para cotacao_detalhe; tem de ir para o FORM de edição. #}
+          <a href="{{ url_for('cotacao_editar', id_cotacao=c.id_cotacao) }}" class="link-action">Editar</a>
           {% endif %}
         </td>
       </tr>

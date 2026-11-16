@@ -1,13 +1,11 @@
-<<<<<<< HEAD
-; ============================================================================
+﻿; ============================================================================
 ; SGE — Sistema de Gestão de Estoque
-; Script do Inno Setup 6 para gerar o instalador Windows
 ; ============================================================================
 
 #define MyAppName        "SGE"
 #define MyAppFullName    "SGE — SERIES"
-#define MyAppVersion     "1.2.0"
-#define MyAppPublisher   "SGE"
+#define MyAppVersion     "1.3.4"
+#define MyAppPublisher   "Folestech, lda"
 #define MyAppURL         "http://localhost"
 #define MyAppExeName     "SGE.exe"
 #define MyInstallerName  "SGE_Setup_v" + MyAppVersion
@@ -39,13 +37,17 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=6.1sp1
 WizardStyle=modern
 
-#if FileExists("static\img\app.ico")
+CloseApplications=yes
+RestartApplications=no
+
+#if FileExists("static\img\favicon.ico")
+SetupIconFile=static\img\favicon.ico
+#elif FileExists("static\img\favicon.ico")
 SetupIconFile=static\img\favicon.ico
 #endif
 
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppFullName}
-
 ShowLanguageDialog=auto
 
 [Languages]
@@ -53,19 +55,43 @@ Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
 Name: "english";    MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon";    Description: "{cm:CreateDesktopIcon}";    GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
-; ============================================================================
-; FIX CRÍTICO: garante que utilizadores comuns podem escrever na pasta do app.
-; Sem isto, o app falha ao criar dados\estoque.db em C:\Program Files.
-; ============================================================================
 [Dirs]
-Name: "{app}";         Permissions: users-modify
-Name: "{app}\dados";   Permissions: users-modify
-Name: "{app}\backups"; Permissions: users-modify
+Name: "{app}";             Permissions: users-modify
+Name: "{app}\dados";       Permissions: users-modify
+Name: "{app}\backups";     Permissions: users-modify
+Name: "{app}\_codigo";     Permissions: users-modify
+Name: "{app}\_codigo\templates"; Permissions: users-modify
+Name: "{app}\_codigo\static";    Permissions: users-modify
+Name: "{app}\templates";   Permissions: users-modify
+Name: "{app}\static";      Permissions: users-modify
 
 [Files]
-Source: "dist\SGE\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 1. Ficheiros do PyInstaller
+Source: "dist\SGE\*"; DestDir: "{app}"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs; \
+    Excludes: "dados\*,backups\*,_codigo\*"
+
+; 2. Código-fonte para o launcher (pasta _codigo)
+Source: "app.py";           DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "services.py";      DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "database.py";      DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "reports.py";       DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "diagnostico.py";   DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "requirements.txt"; DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "templates\*"; DestDir: "{app}\_codigo\templates"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "static\*";    DestDir: "{app}\_codigo\static";    Flags: ignoreversion recursesubdirs createallsubdirs
+
+; 3. Cópia na raiz (para o launcher procurar diretamente)
+Source: "app.py";           DestDir: "{app}"; Flags: ignoreversion
+Source: "services.py";      DestDir: "{app}"; Flags: ignoreversion
+Source: "database.py";      DestDir: "{app}"; Flags: ignoreversion
+Source: "reports.py";       DestDir: "{app}"; Flags: ignoreversion
+Source: "diagnostico.py";   DestDir: "{app}"; Flags: ignoreversion
+Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "templates\*"; DestDir: "{app}\templates"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "static\*";    DestDir: "{app}\static";    Flags: ignoreversion recursesubdirs createallsubdirs
 
 #if FileExists("README.md")
 Source: "README.md";   DestDir: "{app}"; Flags: ignoreversion isreadme
@@ -85,12 +111,83 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [Registry]
 Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string; ValueName: "Version";     ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; Flags: dontcreatekey uninsdeletekey
+
+[UninstallDelete]
+Type: files;          Name: "{app}\app_errors.log"
+Type: files;          Name: "{app}\diagnostico.log"
+Type: files;          Name: "{app}\reset_log.txt"
+Type: files;          Name: "{app}\.secret_key"
+Type: filesandordirs; Name: "{app}\dados"
+Type: filesandordirs; Name: "{app}\backups"
+Type: filesandordirs; Name: "{app}\_codigo"
+Type: files;          Name: "{app}\static\img\logo_empresa.png"
+Type: files;          Name: "{app}\static\img\logo_empresa.jpg"
+Type: files;          Name: "{app}\static\img\logo_empresa.jpeg"
+Type: files;          Name: "{app}\static\img\logo_empresa.gif"
+Type: files;          Name: "{app}\static\img\logo_empresa.bmp"
+Type: files;          Name: "{app}\static\img\logo_empresa.webp"
+Type: filesandordirs; Name: "{app}"
 
 [Code]
-// ============================================================================
-// Garante que as pastas dados/ e backups/ existem após a instalação
-// ============================================================================
+
+// Auxiliar: mata SGE.exe se estiver a correr
+procedure MatarProcessoSGE();
+var
+  ResultCode, Tentativas: Integer;
+begin
+  for Tentativas := 1 to 3 do
+  begin
+    Exec('taskkill.exe', '/F /IM {#MyAppExeName} /T',
+         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if (ResultCode = 128) or (ResultCode = 1) then
+      Exit;
+    Sleep(1200);
+  end;
+end;
+
+// Auxiliar: oferece backup antes de desinstalar
+procedure OferecerBackupAntesDeDesinstalar();
+var
+  PastaDados, PastaBackup, NomeBackup: String;
+  ResultCode: Integer;
+begin
+  PastaDados := ExpandConstant('{app}\dados');
+  if not FileExists(PastaDados + '\estoque.db') then
+    Exit;
+
+  if MsgBox(
+       'Deseja guardar uma cópia dos dados (estoque.db) antes de remover o programa?'
+       + #13#10 + #13#10 +
+       'Escolha "Não" para remover TUDO definitivamente.',
+       mbConfirmation, MB_YESNO) <> IDYES then
+    Exit;
+
+  PastaBackup := '';
+  if not BrowseForFolder(
+       'Escolha a pasta onde guardar o backup',
+       PastaBackup,
+       False) then
+  begin
+    MsgBox('Backup cancelado.', mbInformation, MB_OK);
+    Exit;
+  end;
+
+  NomeBackup := PastaBackup + '\SGE_backup_' +
+    GetDateTimeString('yyyymmdd_hhnnss', '_', ':') + '.db';
+
+  Exec('cmd.exe',
+       '/C copy /Y "' + PastaDados + '\estoque.db" "' + NomeBackup + '"',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode = 0 then
+    MsgBox('Backup guardado em:' + #13#10 + NomeBackup, mbInformation, MB_OK)
+  else
+    MsgBox('Falha ao guardar o backup.', mbError, MB_OK);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -98,100 +195,35 @@ begin
       CreateDir(ExpandConstant('{app}\dados'));
     if not DirExists(ExpandConstant('{app}\backups')) then
       CreateDir(ExpandConstant('{app}\backups'));
+
+    Exec('attrib.exe',
+         '+H "' + ExpandConstant('{app}\_codigo') + '" /S /D',
+         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 end;
-=======
-; ============================================================
-; Script do Inno Setup — SGE · Sistema de Gestão de Estoque
-; Gera: SGE.Setup.exe (instalador do aplicativo)
-; ============================================================
 
-#define MyAppName "SGE"
-#define MyAppDisplayName "SGE — SERIES"
-#define MyAppVersion "2.0.0"
-#define MyAppPublisher "Folestechi industries, lda"
-#define MyAppExeName "SGE.exe"
-#define MyAppSetupName "SGE.Setup"
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
+  MatarProcessoSGE();
+  OferecerBackupAntesDeDesinstalar();
 
-[Setup]
-; NOTE: AppId único por aplicação — não altere depois do primeiro lançamento!
-AppId={{SGE-2024-7C3E-4E6D-9B2A-1F8A3D4E5C67}
-AppName={#MyAppName}
-AppVerName={#MyAppDisplayName} v{#MyAppVersion}
-AppVersion={#MyAppVersion}
-AppPublisher={#MyAppPublisher}
-AppComments={#MyAppDisplayName}
-VersionInfoVersion={#MyAppVersion}
-VersionInfoDescription={#MyAppDisplayName}
+  if MsgBox(
+       'Vai remover o SGE e TODOS os dados associados:' + #13#10 +
+       '  - Base de dados (estoque.db)' + #13#10 +
+       '  - Backups automáticos' + #13#10 +
+       '  - Logos e logs' + #13#10 +
+       '  - Configurações' + #13#10 + #13#10 +
+       'Esta acção NÃO PODE SER DESFEITA. Continuar?',
+       mbConfirmation, MB_YESNO) <> IDYES then
+    Result := False;
+end;
 
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppDisplayName}
-DisableProgramGroupPage=no
-
-OutputDir=installer_output
-OutputBaseFilename={#MyAppSetupName}
-
-Compression=lzma2/ultra
-SolidCompression=yes
-InternalCompressLevel=ultra
-ArchitecturesInstallIn64BitMode=x64compatible
-ArchitecturesAllowed=x64 x64compatible
-
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
-
-; ============================================================
-; CORREÇÃO: remova ou comente as linhas abaixo se o ícone não for válido
-; ============================================================
-;SetupIconFile=static\img\iconsetup.ico
-;UninstallDisplayIcon={app}\{#MyAppExeName}
-;WizardSmallImageFile=static\img\iconsetup.ico
-; ============================================================
-; Em vez disso, o instalador usará o ícone padrão do Inno Setup.
-; Se quiser usar um ícone personalizado, converta uma imagem para .ICO
-; válido (com resoluções 16x16, 32x32, 48x48, 64x64, 128x128) e descomente
-; as linhas acima, actualizando o caminho do ficheiro.
-; ============================================================
-
-AppMutex=SGE-APP-MUTEX-2024
-CloseApplications=yes
-RestartApplications=no
-
-[Languages]
-Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
-
-[Tasks]
-Name: "desktopicon"; Description: "Criar atalho no Ambiente de Trabalho"; GroupDescription: "Atalhos adicionais:"; Flags: unchecked
-Name: "startupicon"; Description: "Executar automaticamente ao iniciar sessão"; GroupDescription: "Arranque:"; Flags: unchecked
-
-[Dirs]
-Name: "{app}"; Permissions: users-full
-Name: "{app}\dados"; Permissions: users-full
-Name: "{app}\static\img"; Permissions: users-full
-
-[Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "dados\*"; DestDir: "{app}\dados"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "static\img\*"; DestDir: "{app}\static\img"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Registry]
-Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\{#MyAppName}"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"
-
-[Icons]
-Name: "{group}\{#MyAppDisplayName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
-Name: "{group}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: startupicon
-
-[Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Abrir {#MyAppDisplayName} agora"; Flags: nowait postinstall skipifsilent unchecked
-
-[UninstallDelete]
-; Remove dados apenas se o utilizador confirmar (opcional). Os databases ficam por defeito.
-; Type: filesandordirs; Name: "{app}\dados"
-
-[UninstallRun]
-; Garante que o SGE não fica em memória quando desinstalado.
-Filename: "taskkill"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden shellexec skipifdoesntexist
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    MatarProcessoSGE();
+    Sleep(800);
+  end;
+end;

@@ -17,8 +17,7 @@ GET /api/produtos/codigo-provisorio
 
 POST /api/shutdown
 - Descrição: encerra a aplicação (usado pelo botão "Sair e encerrar").
-- Autenticação: sim (qualquer utilizador autenticado pode chamar, mas a UI
-  oferece o botão apenas para Admin/Gerente)
+- Autenticação: sim — apenas perfis Admin e Gerente (a UI só mostra o botão a eles)
 - Resposta: {"ok": true}
 
 Exportações por URL (GET com query string)

@@ -33,11 +33,11 @@
 function validarSenhas() {
   var p1 = document.getElementById('novaSenha').value;
   var p2 = document.getElementById('confirmarSenha').value;
-  if (p1.length < 8) { alert('A senha deve ter pelo menos 8 caracteres.'); return false; }
-  if (!/[A-Za-z]/.test(p1)) { alert('A senha deve conter pelo menos uma letra.'); return false; }
-  if (!/\d/.test(p1)) { alert('A senha deve conter pelo menos um número.'); return false; }
-  if (!/[^A-Za-z0-9]/.test(p1)) { alert('A senha deve conter pelo menos um símbolo.'); return false; }
-  if (p1 !== p2) { alert('As senhas não coincidem.'); return false; }
+  if (p1.length < 8) { AppModal.erro('A senha deve ter pelo menos 8 caracteres.'); return false; }
+  if (!/[A-Za-z]/.test(p1)) { AppModal.erro('A senha deve conter pelo menos uma letra.'); return false; }
+  if (!/\d/.test(p1)) { AppModal.erro('A senha deve conter pelo menos um número.'); return false; }
+  if (!/[^A-Za-z0-9]/.test(p1)) { AppModal.erro('A senha deve conter pelo menos um símbolo.'); return false; }
+  if (p1 !== p2) { AppModal.erro('As senhas não coincidem.'); return false; }
   return true;
 }
 </script>

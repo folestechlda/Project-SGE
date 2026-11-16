@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block page_title %}Atualizações{% endblock %}
+{% block title %}Atualizações · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Atualizações do Sistema</h1>
+    <p class="page-sub">
+      Versão actual: <strong>{{ versao.version }}</strong>
+      {% if versao.build_date %} ({{ versao.build_date }}){% endif %}
+    </p>
+  </div> 
+</div>
+
+<div class="panel">
+  <h3>1. Selecionar pacote</h3>
+  <p class="muted">Formato aceite: <code>.sgeu</code>. Até 100 MB.</p>
+  <input type="file" id="inputPacote" accept=".sgeu">
+  <button id="btnValidar" class="btn btn-secondary" disabled>Validar pacote</button>
+  <div id="infoPacote" style="display:none;margin-top:16px"></div>
+</div>
+
+<div class="panel" id="painelAplicar" style="display:none">
+  <h3>2. Aplicar actualização</h3>
+  <p class="muted">
+    A aplicação vai reiniciar automaticamente. Guarde o trabalho em curso antes.
+  </p>
+  <div id="progressoWrap" style="display:none">
+    <div style="background:#e9ecef;border-radius:6px;height:24px;overflow:hidden;position:relative">
+      <div id="progressoBar" style="background:#2F5233;height:100%;width:0%;transition:width .3s"></div>
+      <div id="progressoTexto" style="position:absolute;inset:0;text-align:center;line-height:24px;font-size:12px;color:#fff;font-weight:600">0%</div>
+    </div>
+    <p class="muted" id="progressoDetalhe" style="margin-top:8px"></p>
+  </div>
+  <button id="btnAplicar" class="btn btn-primary">Instalar actualização</button>
+  <button id="btnCancelar" class="btn btn-ghost" style="margin-left:8px">Cancelar</button>
+</div>
+
+<script src="{{ url_for('static', filename='js/atualizacoes.js') }}"></script>
+{% endblock %}

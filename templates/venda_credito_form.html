@@ -115,6 +115,21 @@
 
 {% block scripts %}
 <script>
+// FIX: toggleIVA() passa a ser global (antes estava dentro de uma IIFE
+// e o `onchange="toggleIVA()"` do HTML nunca a encontrava).
+function toggleIVA() {
+  const chk = document.getElementById('chkIsento');
+  const inp = document.getElementById('inpTaxaIVA');
+  const lbl = document.getElementById('labelTaxaIVA');
+  if (chk.checked) {
+    inp.value = 0; inp.disabled = true;
+    lbl.style.opacity = '0.5';
+  } else {
+    inp.value = 16; inp.disabled = false;
+    lbl.style.opacity = '1';
+  }
+}
+
 (function() {
   const container = document.getElementById('itens-credito');
   const totalGeral = document.getElementById('total-geral');
@@ -180,7 +195,7 @@
         row.remove();
         calcularTotal();
       } else {
-        alert('A venda deve ter pelo menos um produto.');
+        AppModal.alert('A venda deve ter pelo menos um produto.');
       }
     });
   }
@@ -195,7 +210,6 @@
     nova.querySelector('.unidade-select').selectedIndex = 0;
     nova.querySelector('.preco-input').value = '';
     nova.querySelector('.subtotal-display').textContent = '0.00';
-    // Remover listeners antigos do botão remover
     const btnAntigo = nova.querySelector('.remover-linha');
     const btnNovo = btnAntigo.cloneNode(true);
     btnAntigo.parentNode.replaceChild(btnNovo, btnAntigo);
@@ -205,20 +219,6 @@
   });
 
   calcularTotal();
-
-  function toggleIVA() {
-  const chk = document.getElementById('chkIsento');
-  const inp = document.getElementById('inpTaxaIVA');
-  const lbl = document.getElementById('labelTaxaIVA');
-  if (chk.checked) {
-    inp.value = 0; inp.disabled = true;
-    lbl.style.opacity = '0.5';
-  } else {
-    inp.value = 16; inp.disabled = false;
-    lbl.style.opacity = '1';
-  }
-}
-
 })();
 </script>
 {% endblock %}

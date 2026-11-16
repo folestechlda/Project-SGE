@@ -10,7 +10,9 @@
 </div>
 
 <div class="panel form-panel">
-  <form method="POST" action="{{ url_for('produtos_salvar') }}" class="grid-form" id="formProduto">
+  <form method="POST" action="{{ url_for('produtos_salvar') }}" class="grid-form" id="formProduto"
+        data-novo="{{ '1' if not produto else '0' }}"
+        data-api-url="{{ url_for('api_codigo_provisorio') }}">
     <!-- Campos ocultos -->
     {% if produto %}
       <input type="hidden" name="id_produto" value="{{ produto.id_produto }}">
@@ -43,14 +45,20 @@
       </select>
     </label>
     <label>Unidade de medida *
-      <select name="unidade" id="unidade" required onchange="toggleQtdPorUnidade()">
-        <option value="Unidade" {{ 'selected' if produto and produto.unidade=='Unidade' }}>Unidade</option>
+      <select name="unidade" id="unidade" required>
+        <option value="Unidade" {{ 'selected' if produto and produto.unidade=='Unidade' }}>Unidade (peça)</option>
         <option value="Caixa" {{ 'selected' if produto and produto.unidade=='Caixa' }}>Caixa</option>
         <option value="Embalagem" {{ 'selected' if produto and produto.unidade=='Embalagem' }}>Embalagem</option>
+        <option value="kg" {{ 'selected' if produto and produto.unidade=='kg' }}>kg (Quilograma)</option>
       </select>
+      <span class="hint">
+        <b>kg</b>: quantidades decimais (ex.: 2,350 kg). Não usa "Qtd. por unidade".<br>
+        <b>Caixa/Embalagem</b>: exigem "Qtd. por unidade" &gt; 1.
+      </span>
     </label>
     <label id="campo-qtd-por-unidade">Qtd. de unidades por caixa/embalagem
-      <input type="number" name="qtd_por_unidade" min="1" step="1" value="{{ produto.qtd_por_unidade if produto else 1 }}">
+      <input type="number" name="qtd_por_unidade" id="inputQtdPorUnidade" min="1" step="1"
+             value="{{ produto.qtd_por_unidade if produto else 1 }}">
       <span class="hint" id="hint-qtd-por-unidade">Ex.: se 1 caixa tem 12 unidades, informe 12.</span>
     </label>
     <label>Preço de custo ({{ config.moeda }}) * <span class="hint">(5 casas decimais, arred. por excesso)</span>
@@ -60,10 +68,10 @@
       <input type="number" step="0.00001" min="0" name="preco_venda" required value="{{ produto.preco_venda if produto else '' }}">
     </label>
     <label>Estoque mínimo (unidades avulsas) *
-      <input type="number" step="0.00001" min="0" name="estoque_minimo" required value="{{ produto.estoque_minimo if produto else 0 }}">
+      <input type="number" step="1" min="0" name="estoque_minimo" required value="{{ produto.estoque_minimo if produto else 0 }}">
     </label>
     <label>Estoque máximo <span class="hint">(opcional)</span>
-      <input type="number" step="0.00001" min="0" name="estoque_maximo" value="{{ produto.estoque_maximo if produto and produto.estoque_maximo else '' }}">
+      <input type="number" step="1" min="0" name="estoque_maximo" value="{{ produto.estoque_maximo if produto and produto.estoque_maximo else '' }}">
     </label>
     <label>Validade <span class="hint">(opcional)</span>
       <input type="date" name="validade" value="{{ produto.validade if produto and produto.validade else '' }}">
@@ -90,7 +98,7 @@
     <div class="form-actions span-2">
       <button type="submit" class="btn btn-primary">Guardar Produto</button>
       {% if not produto and sessao_id %}
-        <button type="button" class="btn btn-ghost" onclick="cancelarNovoProduto()">Cancelar</button>
+        <button type="button" class="btn btn-ghost" id="btnCancelarNovo">Cancelar</button>
       {% else %}
         <a href="{{ url_for('produtos_list') }}" class="btn btn-ghost">Cancelar</a>
       {% endif %}
@@ -107,55 +115,49 @@
 {% endblock %}
 {% block scripts %}
 <script>
-function toggleQtdPorUnidade() {
-  const unidade = document.getElementById('unidade').value;
-  const campo = document.getElementById('campo-qtd-por-unidade');
-  const hint = document.getElementById('hint-qtd-por-unidade');
-  campo.style.display = (unidade === 'Unidade') ? 'none' : 'flex';
-  if (unidade === 'Caixa') {
-    hint.textContent = 'Ex.: se 1 caixa tem 12 unidades, informe 12.';
-  } else if (unidade === 'Embalagem') {
-    hint.textContent = 'Ex.: se 1 embalagem tem 24 unidades, informe 24.';
-  } else {
-    hint.textContent = 'Para unidade avulsa, o valor será considerado como 1.';
-  }
-}
-document.addEventListener('DOMContentLoaded', toggleQtdPorUnidade);
-
-{% if not produto %}
 (function(){
-  const inputNome = document.getElementById('inputNome');
-  const inputCodigo = document.getElementById('inputCodigo');
-  let ultimaChamada;
+  var pc = document.querySelector('input[name="preco_custo"]');
+  var pv = document.querySelector('input[name="preco_venda"]');
+  if (!pc || !pv) return;
 
-  inputNome.addEventListener('input', function(){
-    const valor = (inputNome.value || '').trim();
-    if (!valor) return;
-    clearTimeout(ultimaChamada);
-    ultimaChamada = setTimeout(function(){
-      fetch("{{ url_for('api_codigo_provisorio') }}", {
-        method: 'GET',
-        credentials: 'same-origin'
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(dados){
-        if (dados && dados.codigo) {
-          inputCodigo.value = dados.codigo;
-        }
-      })
-      .catch(function(){});
-    }, 250);
-  });
-})();
-{% endif %}
+  // Caixa de aviso inline
+  var aviso = document.createElement('div');
+  aviso.id = 'aviso-margem';
+  aviso.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;font-size:13px;display:none;';
+  pv.parentNode.appendChild(aviso);
 
-{% if not produto and sessao_id %}
-function cancelarNovoProduto() {
-  if (confirm('Cancelar o cadastro? O código provisório será liberado.')) {
-    document.getElementById('formCancelar').submit();
+  function atualizar() {
+    var c = parseFloat(pc.value) || 0;
+    var v = parseFloat(pv.value) || 0;
+    if (c <= 0 || v <= 0) {
+      aviso.style.display = 'none';
+      return;
+    }
+    var margem = ((v - c) / v) * 100;
+    aviso.style.display = 'block';
+
+    if (margem < 0) {
+      aviso.style.background = '#FADBD8';
+      aviso.style.color = '#8B1A0E';
+      aviso.innerHTML = '⚠️ <strong>MARGEM NEGATIVA (' +
+        margem.toFixed(1) + '%).</strong> O preço de venda é inferior ao custo. ' +
+        'Rever os valores antes de guardar.';
+    } else if (margem < 10) {
+      aviso.style.background = '#FFF8E1';
+      aviso.style.color = '#7A5C00';
+      aviso.innerHTML = '⚠️ Margem baixa (' + margem.toFixed(1) +
+        '%). Considere aumentar o preço.';
+    } else {
+      aviso.style.background = '#E4EEE1';
+      aviso.style.color = '#2F5233';
+      aviso.innerHTML = '✓ Margem: ' + margem.toFixed(1) + '%';
+    }
   }
-}
-{% endif %}
 
+  pc.addEventListener('input', atualizar);
+  pv.addEventListener('input', atualizar);
+  atualizar();
+})();
 </script>
+<script src="{{ url_for('static', filename='js/produto_form.js') }}"></script>
 {% endblock %}

@@ -5,13 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name }}{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+.page-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  gap: 10px !important;
+}
+.page-header > div:first-child { text-align: center !important; width: 100%; }
+.page-header h1 { text-align: center !important; margin-left: auto !important; margin-right: auto !important; }
+.page-header .page-sub { text-align: center !important; }
+.page-header .header-actions, .page-header form.inline-filters {
+  display: flex !important; justify-content: center !important;
+  align-items: center !important; flex-wrap: wrap !important; gap: 8px !important;
+}
+.top-header { justify-content: center !important; text-align: center !important; }
+.top-header .top-header-left { flex: 1 1 auto !important; text-align: center !important; }
+.top-header h2 { text-align: center !important; margin-left: auto !important; margin-right: auto !important; }
+.brand-logo { max-width: 48px !important; max-height: 48px !important; width: auto !important; height: auto !important; object-fit: contain !important; display: inline-block !important; }
+.logo-preview-img { max-width: 180px !important; max-height: 180px !important; width: auto !important; height: auto !important; object-fit: contain !important; display: block !important; margin: 0 auto !important; border: 1px solid #e0e0e0; border-radius: 6px; padding: 6px; background: #fff; }
+.logo-preview-box { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important; max-width: 320px; }
+.logo-preview-box input[type="file"] { max-width: 100%; }
+</style>
 </head>
 <body class="{{ 'no-auth' if not current_user.nome }}">
 {% if current_user.nome %}
 <div class="app-shell">
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark">◈</span>
+      {% if empresa.logo_url %}
+        <img src="{{ empresa.logo_url }}" alt="Logo" class="brand-logo" onerror="this.style.display='none';var s=this.nextElementSibling;if(s){s.style.display='inline-flex';}">
+        <span class="brand-mark" style="display:none">◈</span>
+      {% else %}
+        <span class="brand-mark">◈</span>
+      {% endif %}
       <div class="brand-text">
         <strong>{{ empresa.nome if empresa.nome else app_name }}</strong>
         <small>{{ 'Gestão de Estoque' if empresa.nome else 'Sistema de Gestão de Estoque' }}</small>
@@ -26,14 +54,22 @@
       <a href="{{ url_for('movimentos_list') }}" class="{{ 'active' if request.endpoint=='movimentos_list' }}">Movimentações</a>
       <a href="{{ url_for('estoque_list') }}" class="{{ 'active' if request.endpoint=='estoque_list' }}">Estoque Atual</a>
       <a href="{{ url_for('estoque_inventario') }}" class="{{ 'active' if request.endpoint=='estoque_inventario' }}">Inventário Físico</a>
+      <a href="{{ url_for('comparar_estoque') }}" class="{{ 'active' if request.endpoint=='comparar_estoque' }}">Comparar Estoque</a>
       <a href="{{ url_for('relatorios') }}" class="{{ 'active' if request.endpoint=='relatorios' }}">Relatórios</a>
-      <a href="{{ url_for('balancetes') }}" class="{{ 'active' if request.endpoint=='balancetes' }}">Balancetes & Extratos</a>
+      <a href="{{ url_for('balancetes') }}" class="{{ 'active' if request.endpoint=='balancetes' }}">Balancetes &amp; Extratos</a>
       <a href="{{ url_for('cotacoes_list') }}" class="{{ 'active' if request.endpoint=='cotacoes_list' }}">Cotações</a>
+      <a href="{{ url_for('contas_receber_list') }}" class="{{ 'active' if request.endpoint and 'conta_receber' in request.endpoint }}">Contas a Receber</a>
+      <a href="{{ url_for('venda_credito') }}" class="{{ 'active' if request.endpoint=='venda_credito' }}">Venda a Crédito</a>
+      <a href="{{ url_for('auditorias_list') }}" class="{{ 'active' if request.endpoint and 'auditoria' in request.endpoint }}">Auditorias</a>
+      <a href="{{ url_for('fechos_mensais_list') }}" class="{{ 'active' if request.endpoint and 'fecho' in request.endpoint }}">Fechos Mensais</a>
+      <a href="{{ url_for('perdas_list') }}" class="{{ 'active' if request.endpoint=='perdas_list' }}">Perdas</a>
       <a href="{{ url_for('trocar_senha') }}" class="{{ 'active' if request.endpoint=='trocar_senha' }}">Trocar Senha</a>
       {% if current_user.perfil == 'Admin' %}
       <div class="nav-divider">Administração</div>
       <a href="{{ url_for('usuarios_list') }}" class="{{ 'active' if request.endpoint=='usuarios_list' }}">Usuários</a>
       <a href="{{ url_for('configuracoes') }}" class="{{ 'active' if request.endpoint=='configuracoes' }}">Configurações</a>
+      <a href="{{ url_for('diagnostico_view') }}" class="{{ 'active' if request.endpoint=='diagnostico_view' }}">Diagnóstico</a>
+      <a href="{{ url_for('atualizacoes_view') }}" class="{{ 'active' if request.endpoint=='atualizacoes_view' }}">Actualizações</a>
       {% endif %}
     </nav>
     <div class="sidebar-footer">
@@ -57,14 +93,27 @@
       {% endif %}
       <h2>{% block page_title %}{% endblock %}</h2>
     </div>
-    <div class="top-header-right">
+    <div class="top-header-right" style="display: flex; gap: 8px; align-items: center;">
+      <button type="button" class="btn-shutdown" onclick="history.back()" title="Voltar à página anterior" style="background-color: #6c757d;">
+        ← Voltar
+      </button>
+      {% if current_user.perfil in ['Admin', 'Gerente'] %}
       <button type="button" class="btn-shutdown" onclick="sairEncerrarApp()" title="Fechar sessão e encerrar app">
         ⏻ Encerrar
       </button>
+      {% endif %}
     </div>
   </div>
 
   <main class="content">
+    {% if diagnostico and diagnostico.tem_alertas %}
+    <div class="flash flash-aviso" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span>⚠️ O diagnóstico automático detectou <strong>{{ diagnostico.contagens.values()|sum }}</strong> alerta(s) no sistema.</span>
+      {% if current_user.perfil in ['Admin','Gerente'] %}
+      <a href="{{ url_for('diagnostico_view') }}" class="btn btn-secondary" style="white-space:nowrap;padding:4px 10px;font-size:12px">Ver diagnóstico →</a>
+      {% endif %}
+    </div>
+    {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-stack">
@@ -72,6 +121,21 @@
           <div class="flash flash-{{ categoria }}">{{ msg }}</div>
         {% endfor %}
         </div>
+        <div id="flash-payload" data-flashes='{{ messages|tojson }}' style="display:none"></div>
+        <script>
+        (function(){
+          if (!window.AppModal) return;
+          var el = document.getElementById('flash-payload');
+          if (!el) return;
+          var msgs;
+          try { msgs = JSON.parse(el.dataset.flashes || '[]'); } catch (e) { msgs = []; }
+          msgs.forEach(function(m){
+            var cat = m[0], txt = m[1];
+            if (cat === 'erro' || cat === 'error')  window.AppModal.erro(txt);
+            else if (cat === 'aviso')               window.AppModal.aviso(txt);
+          });
+        })();
+        </script>
       {% endif %}
     {% endwith %}
     {% block content %}{% endblock %}
@@ -85,10 +149,26 @@
         <div class="flash flash-{{ categoria }}">{{ msg }}</div>
       {% endfor %}
       </div>
+      <div id="flash-payload" data-flashes='{{ messages|tojson }}' style="display:none"></div>
+      <script>
+      (function(){
+        if (!window.AppModal) return;
+        var el = document.getElementById('flash-payload');
+        if (!el) return;
+        var msgs;
+        try { msgs = JSON.parse(el.dataset.flashes || '[]'); } catch (e) { msgs = []; }
+        msgs.forEach(function(m){
+          var cat = m[0], txt = m[1];
+          if (cat === 'erro' || cat === 'error')  window.AppModal.erro(txt);
+          else if (cat === 'aviso')               window.AppModal.aviso(txt);
+        });
+      })();
+      </script>
     {% endif %}
   {% endwith %}
   {% block content_noauth %}{% endblock %}
 {% endif %}
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

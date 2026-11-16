@@ -3,11 +3,10 @@
 {% block title %}Contas a Receber · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-header">
-  <div>
-    <h1>Contas a Receber</h1>
-    <p class="page-sub">Vendas a crédito e liquidações</p>
+    <div class="header-actions">
+    <a href="{{ url_for('contas_receber_extrato_clientes') }}" class="btn btn-secondary">📊 Extrato por Cliente</a>
+    <a href="{{ url_for('venda_credito') }}" class="btn btn-primary">+ Venda a Crédito</a>
   </div>
-  <a href="{{ url_for('venda_credito') }}" class="btn btn-primary">+ Venda a Crédito</a>
 </div>
 
 <form method="GET" class="filter-bar">

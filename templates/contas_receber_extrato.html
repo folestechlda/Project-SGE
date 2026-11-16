@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block page_title %}Extrato de Faturas a Crédito{% endblock %}
+{% block title %}Extrato de Faturas por Cliente · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Extrato de Faturas a Crédito</h1>
+    <p class="page-sub">Resumo por cliente: total facturado, pago e saldo em dívida</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('contas_receber_extrato_clientes', cliente=filtro_nome, exportar='pdf') }}"
+       class="btn btn-secondary">⬇ PDF</a>
+    <a href="{{ url_for('contas_receber_extrato_clientes', cliente=filtro_nome, exportar='excel') }}"
+       class="btn btn-secondary">⬇ Excel</a>
+    <a href="{{ url_for('contas_receber_list') }}" class="btn btn-ghost">← Contas a Receber</a>
+  </div>
+</div>
+
+<div class="cards-grid">
+  <div class="stat-card">
+    <span class="stat-label">Clientes</span>
+    <span class="stat-value">{{ totais.n_clientes or 0 }}</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Total Faturado</span>
+    <span class="stat-value">{{ totais.total|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span>
+  </div>
+  <div class="stat-card accent-good">
+    <span class="stat-label">Total Pago</span>
+    <span class="stat-value">{{ totais.pago|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span>
+  </div>
+  <div class="stat-card accent-amber">
+    <span class="stat-label">Saldo em Dívida</span>
+    <span class="stat-value">{{ totais.saldo|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span>
+  </div>
+</div>
+
+<form method="GET" class="filter-bar" style="margin-top:16px">
+  <label>Procurar cliente
+    <input type="text" name="cliente" value="{{ filtro_nome }}"
+           placeholder="Nome do cliente..." autocomplete="off">
+  </label>
+  <button type="submit" class="btn btn-secondary">Filtrar</button>
+  <a href="{{ url_for('contas_receber_extrato_clientes') }}" class="btn btn-ghost">Limpar</a>
+</form>
+
+<div class="panel" style="margin-top:12px">
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th class="num-right">Nº Faturas</th>
+        <th class="num-right">Total</th>
+        <th class="num-right">Pago</th>
+        <th class="num-right">Saldo em Dívida</th>
+        <th>Estado</th>
+        <th>Última Fatura</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in clientes %}
+      <tr>
+        <td><strong>{{ c.nome_cliente }}</strong></td>
+        <td class="num-right">{{ c.n_faturas }}</td>
+        <td class="num-right">{{ c.total|format_currency }}</td>
+        <td class="num-right">{{ c.pago|format_currency }}</td>
+        <td class="num-right">
+          {% if c.saldo and c.saldo > 0.01 %}
+            <strong class="text-danger">{{ c.saldo|format_currency }}</strong>
+          {% else %}
+            <span class="text-success">{{ 0|format_currency }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if c.n_abertas %}<span class="tag tag-danger">{{ c.n_abertas }} aberta(s)</span>{% endif %}
+          {% if c.n_parciais %}<span class="tag tag-warn">{{ c.n_parciais }} parcial(is)</span>{% endif %}
+          {% if c.n_liquidadas %}<span class="tag tag-good">{{ c.n_liquidadas }} paga(s)</span>{% endif %}
+        </td>
+        <td class="mono">
+          {% if c.ultima_emissao %}{{ c.ultima_emissao[:10] }}{% else %}—{% endif %}
+        </td>
+        <td class="actions-cell">
+          <a class="link-action"
+             href="{{ url_for('conta_receber_extrato_cliente', nome_cliente=c.nome_cliente) }}">Ver extrato →</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="empty-hint">
+        {% if filtro_nome %}
+          Nenhum cliente encontrado com "{{ filtro_nome }}".
+        {% else %}
+          Sem faturas a crédito registadas.
+        {% endif %}
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

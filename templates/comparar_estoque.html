@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block page_title %}Comparar Estoque{% endblock %}
+{% block title %}Comparar Estoque · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Comparar Estoque</h1>
+    <p class="page-sub">
+      Carregue um ficheiro Excel ou PDF com quantidades.
+      O sistema compara com o saldo actual ou com as vendas do período.
+      <strong>Não altera o estoque.</strong>
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <div style="background:#FFF8E1; border-left:4px solid #C79100; padding:12px 16px; border-radius:6px; margin-bottom:16px">
+    <strong>⚠️ Apenas leitura.</strong> Esta página não cria, não altera e não apaga nenhum produto ou movimento. Serve só para comparação de quantidades.
+  </div>
+
+  <form method="POST" enctype="multipart/form-data" class="stack-form">
+    <label>
+      Ficheiro (.xlsx, .xls, .pdf)
+      <input type="file" name="arquivo" accept=".xlsx,.xls,.pdf" required>
+      <span class="hint">
+        Tabela com colunas identificáveis — <code>Produto</code> + <code>Quantidade</code>,
+        ou nome na 1ª coluna e número na 2ª.
+      </span>
+    </label>
+
+    <label>Modo de comparação
+      <select name="modo" id="sel-modo" onchange="togglePeriodo()">
+        <option value="estoque">Estoque — quantidades em stock (saldo actual)</option>
+        <option value="vendas">Vendas — quantidades vendidas num período</option>
+      </select>
+    </label>
+
+    <div id="periodo-vendas" style="display:none">
+      <div class="grid-form">
+        <label>Data início
+          <input type="date" name="data_ini" value="{{ hoje[:8] ~ '01' }}">
+        </label>
+        <label>Data fim
+          <input type="date" name="data_fim" value="{{ hoje }}">
+        </label>
+      </div>
+      <span class="hint">
+        Se deixar vazio, assume <strong>início do mês até hoje</strong>.
+      </span>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Comparar</button>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>Como funciona</h3>
+  <ul style="line-height:1.8; padding-left:20px">
+    <li><strong>Apenas quantidades:</strong> o sistema nunca compara preços de custo ou de venda.</li>
+    <li><strong>Modo Estoque:</strong> compara cada produto do ficheiro com o <em>saldo actual</em> em estoque.</li>
+    <li><strong>Modo Vendas:</strong> compara cada produto do ficheiro com o <em>total vendido</em> no período indicado.</li>
+    <li><strong>Normalização:</strong> remove acentos, ignora maiúsculas e pontuação.</li>
+    <li><strong>Similaridade:</strong> tolera nomes escritos de forma diferente (ex.: <em>"Arroz Mariana"</em> vs <em>"Arroz mariana 25kg"</em>) — limiar 65%.</li>
+  </ul>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function togglePeriodo() {
+  var modo = document.getElementById('sel-modo').value;
+  document.getElementById('periodo-vendas').style.display =
+    (modo === 'vendas') ? 'block' : 'none';
+}
+togglePeriodo();
+</script>
+{% endblock %}

@@ -5,74 +5,155 @@
 <div class="page-header">
   <div>
     <h1>Nova {{ 'Entrada (Compra)' if tipo=='Entrada' else 'Saída (Venda)' }}</h1>
-    <p class="page-sub">{{ 'RF03 — Registo de entrada de produtos no estoque' if tipo=='Entrada' else 'RF04 — Registo de saída de produtos do estoque' }}</p>
+    <p class="page-sub">
+      {% if tipo=='Entrada' %}RF03 — Registo de entrada de produtos no estoque
+      {% else %}Registo de saída de múltiplos produtos (venda em lote){% endif %}
+    </p>
   </div>
 </div>
 
+{% if tipo == 'Saida' %}
 <div class="panel form-panel">
-  <form method="POST" class="grid-form" id="form-movimento">
+    <form method="POST" id="form-venda-multipla"
+        data-confirmar="Registar a venda? O stock será deduzido imediatamente."
+        data-confirmar-ok="Registar">
+    <h3>Dados do Cliente</h3>
+    <div class="grid-form">
+      <label>Cliente <span class="hint">(opcional)</span>
+        <input type="text" name="cliente" maxlength="100">
+      </label>
+      <label>Forma de pagamento
+        <select name="forma_pagamento">
+          <option value="">—</option>
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="M-Pesa">M-Pesa</option>
+          <option value="Cartão">Cartão</option>
+          <option value="Transferência">Transferência</option>
+        </select>
+      </label>
+      <label>Data da venda
+        <input type="date" name="data_venda" value="{{ hoje }}">
+      </label>
+      <label class="span-2">Observações
+        <textarea name="observacoes" rows="2"></textarea>
+      </label>
+    </div>
+
+    <hr style="margin: 20px 0; border-color: var(--borda);">
+
+    <h3>Produtos da Venda</h3>
+    <div id="itens-venda">
+      <div class="venda-item-row" style="display:grid; grid-template-columns: 3fr 1fr 1.2fr 1.2fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px; padding:10px; background: var(--fundo-2, #f9f9f9); border-radius:6px;">
+        <label>Produto *
+          <select name="id_produto[]" class="produto-select" required>
+            <option value="">Selecione...</option>
+            {% for p in produtos %}
+            <option value="{{ p.id_produto }}" data-preco="{{ p.preco_venda }}"
+                    data-unidade="{{ p.unidade }}" data-qtd-unidade="{{ p.qtd_por_unidade }}">
+              {{ p.codigo }} · {{ p.nome }}{% if p.unidade == 'kg' %} [kg]{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Quantidade *
+          <input type="number" name="quantidade[]" step="0.001" min="0.001" value="1" required class="qtd-input">
+        </label>
+        <label>Unidade *
+          <select name="unidade_original[]" class="unidade-select" required>
+            <option value="Unidade">Unidade</option>
+            <option value="Caixa">Caixa</option>
+            <option value="Embalagem">Embalagem</option>
+            <option value="kg">kg (Quilograma)</option>
+          </select>
+        </label>
+        <label>Preço Unit. ({{ config.moeda }}) *
+          <input type="number" name="preco_unitario[]" step="0.01" min="0" required class="preco-input">
+        </label>
+        <label>Subtotal
+          <span class="subtotal-display" style="font-weight:bold;">0.00</span>
+        </label>
+        <button type="button" class="btn btn-danger btn-sm remover-linha" style="align-self:center;">✕</button>
+      </div>
+    </div>
+
+    <div style="margin:10px 0;">
+      <button type="button" class="btn btn-secondary" id="adicionar-linha">+ Adicionar Produto</button>
+    </div>
+
+    <div style="text-align:right; font-size:1.2em; font-weight:bold; margin-top:10px; padding:10px; background: var(--fundo-2, #f0f0f0); border-radius:6px;">
+      TOTAL DA VENDA: <span id="total-geral">0.00</span> {{ config.moeda }}
+    </div>
+
+    <div class="form-actions" style="margin-top:20px;">
+      <button type="submit" class="btn btn-primary">Registar Venda</button>
+      <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost">Ver Movimentações</a>
+    </div>
+  </form>
+</div>
+
+{% else %}
+<div class="panel form-panel">
+    <form method="POST" class="grid-form" id="form-movimento"
+        data-confirmar="Registar esta entrada? O custo do produto pode ser recalculado."
+        data-confirmar-ok="Registar">
     <label class="span-2">Produto *
-      <input type="text" id="busca-produto" placeholder="Digite o nome ou código do produto..." autocomplete="off" required>
+      <input type="text" id="busca-produto" placeholder="Digite o nome ou código..." autocomplete="off" required>
       <input type="hidden" name="id_produto" id="id_produto" required>
       <div id="sugestoes-produto" class="autocomplete-list"></div>
     </label>
-
     <div class="span-2 produto-info" id="produto-info" style="display:none;">
       <span>Saldo atual: <strong id="info-saldo">-</strong></span>
       <span>Unidade: <strong id="info-unidade">-</strong></span>
-      <span>{{ 'Último custo' if tipo=='Entrada' else 'Preço de venda padrão' }}: <strong id="info-preco">-</strong></span>
+      <span>Último custo: <strong id="info-preco">-</strong></span>
+    </div>
+
+    <!-- PONTO 1: Aviso de alteração de custo em tempo real -->
+    <div class="span-2" id="custo-futuro" style="display:none; padding:10px 14px; background:#F0F7F0; border-radius:6px; border-left:4px solid #2F5233; font-size:13px; margin-bottom: 10px;">
+      <strong>Custo do produto:</strong>
+      actual <span id="custo-actual" style="font-weight:bold">—</span> →
+      após esta entrada <span id="custo-novo" style="color:#2F5233; font-weight:bold; font-size:14px">—</span>
+      <div class="muted" style="font-size:11px; margin-top:4px">Método de custeio actual: <strong id="metodo-actual">—</strong></div>
     </div>
 
     <label>Quantidade *
-      <input type="number" step="0.01" min="0.01" name="quantidade" required>
+      <input type="number" step="0.001" min="0.001" name="quantidade" id="quantidade-entrada" required>
+      <span class="hint" id="qtd-entrada-hint">Aceita decimais (kg).</span>
     </label>
-    <label>Unidade da {{ 'compra' if tipo=='Entrada' else 'venda' }} *
+    <label>Unidade da compra *
       <select name="unidade_original" id="unidade_original" required>
         <option value="Unidade">Unidade</option>
         <option value="Caixa">Caixa</option>
         <option value="Embalagem">Embalagem</option>
+        <option value="kg">kg (Quilograma)</option>
       </select>
     </label>
-    <label>{{ 'Preço de custo (MZN) *' if tipo=='Entrada' else 'Preço de venda (MZN) *' }} <span class="hint">(referente à unidade escolhida acima)</span>
+    <label>Preço de custo ({{ config.moeda }}) *
       <input type="number" step="0.01" min="0" name="preco_unitario" id="preco_unitario" required>
     </label>
-
-    {% if tipo == 'Entrada' %}
+    <label>Data da entrada
+      <input type="date" name="data_entrada" value="{{ hoje }}">
+    </label>
     <label>Nota fiscal
       <input type="text" name="nota_fiscal" maxlength="20">
     </label>
     <label>Fornecedor
       <input type="text" name="fornecedor" maxlength="100" id="fornecedor">
     </label>
-    {% else %}
-    <label>Cliente <span class="hint">(opcional)</span>
-      <input type="text" name="cliente" maxlength="100">
-    </label>
-    <label>Forma de pagamento <span class="hint">(opcional)</span>
-      <select name="forma_pagamento">
-        <option value="">—</option>
-        <option value="Dinheiro">Dinheiro</option>
-        <option value="M-Pesa">M-Pesa</option>
-        <option value="Cartão">Cartão</option>
-        <option value="Transferência">Transferência</option>
-      </select>
-    </label>
-    {% endif %}
-
     <label class="span-2">Observações
       <textarea name="observacoes" rows="2"></textarea>
     </label>
-
     <div class="form-actions span-2">
-      <button type="submit" class="btn btn-primary">Registar {{ 'Entrada' if tipo=='Entrada' else 'Saída' }}</button>
+      <button type="submit" class="btn btn-primary">Registar Entrada</button>
       <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost">Ver Movimentações</a>
     </div>
   </form>
 </div>
+{% endif %}
 {% endblock %}
+
 {% block scripts %}
+{% if tipo == 'Entrada' %}
 <script>
-const tipoMovimento = "{{ tipo }}";
 const buscaInput = document.getElementById('busca-produto');
 const sugestoesBox = document.getElementById('sugestoes-produto');
 let produtoSelecionado = null;
@@ -82,24 +163,16 @@ buscaInput.addEventListener('input', async function() {
   document.getElementById('id_produto').value = '';
   produtoSelecionado = null;
   document.getElementById('produto-info').style.display = 'none';
+  document.getElementById('custo-futuro').style.display = 'none';
   if (termo.length < 1) { sugestoesBox.innerHTML=''; return; }
   const resp = await fetch(`/api/produtos/buscar?q=${encodeURIComponent(termo)}`);
   const produtos = await resp.json();
   sugestoesBox.innerHTML = produtos.map(p =>
-    `<div class="autocomplete-item" data-id="${p.id_produto}">
-       <strong>${p.nome}</strong> <span class="muted">(${p.codigo}) · saldo: ${p.saldo_atual}</span>
-     </div>`).join('');
+    `<div class="autocomplete-item" data-id="${p.id_produto}"><strong>${p.nome}</strong> <span class="muted">(${p.codigo}) · ${p.unidade} · saldo: ${p.saldo_atual}</span></div>`).join('');
   sugestoesBox.querySelectorAll('.autocomplete-item').forEach((el, i) => {
     el.addEventListener('click', () => selecionarProduto(produtos[i]));
   });
 });
-
-function precoSugerido(p) {
-  const base = tipoMovimento === 'Entrada' ? p.preco_custo : p.preco_venda;
-  const unidadeSel = document.getElementById('unidade_original').value;
-  const fator = (unidadeSel === 'Caixa' || unidadeSel === 'Embalagem') ? p.qtd_por_unidade : 1;
-  return base * fator;
-}
 
 function selecionarProduto(p) {
   produtoSelecionado = p;
@@ -108,19 +181,60 @@ function selecionarProduto(p) {
   sugestoesBox.innerHTML = '';
   document.getElementById('produto-info').style.display = 'flex';
   document.getElementById('info-saldo').textContent = p.saldo_atual;
-  document.getElementById('info-unidade').textContent = p.unidade + (p.unidade !== 'Unidade' ? ` (${p.qtd_por_unidade}/un.)` : '');
-  document.getElementById('info-preco').textContent = (tipoMovimento === 'Entrada' ? p.preco_custo : p.preco_venda).toFixed(2) + ' MZN / unidade avulsa';
-  document.getElementById('preco_unitario').value = precoSugerido(p).toFixed(2);
-  if (document.getElementById('fornecedor') && p.fornecedor) {
+  document.getElementById('info-unidade').textContent = p.unidade;
+  document.getElementById('info-preco').textContent = (p.preco_custo || 0).toFixed(2) + ' MZN';
+  document.getElementById('preco_unitario').value = (p.preco_custo || 0).toFixed(2);
+  if (document.getElementById('fornecedor') && p.fornecedor)
     document.getElementById('fornecedor').value = p.fornecedor;
-  }
-}
+  document.getElementById('unidade_original').value = p.unidade;
 
-document.getElementById('unidade_original').addEventListener('change', function() {
-  if (produtoSelecionado) {
-    document.getElementById('preco_unitario').value = precoSugerido(produtoSelecionado).toFixed(2);
+  const qty = document.getElementById('quantidade-entrada');
+  const hint = document.getElementById('qtd-entrada-hint');
+  if (p.unidade === 'kg') {
+    qty.step = '0.001'; qty.min = '0.001';
+    if (hint) hint.textContent = 'Produto em kg — aceita decimais (ex.: 2,350).';
+  } else {
+    qty.step = '1'; qty.min = '1';
+    if (hint) hint.textContent = `Produto em ${p.unidade} — só inteiros.`;
+    const v = parseFloat(qty.value || 0);
+    if (!Number.isInteger(v) || v < 1) qty.value = 1;
   }
-});
+
+  // PONTO 1: Cálculo de custo futuro
+    // PONTO 1: Cálculo de custo futuro
+  const metodo = "{{ config.metodo_custeio }}";
+  document.getElementById('metodo-actual').textContent = metodo;
+  document.getElementById('custo-futuro').style.display = 'block';
+  document.getElementById('custo-actual').textContent = (p.preco_custo || 0).toFixed(2) + ' MZN';
+
+  const calcCusto = () => {
+    const qtd = parseFloat(qty.value) || 0;
+    const preco = parseFloat(document.getElementById('preco_unitario').value) || 0;
+    if (qtd <= 0 || preco <= 0) {
+      document.getElementById('custo-novo').textContent = '—';
+      return;
+    }
+    const qpu = p.qtd_por_unidade || 1;
+    const unidade = document.getElementById('unidade_original').value;
+    let qtdBase = qtd;
+    if (unidade === 'Caixa' || unidade === 'Embalagem') qtdBase = qtd * qpu;
+    const valorEntrada = qtd * preco;
+    const saldoActual = p.saldo_atual || 0;
+    let novoCusto = preco / qtdBase;
+
+    if (metodo === 'manual') {
+      novoCusto = p.preco_custo || 0;
+    } else if (metodo === 'media_ponderada' && (saldoActual + qtdBase) > 0) {
+      novoCusto = (saldoActual * (p.preco_custo || 0) + valorEntrada) / (saldoActual + qtdBase);
+    }
+    document.getElementById('custo-novo').textContent = novoCusto.toFixed(2) + ' MZN';
+  };
+
+  qty.addEventListener('input', calcCusto);
+  document.getElementById('preco_unitario').addEventListener('input', calcCusto);
+  document.getElementById('unidade_original').addEventListener('change', calcCusto);
+  calcCusto();
+}
 
 document.addEventListener('click', (e) => {
   if (!sugestoesBox.contains(e.target) && e.target !== buscaInput) sugestoesBox.innerHTML = '';
@@ -128,9 +242,89 @@ document.addEventListener('click', (e) => {
 
 document.getElementById('form-movimento').addEventListener('submit', function(e) {
   if (!document.getElementById('id_produto').value) {
-    e.preventDefault();
-    alert('Selecione um produto na lista de sugestões.');
+    e.preventDefault(); AppModal.aviso('Selecione um produto na lista.');
   }
 });
 </script>
+{% else %}
+<script>
+(function() {
+  const container = document.getElementById('itens-venda');
+  const totalGeral = document.getElementById('total-geral');
+
+  function calcularLinha(row) {
+    const q = parseFloat(row.querySelector('.qtd-input').value) || 0;
+    const p = parseFloat(row.querySelector('.preco-input').value) || 0;
+    const s = q * p;
+    row.querySelector('.subtotal-display').textContent = s.toFixed(2);
+    return s;
+  }
+  function calcularTotal() {
+    let t = 0;
+    document.querySelectorAll('.venda-item-row').forEach(r => t += calcularLinha(r));
+    totalGeral.textContent = t.toFixed(2);
+  }
+  function aplicarStep(row, u) {
+    const inp = row.querySelector('.qtd-input');
+    if (u === 'kg') { inp.step = '0.001'; inp.min = '0.001'; }
+    else { inp.step = '1'; inp.min = '1'; }
+  }
+  function configurar(row) {
+    const sp = row.querySelector('.produto-select');
+    const su = row.querySelector('.unidade-select');
+    const pi = row.querySelector('.preco-input');
+    const qi = row.querySelector('.qtd-input');
+    sp.addEventListener('change', function() {
+      const o = sp.options[sp.selectedIndex];
+      if (!o.value) return;
+      const pb = parseFloat(o.dataset.preco) || 0;
+      const u = o.dataset.unidade || 'Unidade';
+      const qpu = parseInt(o.dataset.qtdUnidade) || 1;
+      su.value = u;
+      let p = pb;
+      if (u === 'Caixa' || u === 'Embalagem') p = pb * qpu;
+      pi.value = p.toFixed(2);
+      aplicarStep(row, u);
+      calcularTotal();
+    });
+    su.addEventListener('change', function() {
+      const o = sp.options[sp.selectedIndex];
+      if (!o.value) return;
+      const pb = parseFloat(o.dataset.preco) || 0;
+      const qpu = parseInt(o.dataset.qtdUnidade) || 1;
+      let p = pb;
+      if (su.value === 'Caixa' || su.value === 'Embalagem') p = pb * qpu;
+      pi.value = p.toFixed(2);
+      aplicarStep(row, su.value);
+      calcularTotal();
+    });
+    qi.addEventListener('input', calcularTotal);
+    pi.addEventListener('input', calcularTotal);
+    row.querySelector('.remover-linha').addEventListener('click', function() {
+      if (document.querySelectorAll('.venda-item-row').length > 1) {
+        row.remove(); calcularTotal();
+      } else AppModal.aviso('A venda deve ter pelo menos um produto.');
+
+    });
+  }
+  document.querySelectorAll('.venda-item-row').forEach(configurar);
+  document.getElementById('adicionar-linha').addEventListener('click', function() {
+    const m = document.querySelector('.venda-item-row');
+    const n = m.cloneNode(true);
+    n.querySelector('.produto-select').selectedIndex = 0;
+    n.querySelector('.qtd-input').value = 1;
+    n.querySelector('.unidade-select').selectedIndex = 0;
+    n.querySelector('.preco-input').value = '';
+    n.querySelector('.subtotal-display').textContent = '0.00';
+    const btnA = n.querySelector('.remover-linha');
+    const btnN = btnA.cloneNode(true);
+    btnA.parentNode.replaceChild(btnN, btnA);
+    container.appendChild(n);
+    configurar(n);
+    calcularTotal();
+  });
+  calcularTotal();
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -6,7 +6,6 @@
   <div>
     <h1>Inventário Físico</h1>
     <p class="page-sub">
-      Compare o saldo do sistema com a contagem física de cada produto.
       Após a 1ª exportação, alterações na contagem são marcadas a vermelho.
     </p>
   </div>
@@ -18,8 +17,8 @@
       <thead>
         <tr>
           <th>Produto</th>
-          <th class="num-right" style="width:160px">Saldo sistémico</th>
-          <th style="width:200px">Contagem física</th>
+          <th class="num-right" style="width:180px">Saldo sistémico</th>
+          <th style="width:220px">Contagem física</th>
           <th class="num-right" style="width:160px">Diferença</th>
         </tr>
       </thead>
@@ -27,6 +26,7 @@
         {% for p in produtos %}
         {% set exportado = (p.id_produto in ids_exportados) %}
         {% set tem_delta = (p.valor_anterior is not none and p.valor_anterior != p.saldo_atual) %}
+        {% set saldo_negativo = (p.saldo_atual is not none and p.saldo_atual < 0) %}
         <tr class="{{ 'inventario-alterado' if exportado and tem_delta }}">
           <td>
             {{ p.nome }} <span class="muted">({{ p.codigo }})</span>
@@ -36,16 +36,23 @@
             <span class="inventory-masked" data-saldo-real="{{ p.saldo_atual }}">******</span>
           </td>
           <td class="contagem-cell">
-            <input type="number" step="1" min="0"
+            <input type="number"
+                   step="{{ '0.001' if p.unidade == 'kg' else '1' }}"
+                   min="0"
                    name="contagem_{{ p.id_produto }}"
                    class="contagem-input"
                    data-id="{{ p.id_produto }}"
                    data-saldo="{{ p.saldo_atual }}"
-                   value="{{ p.saldo_atual }}">
+                   value="{{ 0 if saldo_negativo else (p.saldo_atual if p.saldo_atual is not none else 0) }}">
+            {% if saldo_negativo %}
+            <span class="hint" style="color:var(--perigo,#B00020);font-size:11px;display:block;margin-top:2px">
+              Sistema: {{ p.saldo_atual }} (negativo — corrija via ajuste)
+            </span>
+            {% endif %}
             {% if p.valor_anterior is not none and p.valor_anterior != p.saldo_atual %}
             {% set delta = p.saldo_atual - p.valor_anterior %}
             <span class="delta-label {{ 'positive' if delta > 0 }}">
-              antes: {{ p.valor_anterior }} → Δ {{ '%+d'|format(delta) }}
+              antes: {{ p.valor_anterior }} → Δ {{ '%+g'|format(delta) }}
             </span>
             {% endif %}
           </td>
@@ -76,8 +83,8 @@
   inputs.forEach(function(inp){
     function calcularEMostrar() {
       var id = inp.dataset.id;
-      var saldoReal = parseInt(inp.dataset.saldo) || 0;
-      var contagem = parseInt(inp.value) || 0;
+      var saldoReal = parseFloat(inp.dataset.saldo) || 0;
+      var contagem = parseFloat(inp.value) || 0;
       var diff = contagem - saldoReal;
 
       // Desmascarar saldo sistémico nesta linha
@@ -99,7 +106,15 @@
       if (diffCellRaw) {
         var cls = (diff === 0) ? 'text-success' : (diff < 0 ? 'text-danger' : 'text-warn');
         var span = diffCellRaw.querySelector('span') || diffCellRaw;
-        span.textContent = (diff > 0 ? '+' : '') + diff;
+        // Formata: inteiro para não-kg, 3 casas para kg
+        var step = inp.getAttribute('step');
+        var txt;
+        if (step === '0.001') {
+          txt = (diff > 0 ? '+' : '') + diff.toFixed(3);
+        } else {
+          txt = (diff > 0 ? '+' : '') + Math.round(diff);
+        }
+        span.textContent = txt;
         diffCellRaw.className = 'diferenca-cell num-right ' + cls;
         diffCellRaw.dataset.id = id;
       }

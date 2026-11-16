@@ -18,156 +18,157 @@
       <option value="7" {{ 'selected' if periodo_dias==7 }}>Últimos 7 dias</option>
       <option value="30" {{ 'selected' if periodo_dias==30 }}>Últimos 30 dias</option>
       <option value="90" {{ 'selected' if periodo_dias==90 }}>Últimos 90 dias</option>
+      <option value="180" {{ 'selected' if periodo_dias==180 }}>Últimos 6 meses</option>
+      <option value="365" {{ 'selected' if periodo_dias==365 }}>Último ano</option>
     </select>
   </form>
 </div>
 
 <div class="cards-grid">
-  <div class="stat-card">
-    <span class="stat-label">Produtos Ativos</span>
-    <span class="stat-value">{{ total_produtos }}</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-label">Categorias</span>
-    <span class="stat-value">{{ total_categorias }}</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-label">Estoque (Custo)</span>
-    <span class="stat-value">{{ "%.2f"|format(valor_custo) }} MZN</span>
-  </div>
-  <div class="stat-card">
-    <span class="stat-label">Estoque (Venda)</span>
-    <span class="stat-value">{{ "%.2f"|format(valor_venda) }} MZN</span>
-  </div>
-  <div class="stat-card accent-good">
-    <span class="stat-label">Lucro Bruto (Mês)</span>
-    <span class="stat-value">{{ "%.2f"|format(lucro_mes) }} MZN</span>
-  </div>
-  <div class="stat-card {{ 'accent-warn' if num_alertas > 0 }}">
-    <span class="stat-label">Alertas Ativos</span>
-    <span class="stat-value">{{ num_alertas }}</span>
+  <div class="stat-card"><span class="stat-label">Produtos Activos</span>
+    <span class="stat-value">{{ total_produtos or 0 }}</span>
+    <span class="hint">{{ total_categorias or 0 }} categorias</span></div>
+  <div class="stat-card"><span class="stat-label">Estoque (Custo)</span>
+    <span class="stat-value">{{ (valor_custo or 0)|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span></div>
+  <div class="stat-card accent-good"><span class="stat-label">Estoque (Venda)</span>
+    <span class="stat-value">{{ (valor_venda or 0)|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span></div>
+  <div class="stat-card accent-amber"><span class="stat-label">Lucro do Mês</span>
+    <span class="stat-value">{{ (lucro_mes or 0)|format_currency }}</span>
+    <span class="hint">{{ config.moeda }}</span></div>
+  <div class="stat-card {{ 'accent-amber' if (num_alertas or 0) > 0 else 'accent-good' }}">
+    <span class="stat-label">Alertas</span>
+    <span class="stat-value">{{ num_alertas or 0 }}</span>
+    <span class="hint">{{ (abaixo_minimo or [])|length }} mín · {{ (proximos_venc or [])|length }} validade</span>
   </div>
 </div>
 
-<div class="charts-grid">
+<div class="cards-grid" style="grid-template-columns: repeat(2, 1fr); gap:16px">
   <div class="panel">
-    <h3>Entradas e Saídas (unidades)</h3>
-    <div id="chart-mov" class="chart-box"
-         data-labels='{{ dias_labels|tojson }}'
-         data-serie1='{{ entradas_serie|tojson }}'
-         data-serie2='{{ saidas_serie|tojson }}'
-         data-label1="Entradas" data-label2="Saídas"
-         data-color1="#2F5233" data-color2="#C1440E"></div>
+    <h3>Lucro / Prejuízo</h3>
+    <div style="position:relative;height:260px"><canvas id="chartLucroPrejuizo"></canvas></div>
+    <div style="text-align:center;font-weight:600;margin-top:8px" id="lblLucroPrejuizo">—</div>
   </div>
   <div class="panel">
-    <h3>Compras x Vendas (MZN)</h3>
-    <div id="chart-valores" class="chart-box"
-         data-labels='{{ dias_labels|tojson }}'
-         data-serie1='{{ compras_serie|tojson }}'
-         data-serie2='{{ vendas_serie|tojson }}'
-         data-label1="Compras" data-label2="Vendas"
-         data-color1="#8A6D3B" data-color2="#2F5233"></div>
+    <h3>Tendência de Lucro</h3>
+    <div style="position:relative;height:260px"><canvas id="chartTendLucro"></canvas></div>
   </div>
   <div class="panel">
-    <h3>Lucro Diário (MZN)</h3>
-    <div id="chart-lucro" class="chart-box"
-         data-labels='{{ dias_labels|tojson }}'
-         data-serie1='{{ lucro_serie|tojson }}'
-         data-label1="Lucro" data-color1="#E8B33D" data-single="1"></div>
+    <h3>Receita x Despesa</h3>
+    <div style="position:relative;height:260px"><canvas id="chartReceitaDespesa"></canvas></div>
   </div>
   <div class="panel">
     <h3>Produtos Mais Vendidos</h3>
-    <div class="ranking-list">
-      {% for p in mais_vendidos %}
-      <div class="ranking-row">
-        <span class="ranking-name">{{ p.nome }}</span>
-        <div class="ranking-bar-track">
-          <div class="ranking-bar" style="width: {{ (p.total / (mais_vendidos[0].total or 1) * 100)|round(1) }}%"></div>
-        </div>
-        <span class="ranking-value">{{ p.total }}</span>
-      </div>
-      {% else %}
-      <p class="empty-hint">Sem vendas registadas no período.</p>
-      {% endfor %}
-    </div>
+    <div style="position:relative;height:260px"><canvas id="chartCatVendas"></canvas></div>
+  </div>
+
+  {# Faturas a crédito por estado #}
+  <div class="panel">
+    <h3>Faturas a Crédito por Estado</h3>
+    <div style="position:relative;height:260px"><canvas id="chartFaturasEstado"></canvas></div>
+    <div style="text-align:center;font-weight:600;margin-top:8px" id="lblFaturasEstado">—</div>
+  </div>
+
+  {# Top clientes em dívida #}
+  <div class="panel">
+    <h3>Top 10 Clientes em Dívida</h3>
+    <div style="position:relative;height:260px"><canvas id="chartTopDivida"></canvas></div>
   </div>
 </div>
 
-<div class="alerts-grid">
+<div class="panel" style="margin-top:20px">
+  <h3>Fluxo de Quantidades</h3>
+  <div style="position:relative;height:260px"><canvas id="chartFluxoQtd"></canvas></div>
+</div>
+
+<div class="alerts-grid" style="margin-top:20px">
   <div class="panel">
-    <h3>Estoque Abaixo do Mínimo</h3>
-    {% if abaixo_minimo %}
+    <h3>⚠ Estoque Abaixo do Mínimo</h3>
     <table class="mini-table">
-      <thead><tr><th>Produto</th><th>Saldo</th><th>Mínimo</th><th></th></tr></thead>
+      <thead><tr><th>Produto</th><th class="num-right">Saldo</th><th class="num-right">Mín.</th><th></th></tr></thead>
       <tbody>
-      {% for p in abaixo_minimo %}
+      {% for p in (abaixo_minimo or []) %}
         <tr>
           <td>{{ p.nome }}</td>
-          <td class="text-danger">{{ p.saldo_atual }}</td>
-          <td>{{ p.estoque_minimo }}</td>
+          <td class="num-right text-danger">{{ p.saldo_atual }}</td>
+          <td class="num-right">{{ p.estoque_minimo }}</td>
           <td><a href="{{ url_for('movimento_entrada') }}" class="link-action">Repor</a></td>
         </tr>
+      {% else %}
+        <tr><td colspan="4" class="empty-hint">Nada abaixo do mínimo.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <p class="empty-hint">Nenhum produto abaixo do estoque mínimo.</p>
-    {% endif %}
   </div>
-
   <div class="panel">
-    <h3>Validade Próxima</h3>
-    {% if proximos_venc %}
+    <h3>📅 Validade Próxima</h3>
     <table class="mini-table">
       <thead><tr><th>Produto</th><th>Validade</th><th>Situação</th></tr></thead>
       <tbody>
-      {% for p in proximos_venc %}
+      {% for p in (proximos_venc or []) %}
         <tr>
           <td>{{ p.nome }}</td>
           <td>{{ p.validade }}</td>
           <td>{% if p.vencido %}<span class="tag tag-danger">Vencido</span>{% else %}<span class="tag tag-warn">Próximo</span>{% endif %}</td>
         </tr>
+      {% else %}
+        <tr><td colspan="3" class="empty-hint">Sem produtos próximos do vencimento.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <p class="empty-hint">Nenhum produto próximo do vencimento.</p>
-    {% endif %}
   </div>
-
   <div class="panel">
-    <h3>Sugestões de Ajuste de Preço</h3>
-    {% if sugestoes %}
+    <h3>💡 Sugestões de Preço</h3>
     <table class="mini-table">
-      <thead><tr><th>Produto</th><th>Sugestão</th><th>Novo Preço</th></tr></thead>
+      <thead><tr><th>Produto</th><th>Sugestão</th><th class="num-right">Novo Preço</th></tr></thead>
       <tbody>
-      {% for s in sugestoes %}
+      {% for s in (sugestoes or []) %}
         <tr>
           <td>{{ s.produto.nome }}</td>
-          <td>
-            {% if s.tipo == 'aumento' %}
-            <span class="tag tag-good">Aumentar {{ s.percentual }}%</span>
-            {% else %}
-            <span class="tag tag-warn">Reduzir {{ s.percentual }}%</span>
-            {% endif %}
-          </td>
-          <td>{{ "%.2f"|format(s.preco_sugerido) }} MZN</td>
+          <td>{% if s.tipo == 'aumento' %}<span class="tag tag-good">+{{ s.percentual }}%</span>{% else %}<span class="tag tag-warn">-{{ s.percentual }}%</span>{% endif %}</td>
+          <td class="num-right">{{ s.preco_sugerido|format_currency }}</td>
         </tr>
+      {% else %}
+        <tr><td colspan="3" class="empty-hint">Sem sugestões.</td></tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <p class="empty-hint">Sem sugestões no momento.</p>
-    {% endif %}
   </div>
 </div>
+
+{# Dados para os gráficos, em atributo data-* (HTML puro).
+   O linter não tenta fazer parsing do valor de um atributo como JS,
+   logo os {{ }} do Jinja não geram erros falsos.
+   O `dashboard.js` lê via `el.dataset.payload`.
+   IMPORTANTE: aspas SIMPLES no atributo (tojson usa aspas duplas). #}
+<div id="dashboard-data"
+     data-payload='{{ {
+       "dias": dias_labels or [],
+       "compras": compras_serie or [],
+       "vendas": vendas_serie or [],
+       "lucroSerie": lucro_serie or [],
+       "entradasQtd": entradas_serie or [],
+       "saidasQtd": saidas_serie or [],
+       "catLabels": (mais_vendidos or [])|map(attribute="nome")|list,
+       "catData": (mais_vendidos or [])|map(attribute="total")|list,
+       "fatLabels": faturas_status_labels or [],
+       "fatValores": faturas_status_valores or [],
+       "fatQtds": faturas_status_qtds or [],
+       "tdLabels": (top_clientes_divida or [])|map(attribute="nome_cliente")|list,
+       "tdSaldos": (top_clientes_divida or [])|map(attribute="saldo")|list,
+       "urls": {
+         "relatoriosLucratividade": url_for("relatorios", tipo="lucratividade"),
+         "relatoriosVendas": url_for("relatorios", tipo="vendas"),
+         "movimentosList": url_for("movimentos_list"),
+         "produtosList": url_for("produtos_list"),
+         "contasReceberList": url_for("contas_receber_list"),
+         "extratoClientes": url_for("contas_receber_extrato_clientes")
+       }
+     }|tojson }}'></div>
 {% endblock %}
+
 {% block scripts %}
-<script>
-  document.addEventListener("DOMContentLoaded", function() {
-    renderDualChart("chart-mov");
-    renderDualChart("chart-valores");
-    renderDualChart("chart-lucro");
-  });
-</script>
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

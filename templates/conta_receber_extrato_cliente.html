@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block page_title %}Extrato — {{ nome_cliente }}{% endblock %}
+{% block title %}Extrato — {{ nome_cliente }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Extrato — {{ nome_cliente }}</h1>
+    <p class="page-sub">Todas as faturas a crédito deste cliente</p>
+  </div>
+  <div class="header-actions">
+    <a href="{{ url_for('conta_receber_extrato_cliente', nome_cliente=nome_cliente, exportar='pdf') }}"
+       class="btn btn-secondary">⬇ PDF</a>
+    <a href="{{ url_for('conta_receber_extrato_cliente', nome_cliente=nome_cliente, exportar='excel') }}"
+       class="btn btn-secondary">⬇ Excel</a>
+    <a href="{{ url_for('contas_receber_extrato_clientes') }}" class="btn btn-ghost">← Extrato geral</a>
+  </div>
+</div>
+
+<div class="cards-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total Faturado</span>
+    <span class="stat-value">{{ total|format_currency }}</span>
+    <span class="hint">{{ faturas|length }} fatura(s)</span>
+  </div>
+  <div class="stat-card accent-good">
+    <span class="stat-label">Pago</span>
+    <span class="stat-value">{{ pago|format_currency }}</span>
+  </div>
+  <div class="stat-card {{ 'accent-amber' if saldo > 0.01 else 'accent-good' }}">
+    <span class="stat-label">Saldo em Dívida</span>
+    <span class="stat-value">{{ saldo|format_currency }}</span>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:12px">
+  <div style="margin-bottom:10px">
+    {% if n_abertas %}<span class="tag tag-danger">{{ n_abertas }} em aberto</span>{% endif %}
+    {% if n_parciais %}<span class="tag tag-warn">{{ n_parciais }} parcialmente paga(s)</span>{% endif %}
+    {% if n_liquidadas %}<span class="tag tag-good">{{ n_liquidadas }} paga(s)</span>{% endif %}
+  </div>
+
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Fatura</th>
+        <th>Emissão</th>
+        <th>Vencimento</th>
+        <th>Status</th>
+        <th class="num-right">Total</th>
+        <th class="num-right">Pago</th>
+        <th class="num-right">Saldo</th>
+        <th>Cond. Pag.</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for f in faturas %}
+      <tr>
+        <td class="mono">{{ f.numero_fatura or ('FT-' ~ '%05d'|format(f.id_conta)) }}</td>
+        <td>{{ f.data_emissao[:10] }}</td>
+        <td>{{ f.data_vencimento[:10] if f.data_vencimento else '—' }}</td>
+        <td>
+          {% if f.status == 'Liquidada' %}<span class="tag tag-good">Liquidada</span>
+          {% elif f.status == 'Parcial' %}<span class="tag tag-warn">Parcial</span>
+          {% elif f.status == 'Cancelada' %}<span class="tag tag-danger">Cancelada</span>
+          {% else %}<span class="tag tag-danger">Em aberto</span>{% endif %}
+        </td>
+        <td class="num-right">{{ f.valor_total|format_currency }}</td>
+        <td class="num-right">{{ f.valor_pago|format_currency }}</td>
+        <td class="num-right">
+          {% if f.saldo and f.saldo > 0.01 %}
+            <strong class="text-danger">{{ f.saldo|format_currency }}</strong>
+          {% else %}
+            <span class="text-success">{{ 0|format_currency }}</span>
+          {% endif %}
+        </td>
+        <td class="muted">{{ f.condicao_pagamento or '—' }}</td>
+        <td class="actions-cell">
+          <a class="link-action" href="{{ url_for('conta_receber_detalhe', id_conta=f.id_conta) }}">Ver</a>
+          <a class="link-action" target="_blank"
+             href="{{ url_for('conta_receber_fatura_pdf', id_conta=f.id_conta) }}">PDF</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    <tr class="totais-row">
+      <td colspan="4"><strong>TOTAIS</strong></td>
+      <td class="num-right"><strong>{{ total|format_currency }}</strong></td>
+      <td class="num-right"><strong>{{ pago|format_currency }}</strong></td>
+      <td class="num-right">
+        <strong class="{{ 'text-danger' if saldo > 0.01 else 'text-success' }}">{{ saldo|format_currency }}</strong>
+      </td>
+      <td colspan="2"></td>
+    </tr>
+  </table>
+  </div>
+</div>
+{% endblock %}

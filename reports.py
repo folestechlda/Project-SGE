@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 import io
 import os
-import re
+import re 
 import base64
+import tempfile
 from datetime import datetime
 from openpyxl import Workbook
-<<<<<<< HEAD
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-=======
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 from openpyxl.drawing.image import Image as XLImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -31,6 +29,8 @@ def _caminho_logo_empresa():
         return None
     if logo_cfg.startswith("data:"):
         return None
+    # Sanitiza nome (evita path traversal)
+    logo_cfg = os.path.basename(logo_cfg)
     caminho = os.path.join(get_base_dir(), "static", "img", logo_cfg)
     if os.path.exists(caminho):
         return caminho
@@ -52,6 +52,7 @@ def _logo_data_url_bytes():
             return base64.b64decode(data), ext
         except Exception:
             return None
+    logo_cfg = os.path.basename(logo_cfg)
     caminho = os.path.join(get_base_dir(), "static", "img", logo_cfg)
     if not os.path.exists(caminho):
         caminho = os.path.join(get_base_dir(), logo_cfg)
@@ -83,7 +84,7 @@ def _cabecalho_empresa_texto():
         morada_nuit_contacto.append(emp["email"])
     if morada_nuit_contacto:
         linhas.append("  |  ".join(morada_nuit_contacto))
-    return linhas
+    return linhas 
 
 
 def formatar_moeda_br(valor):
@@ -109,23 +110,14 @@ def formatar_inteiro(valor):
 
 def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_cotacao=False, landscape_mode=False):
     buf = io.BytesIO()
-<<<<<<< HEAD
     if not landscape_mode and not is_cotacao:
-=======
-    # Detecta automaticamente se precisa de orientação horizontal
-    # Baseado no número de colunas ou largura do conteúdo
-    if not landscape_mode and not is_cotacao:
-        # Força horizontal para cotações e relatórios com muitas colunas (> 6)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         landscape_mode = len(colunas) > 6 or any(len(str(c)) > 30 for c in colunas)
     pagesize = landscape(A4) if landscape_mode or is_cotacao else A4
     doc = SimpleDocTemplate(buf, pagesize=pagesize,
                              topMargin=1.2*cm, bottomMargin=1.2*cm,
                              leftMargin=1.2*cm, rightMargin=1.2*cm)
-<<<<<<< HEAD
 
     styles = getSampleStyleSheet()
-    # ---- Estilos ALINHADOS À ESQUERDA (canto superior esquerdo) ----
     style_titulo_empresa_esq = ParagraphStyle(
         "EmpresaTituloEsq", parent=styles["Title"],
         fontSize=15, textColor=BRAND_COLOR,
@@ -141,7 +133,6 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
     emp = _dados_empresa()
     cabecalho_linhas = _cabecalho_empresa_texto()
 
-    # ---- Logo (à direita, opcional) ----
     logo_caminho = _caminho_logo_empresa()
     img = None
     if logo_caminho:
@@ -150,31 +141,6 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
             img.hAlign = "RIGHT"
         except Exception:
             img = None
-=======
-    
-    styles = getSampleStyleSheet()
-    style_titulo_empresa = ParagraphStyle(
-        "EmpresaTitulo", parent=styles["Title"],
-        fontSize=16, textColor=BRAND_COLOR, alignment=TA_CENTER, spaceAfter=2,
-    )
-    style_sub_empresa = ParagraphStyle(
-        "EmpresaSub", parent=styles["Normal"],
-        fontSize=9, textColor=colors.HexColor("#4B4B4B"),
-        alignment=TA_CENTER, spaceAfter=2,
-    )
-    elementos = []
-
-    # Logo
-    logo_caminho = _caminho_logo_empresa()
-    emp = _dados_empresa()
-    img = ""
-    if logo_caminho:
-        try:
-            img = RLImage(logo_caminho, width=3.2*cm, height=3.2*cm)
-            img.hAlign = "CENTER"
-        except Exception:
-            img = ""
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     else:
         logo_bytes = _logo_data_url_bytes()
         if logo_bytes:
@@ -182,7 +148,6 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
                 from io import BytesIO
                 b, ext = logo_bytes
                 bio = BytesIO(b)
-<<<<<<< HEAD
                 img = RLImage(bio, width=2.8*cm, height=2.8*cm)
                 img.hAlign = "RIGHT"
             except Exception:
@@ -191,15 +156,12 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
     titulo_emp = empresa_titulo or emp.get("nome") or "SGE — Sistema de Gestão de Estoque"
     sub = cabecalho_linhas[1:] if len(cabecalho_linhas) > 1 else []
 
-    # ---- Coluna esquerda: INFORMAÇÃO DA EMPRESA (top-left) ----
     texto_empresa = [Paragraph(titulo_emp, style_titulo_empresa_esq)]
     for s in sub:
         texto_empresa.append(Paragraph(s, style_sub_empresa_esq))
 
-    # ---- Coluna direita: LOGO ----
     col_dir = [img] if img else [Paragraph("", styles["Normal"])]
 
-    # Larguras: info à esquerda ocupa a maior parte, logo à direita
     largura_logo = 3.2 * cm
     largura_info = doc.width - largura_logo
 
@@ -217,36 +179,12 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
     ]))
     elementos.append(cabecalho_tabela)
 
-    # Linha separadora fina
     from reportlab.platypus import HRFlowable
     elementos.append(Spacer(1, 0.15*cm))
     elementos.append(HRFlowable(width="100%", thickness=0.6,
                                  color=BRAND_COLOR, spaceAfter=6))
     elementos.append(Spacer(1, 0.2*cm))
 
-    # ---- Título do relatório (centrado) ----
-=======
-                img = RLImage(bio, width=3.2*cm, height=3.2*cm)
-                img.hAlign = "CENTER"
-            except Exception:
-                img = ""
-
-    titulo_emp = empresa_titulo or emp.get("nome") or "SGE — Sistema de Gestão de Estoque"
-    sub = _cabecalho_empresa_texto()[1:] if len(_cabecalho_empresa_texto()) > 1 else []
-    col_esq = [img] if img else [Paragraph("◈", ParagraphStyle(
-        "Mark", fontSize=32, textColor=colors.HexColor("#E8B33D"), alignment=TA_CENTER))]
-    texto_centro = [Paragraph(titulo_emp, style_titulo_empresa)]
-    for s in sub:
-        texto_centro.append(Paragraph(s, style_sub_empresa))
-    cabecalho_tabela = Table([[col_esq[0], texto_centro]],
-                             colWidths=[4*cm, doc.width - 4.2*cm])
-    cabecalho_tabela.setStyle(TableStyle([
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("ALIGN", (0,0), (-1,-1), "CENTER"),
-    ]))
-    elementos.append(cabecalho_tabela)
-    elementos.append(Spacer(1, 0.2*cm))
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     if emp.get("nome"):
         elementos.append(Paragraph(titulo, ParagraphStyle(
             "TituloRel", parent=styles["Heading2"], alignment=TA_CENTER,
@@ -254,7 +192,6 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
         )))
     else:
         elementos.append(Paragraph(titulo, styles["Title"]))
-<<<<<<< HEAD
 
     if subtitulo:
         elementos.append(Paragraph(subtitulo, ParagraphStyle(
@@ -267,40 +204,24 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
     ))
     elementos.append(Spacer(1, 0.5*cm))
 
-    # ---- Formatação dos dados (mesma lógica de antes) ----
     COLUNAS_PRE_FORMATADAS = {
         "qtd. orig.", "qtd. base", "saldo acum. (un.)",
         "saldo inicial (qtd)", "entradas (qtd)", "saídas (qtd)",
         "saldo final (qtd)",
     }
-=======
-    if subtitulo:
-        elementos.append(Paragraph(subtitulo, styles["Normal"]))
-    elementos.append(Paragraph(
-        f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
-    elementos.append(Spacer(1, 0.5*cm))
-
-    # Preparar dados com formatação
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     dados_formatados = [colunas]
     for linha in linhas:
         linha_formatada = []
         for idx, val in enumerate(linha):
-<<<<<<< HEAD
             if colunas[idx].strip().lower() in COLUNAS_PRE_FORMATADAS:
                 linha_formatada.append(str(val))
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+                continue
             col_nome = colunas[idx].lower()
             num_val = None
             if isinstance(val, (int, float)):
                 num_val = float(val)
             elif isinstance(val, str):
                 texto = val.strip().replace(' ', '')
-<<<<<<< HEAD
-=======
-                # Normaliza separadores decimais
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                 if ',' in texto and '.' in texto:
                     texto_norm = texto.replace('.', '').replace(',', '.')
                 elif ',' in texto and '.' not in texto:
@@ -312,23 +233,10 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
                         num_val = float(texto_norm)
                     except Exception:
                         num_val = None
-<<<<<<< HEAD
             if num_val is not None:
                 if any(p in col_nome for p in ("preço","preco","valor","total","lucro","custo","venda","receita")):
                     linha_formatada.append(formatar_moeda_br(num_val))
                 elif any(p in col_nome for p in ("qtd","quantidade","saldo","estoque","unid","numero","número","unidade","minimo","maximo")):
-=======
-                else:
-                    num_val = None
-            else:
-                num_val = None
-
-            if num_val is not None:
-                col_nome_lower = col_nome.lower()
-                if any(p in col_nome_lower for p in ("preço", "preco", "valor", "total", "lucro", "custo", "venda", "receita")):
-                    linha_formatada.append(formatar_moeda_br(num_val))
-                elif any(p in col_nome_lower for p in ("qtd", "quantidade", "saldo", "estoque", "unid", "numero", "número", "unidade", "minimo", "maximo")):
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                     linha_formatada.append(formatar_inteiro(num_val))
                 else:
                     if abs(num_val - round(num_val)) < 1e-9:
@@ -347,51 +255,35 @@ def gerar_pdf(titulo, colunas, linhas, subtitulo=None, empresa_titulo=None, is_c
         ("FONTNAME", (0,0), (-1,-1), "Times-Roman"),
         ("FONTNAME", (0,0), (-1,0), "Times-Bold"),
         ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-<<<<<<< HEAD
         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F2F2F2")]),
         ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
         ("ALIGN", (0,0), (-1,-1), "LEFT"),
         ("ALIGN", (1,1), (-1,-1), "RIGHT"),
     ])) 
-=======
-        ("ROWBACKGROUNDS", (0,1), (-1,-1),
-         [colors.white, colors.HexColor("#F2F2F2")]),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("ALIGN", (0,0), (-1,-1), "LEFT"),
-        ("ALIGN", (1,1), (-1,-1), "RIGHT"),  # números alinhados à direita
-    ]))
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     elementos.append(tabela)
     doc.build(elementos)
     buf.seek(0)
     return buf
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 def gerar_excel(titulo, colunas, linhas, empresa_titulo=None):
     wb = Workbook()
-    ws = wb.active
+    ws = wb.active or wb.create_sheet()
     ws.title = titulo[:31] if titulo else "Relatorio"
 
     emp = _dados_empresa()
     nome_emp = empresa_titulo or emp.get("nome") or "SGE — Sistema de Gestão de Estoque"
     linha_atual = 1
 
-<<<<<<< HEAD
-=======
-    # Logo
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     logo_info = _logo_data_url_bytes()
+    tmp_logo_path = None
     if logo_info:
         try:
-            import tempfile
             dados_bytes, ext = logo_info
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
             tmp.write(dados_bytes)
             tmp.close()
-            img = XLImage(tmp.name)
+            tmp_logo_path = tmp.name
+            img = XLImage(tmp_logo_path)
             img.width = 80
             img.height = 80
             ws.add_image(img, "A1")
@@ -457,14 +349,8 @@ def gerar_excel(titulo, colunas, linhas, empresa_titulo=None):
             c.font = default_font
             if idx % 2 == 0:
                 c.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-<<<<<<< HEAD
             col_nome = colunas[j-1].lower()
             if any(p in col_nome for p in ("preço", "preco", "valor", "total", "lucro", "custo", "venda", "receita")):
-=======
-            # Formatação condicional
-            col_nome = colunas[j-1].lower()
-            if any(p in col_nome for p in ("preço", "preco", "valor", "total", "lucro", "custo", "venda")):
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                 if isinstance(val, (int, float)):
                     c.number_format = '#,##0.00'
                     c.alignment = Alignment(horizontal="right")
@@ -476,18 +362,24 @@ def gerar_excel(titulo, colunas, linhas, empresa_titulo=None):
         largura = max((len(str(c.value)) if c.value is not None else 0) for c in col_cells) + 2
         first_cell = next((c for c in col_cells if hasattr(c, 'column_letter')), None)
         if first_cell is not None:
-            ws.column_dimensions[first_cell.column_letter].width = min(largura, 50)
+            col_idx = first_cell.column
+            if isinstance(col_idx, int):
+                ws.column_dimensions[get_column_letter(col_idx)].width = min(largura, 50)
 
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
+
+    # FIX: apagar o ficheiro temporário do logo depois de wb.save().
+    if tmp_logo_path:
+        try:
+            os.remove(tmp_logo_path)
+        except OSError:
+            pass
+
     return buf
 
 
-<<<<<<< HEAD
-=======
-# Função específica para relatório de preços
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 def gerar_relatorio_precos(conn):
     produtos = conn.execute(
         """SELECT p.codigo, p.nome, c.nome AS categoria, p.preco_venda
@@ -501,7 +393,6 @@ def gerar_relatorio_precos(conn):
     return colunas, linhas
 
 
-<<<<<<< HEAD
 def gerar_pdf_cotacao(cotacao, itens, empresa_titulo=None):
     """Cotação em A4 retrato, layout tipo fatura."""
     from reportlab.platypus import HRFlowable
@@ -531,7 +422,6 @@ def gerar_pdf_cotacao(cotacao, itens, empresa_titulo=None):
 
     elementos = []
 
-    # ---------- Cabeçalho ----------
     logo_cell = ""
     p = _caminho_logo_empresa()
     if p:
@@ -576,7 +466,6 @@ def gerar_pdf_cotacao(cotacao, itens, empresa_titulo=None):
     elementos.append(HRFlowable(width="100%", thickness=1.0,
                                  color=BRAND_COLOR, spaceAfter=6))
 
-    # ---------- Bloco cliente ----------
     cliente_cell = [
         Paragraph("<b>CLIENTE</b>", s_secao),
         Paragraph(f"<b>{cotacao['nome_cliente'] or '—'}</b>", s_cell),
@@ -605,15 +494,17 @@ def gerar_pdf_cotacao(cotacao, itens, empresa_titulo=None):
     elementos.append(info_tbl)
     elementos.append(Spacer(1, 0.4*cm))
 
-    # ---------- Tabela de itens ----------
     cab = ["#", "Código", "Descrição", "Qtd.", "Un.", "Preço Unit.", "Desc.%", "Subtotal"]
     dados = [cab]
     for i, it in enumerate(itens, 1):
+        _qtd = float(it["quantidade"])
+        _qtd_txt = (str(int(_qtd)) if _qtd.is_integer()
+                    else f"{_qtd:.3f}".replace(".", ","))
         dados.append([
             str(i),
             it["codigo"],
             it["produto_nome"],
-            str(int(it["quantidade"])),
+            _qtd_txt,
             "Un",
             formatar_moeda_br(it["preco_unitario"]),
             f"{it['desconto_percentual']:.0f}%",
@@ -713,6 +604,7 @@ def _logo_banco_path():
     nome = get_config("banco_logo", "")
     if not nome:
         return None
+    nome = os.path.basename(nome)
     p = os.path.join(get_base_dir(), "static", "img", nome)
     return p if os.path.exists(p) else None
 
@@ -731,7 +623,6 @@ def gerar_pdf_fatura(conta, itens=None):
     styles = getSampleStyleSheet()
     emp = _dados_empresa()
 
-    # ---- Estilos ----
     s_lbl = ParagraphStyle("lbl", parent=styles["Normal"], fontSize=6.5,
                            textColor=colors.HexColor("#555"), leading=8)
     s_val = ParagraphStyle("val", parent=styles["Normal"], fontSize=8, leading=10)
@@ -750,10 +641,6 @@ def gerar_pdf_fatura(conta, itens=None):
 
     elementos = []
 
-    # ============================================================
-    # BLOCO 1 — Cabeçalho
-    # ============================================================
-    # Coluna ESQUERDA: logo + empresa
     empresa_col = []
     p_logo = _caminho_logo_empresa()
     if p_logo:
@@ -782,7 +669,6 @@ def gerar_pdf_fatura(conta, itens=None):
         par = _kv(lbl, val)
         if par: empresa_col.append(par)
 
-    # Coluna DIREITA: dados do cliente
     cliente_col = [Paragraph("Exmo.(s) Sr.(s)", s_val)]
     cliente_col.append(Paragraph(" ",
                                   ParagraphStyle("sep", parent=styles["Normal"],
@@ -809,15 +695,12 @@ def gerar_pdf_fatura(conta, itens=None):
     ]))
     elementos.append(hdr)
 
-    # Pág. X/Y (topo direito) — usa canvas para desenhar
     elementos.append(Spacer(1, 0.15*cm))
     elementos.append(HRFlowable(width="100%", thickness=0.8,
                                  color=colors.grey, spaceBefore=2, spaceAfter=6))
 
-    # ============================================================
-    # BLOCO 2 — Título do documento
-    # ============================================================
-    numero = conta.get("numero_fatura") or f"FT 2026/{conta['id_conta']:05d}"
+    # FIX: usar datetime.now().year em vez de "2026" hardcoded.
+    numero = conta.get("numero_fatura") or f"FT {datetime.now().year}/{conta['id_conta']:05d}"
     tipo = emp.get("tipo_documento") or "Factura"
     titulo = Paragraph(f"{tipo} &nbsp; {numero}", s_tit)
     origem = Paragraph("Original", s_orig)
@@ -833,14 +716,10 @@ def gerar_pdf_fatura(conta, itens=None):
     elementos.append(tbl_tit)
     elementos.append(Spacer(1, 0.15*cm))
 
-    # Linha "Condições:"
     cond_label = "crédito" if (conta.get("condicao_pagamento") or "").lower() != "pronto pagamento" else "pronto pagamento"
     elementos.append(Paragraph(f"Condições: <b>{cond_label}</b>", s_val))
     elementos.append(Spacer(1, 0.25*cm))
 
-    # ============================================================
-    # BLOCO 3 — Linha de metadados (data / venc / cond / câmbio / moeda)
-    # ============================================================
     taxa_iva = float(conta.get("taxa_iva") or emp.get("taxa_iva_padrao") or 16)
     isento = bool(conta.get("isento_iva"))
 
@@ -872,9 +751,6 @@ def gerar_pdf_fatura(conta, itens=None):
     elementos.append(meta_tbl)
     elementos.append(Spacer(1, 0.3*cm))
 
-    # ============================================================
-    # BLOCO 4 — Itens
-    # ============================================================
     if not itens:
         conn = _gc()
         if conta.get("id_movimento"):
@@ -941,9 +817,6 @@ def gerar_pdf_fatura(conta, itens=None):
     elementos.append(tbl_itens)
     elementos.append(Spacer(1, 0.4*cm))
 
-    # ============================================================
-    # BLOCO 5 — Total + Resumo de Impostos
-    # ============================================================
     total_com_iva = float(conta["valor_total"] or 0)
     if isento or taxa_iva <= 0:
         iliquido = total_com_iva
@@ -952,7 +825,6 @@ def gerar_pdf_fatura(conta, itens=None):
         iliquido = total_com_iva / (1 + taxa_iva/100)
         iva_val = total_com_iva - iliquido
 
-    # --- Coluna esquerda: quadro resumo de impostos ---
     q_cab = ["Taxa", "Incidência", "Total", "Motivo Isenção"]
     if isento:
         q_lin1 = ["Isento", formatar_moeda_br(iliquido), "0,00",
@@ -975,7 +847,6 @@ def gerar_pdf_fatura(conta, itens=None):
         ("BOTTOMPADDING", (0,0), (-1,-1), 2),
     ]))
 
-    # --- Coluna direita: totais ---
     tot_linhas = [
         ["Mercadorias/Serviços",  formatar_moeda_br(iliquido)],
         ["Descontos Comerciais",  "-0,00"],
@@ -995,7 +866,6 @@ def gerar_pdf_fatura(conta, itens=None):
         ("BOTTOMPADDING", (0,0), (-1,-1), 2),
     ]))
 
-    # --- Bloco "Total [MZN]" (destaque) ---
     total_lbl = Paragraph(
         f"<font size=10><b>Total [{emp.get('moeda') or 'MZN'}]</b></font>",
         ParagraphStyle("tl", parent=styles["Normal"], alignment=TA_RIGHT))
@@ -1013,7 +883,6 @@ def gerar_pdf_fatura(conta, itens=None):
         ("RIGHTPADDING", (0,0), (-1,-1), 4),
     ]))
 
-    # Combinar: tabela 2 colunas
     dir_col = [tot_tbl, total_tbl]
     linha_resumo = Table([[q_tbl, dir_col]],
                          colWidths=[doc.width*0.50, doc.width*0.50])
@@ -1029,13 +898,10 @@ def gerar_pdf_fatura(conta, itens=None):
     elementos.append(linha_resumo)
     elementos.append(Spacer(1, 0.6*cm))
 
-    # ============================================================
-    # BLOCO 6 — Coordenadas bancárias + Texto legal
-    # ============================================================
     elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.grey,
                                  spaceBefore=4, spaceAfter=4))
 
-    banco_col = [Paragraph("<b>Coordenadas Bancárias</b>",
+    banco_col: list = [Paragraph("<b>Coordenadas Bancárias</b>",
                             ParagraphStyle("cb", parent=styles["Normal"],
                                            fontSize=9, leading=11))]
     banco_col.append(Paragraph(
@@ -1077,14 +943,12 @@ def gerar_pdf_fatura(conta, itens=None):
     elementos.append(rod_tbl)
     elementos.append(Spacer(1, 0.5*cm))
 
-    # Rodapé final
     elementos.append(HRFlowable(width="100%", thickness=0.3, color=colors.grey,
                                  spaceBefore=4, spaceAfter=4))
     elementos.append(Paragraph(
         "documento processado por computador — SGE-series",
         s_rod))
 
-    # ---- Callback para "Pág. X/Y" no canto superior direito ----
     from reportlab.pdfgen import canvas as _canvas
 
     def _on_page(canv, doc_obj):
@@ -1099,26 +963,72 @@ def gerar_pdf_fatura(conta, itens=None):
     doc.build(elementos, onFirstPage=_on_page, onLaterPages=_on_page)
     buf.seek(0)
     return buf
-=======
-# Função para gerar PDF de cotação
-def gerar_pdf_cotacao(cotacao, itens, empresa_titulo=None):
-    # Similar ao gerar_pdf, mas com dados específicos da cotação
-    colunas = ["Código", "Produto", "Quantidade", "Preço Unit.", "Desc. %", "Subtotal"]
-    linhas = []
-    for item in itens:
-        linhas.append([
-            item["codigo"],
-            item["produto_nome"],
-            int(item["quantidade"]),
-            arredondar_moeda(item["preco_unitario"]),
-            f"{item['desconto_percentual']:.0f}%",
-            arredondar_moeda(item["valor_total"])
-        ])
-    # Adicionar totais e informações do cliente
-    subtitulo = (f"Cliente: {cotacao['nome_cliente']} | "
-                 f"Validade: {cotacao['data_validade']} | "
-                 f"Total: {formatar_moeda_br(cotacao['valor_total'])}")
-    return gerar_pdf(f"Cotação {cotacao['numero']}", colunas, linhas,
-                     subtitulo=subtitulo, empresa_titulo=empresa_titulo,
-                     landscape_mode=True)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+
+
+def gerar_pdf_recibo(recibo, conta):
+    """Recibo A4 (retrato) de um pagamento recebido contra uma fatura."""
+    from xml.sax.saxutils import escape
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=1.2*cm, bottomMargin=1.2*cm,
+                            leftMargin=1.5*cm, rightMargin=1.5*cm)
+    styles = getSampleStyleSheet()
+    s_n = ParagraphStyle("rc_n", parent=styles["Normal"], fontSize=10, leading=13)
+    s_lbl = ParagraphStyle("rc_l", parent=styles["Normal"], fontSize=9, leading=12,
+                           textColor=colors.HexColor("#555"))
+    s_destaque = ParagraphStyle("rc_d", parent=styles["Normal"], fontSize=14, leading=18,
+                                fontName="Helvetica-Bold", textColor=BRAND_COLOR)
+    s_rod = ParagraphStyle("rc_r", parent=styles["Normal"], fontSize=7.5, alignment=TA_CENTER,
+                           textColor=colors.grey)
+
+    conta = conta or {}
+    data_pag = str(recibo.get("data_pagamento") or "")[:10]
+    valor = float(recibo.get("valor") or 0)
+    saldo = float(conta.get("saldo") or 0)
+    pago_total = float(conta.get("valor_pago") or 0)
+    total_fatura = float(conta.get("valor_total") or 0)
+
+    def linha(rotulo, valor_txt):
+        return [Paragraph(rotulo, s_lbl), Paragraph(escape(str(valor_txt)), s_n)]
+
+    dados = [
+        linha("Recebemos de", conta.get("nome_cliente") or "—"),
+        linha("Referente à fatura", conta.get("numero_fatura") or f"#{conta.get('id_conta', '')}"),
+        linha("Forma de pagamento", recibo.get("forma_pagamento") or "—"),
+        linha("Data do pagamento", data_pag or "—"),
+        [Paragraph("Valor recebido", s_lbl),
+         Paragraph(f"{formatar_moeda_br(valor)} MZN", s_destaque)],
+        linha("Total da fatura", f"{formatar_moeda_br(total_fatura)} MZN"),
+        linha("Total pago até agora", f"{formatar_moeda_br(pago_total)} MZN"),
+        linha("Saldo em dívida (actual)",
+              "Fatura liquidada" if saldo <= 0.005 else f"{formatar_moeda_br(saldo)} MZN"),
+    ]
+    if recibo.get("observacoes"):
+        dados.append(linha("Observações", recibo["observacoes"]))
+
+    tbl = Table(dados, colWidths=[5.0*cm, doc.width - 5.0*cm])
+    tbl.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#DDD")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    assinatura = Table([["", ""], ["Recebido por", "O cliente"]],
+                       colWidths=[doc.width / 2, doc.width / 2], rowHeights=[1.6*cm, None])
+    assinatura.setStyle(TableStyle([
+        ("LINEABOVE", (0, 1), (0, 1), 0.6, colors.black),
+        ("LINEABOVE", (1, 1), (1, 1), 0.6, colors.black),
+        ("ALIGN", (0, 1), (-1, 1), "CENTER"),
+        ("FONTSIZE", (0, 1), (-1, 1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 18),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 18),
+    ]))
+
+    elementos = [
+        _cabecalho_fatura(doc, "RECIBO", [escape(str(recibo.get("numero") or "")), data_pag]),
+        Spacer(1, 0.8*cm), tbl, Spacer(1, 1.2*cm), assinatura, Spacer(1, 1.0*cm),
+        Paragraph("Documento emitido pelo SGE. Este recibo comprova o pagamento indicado.", s_rod),
+    ]
+    doc.build(elementos)
+    buf.seek(0)
+    return buf

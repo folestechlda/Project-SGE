@@ -1,58 +1,54 @@
 # -*- coding: utf-8 -*-
-<<<<<<< HEAD
-"""Aplicação principal (app.py) — pontos de entrada e rotas Flask."""
- 
-import atexit
-import base64
-import logging
-import math
-import os
-import secrets
-=======
 """Aplicação principal (app.py) — pontos de entrada e rotas Flask.
 
-Este ficheiro contém a instância Flask, os decorators de autenticação,
-as rotas que expõem a interface web (dashboard, produtos, categorias,
-movimentos, relatórios, cotações, inventário, utilizadores, configurações)
-e integrações com os módulos de serviços, relatório e persistência.
-
-Siga a documentação em /docs para instruções de instalação, empacotamento
-e desenvolvimento.
+SGE - Sistema de Gestão de Estoque.
 """
 
 import atexit
-import base64
+import logging
 import math
 import os
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+import secrets 
 import shutil
 import signal
 import sqlite3
 import sys
 import threading
-import time
+import traceback
 import webbrowser
 from datetime import datetime, timedelta
 from functools import wraps
 from uuid import uuid4
 
-import traceback
-from flask import (Flask, render_template, request, redirect, url_for,
-                    session, flash, send_file, jsonify, abort, make_response)
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    session, flash, send_file, jsonify, abort, make_response,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 
-from database import (init_db, get_conn, get_config, set_config,
-                       get_base_dir, DB_PATH, get_company_info, registrar_auditoria)
+from database import (
+    init_db, get_conn, get_config, set_config,
+    get_base_dir, DB_PATH, get_company_info, registrar_auditoria,
+)
 import services
 import reports as reportmod
+import diagnostico as diagmod
+import json
+import tempfile
+import time
+import atualizador as _atualizador
+import comparador_estoque as compmod
 
 APP_PORT = 5701
 APP_NAME = "SGE"
 
-<<<<<<< HEAD
+
+# ---------------------------------------------------------------------------
+# Chave de sessão persistente
+# ---------------------------------------------------------------------------
 def _get_or_create_secret_key():
-    """Gera uma chave de sessão na primeira execução e reutiliza nas seguintes."""
     key_path = os.path.join(get_base_dir(), ".secret_key")
     try:
         with open(key_path, "r") as f:
@@ -71,17 +67,31 @@ def _get_or_create_secret_key():
 
 
 # ---------------------------------------------------------------------------
-# Detecção de modo empacotado (PyInstaller)
+# Recursos empacotados (PyInstaller)
 # ---------------------------------------------------------------------------
 def _resource_path(relative_path):
-    """Retorna o caminho absoluto do recurso, tanto em dev como empacotado."""
+    # Modo modular: templates/ e static/ vivem em _codigo\ ao lado do .exe.
+    # Em dev, ficam na pasta do próprio app.py.
     if getattr(sys, "frozen", False):
-        # PyInstaller cria uma pasta temporária em sys._MEIPASS
-        base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = os.path.dirname(sys.executable)
+        codigo_dir = os.path.join(base, "_codigo")
+        if os.path.isdir(codigo_dir):
+            return os.path.join(codigo_dir, relative_path)
+    base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, relative_path)
 
+_UPDATE_STATE = {
+    "state": "idle",       # idle | applying | done | error
+    "current": 0,
+    "total": 0,
+    "file": "",
+    "error": None,
+    "started_at": None,
+    "finished_at": None,
+}
+# ---------------------------------------------------------------------------
+# Flask app
+# ---------------------------------------------------------------------------
 app = Flask(
     __name__,
     template_folder=_resource_path("templates"),
@@ -90,7 +100,7 @@ app = Flask(
 )
 app.secret_key = _get_or_create_secret_key()
 app.config["TEMPLATES_AUTO_RELOAD"] = True
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # cabe um backup grande
 
 logging.basicConfig(
     filename=os.path.join(get_base_dir(), "app_errors.log"),
@@ -98,96 +108,32 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 
-=======
-app = Flask(__name__)
-app.secret_key = "sge-estoque-chave-local-troque-se-desejar-" + str(int(time.time()))
-app.config["TEMPLATES_AUTO_RELOAD"] = True
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-
-def safe_parse_float(value, default=0.0):
-    """Converte string para float de forma segura, aceitando vírgula como decimal"""
-    if value is None or value == '':
-        return default
-    try:
-        v_str = str(value).strip()
-<<<<<<< HEAD
-        if ',' in v_str and '.' in v_str:
-            v_str = v_str.replace('.', '').replace(',', '.')
-        elif ',' in v_str and '.' not in v_str:
-=======
-        # Se tiver vírgula como separador decimal
-        if ',' in v_str and '.' in v_str:
-            # Formato: 1.234,56
-            v_str = v_str.replace('.', '').replace(',', '.')
-        elif ',' in v_str and '.' not in v_str:
-            # Formato: 1,23
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-            v_str = v_str.replace(',', '.')
-        return float(v_str)
-    except (TypeError, ValueError):
-        return default
-
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    traceback.print_exc()
-<<<<<<< HEAD
-    logging.error(traceback.format_exc())
-    return (
-        "<h1>Ocorreu um erro interno</h1>"
-        "<p>Os detalhes foram registados. Tente novamente ou contacte o suporte "
-        "técnico se o problema persistir.</p>"
-        f'<p><a href="{url_for("dashboard")}">Voltar ao início</a></p>'
-    ), 500
-=======
-    return f"<h1>Internal Server Error</h1><pre>{traceback.format_exc()}</pre>", 500
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-
+# ---------------------------------------------------------------------------
+# Encerramento limpo
+# ---------------------------------------------------------------------------
 _shutdown_requested = False
 
 
-# ---------------------------------------------------------------------------
-# Encerramento limpo (garante que todos os processos terminem ao sair)
-# ---------------------------------------------------------------------------
 def _encerrar_tudo():
-<<<<<<< HEAD
-    """Callback de encerramento: fecha conexões pendentes e força saída.
-
-    No Windows (empacotado com PyInstaller) usamos os._exit(0) porque
-    os.kill(pid, SIGTERM) não funciona de forma fiável nesse SO.
-    """
-=======
-    """Callback de encerramento: fecha conexões pendentes e força saída."""
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     global _shutdown_requested
     if _shutdown_requested:
         return
     _shutdown_requested = True
     try:
-<<<<<<< HEAD
         logging.shutdown()
     except Exception:
         pass
     try:
         if getattr(sys, "frozen", False):
-            # Empacotado: força saída imediata (Windows-friendly)
             os._exit(0)
         else:
-            # Em desenvolvimento: encerra o processo normalmente
             sys.exit(0)
     except Exception:
         try:
             os._exit(0)
         except Exception:
             pass
-=======
-        if getattr(sys, "frozen", False):
-            os.kill(os.getpid(), getattr(signal, "SIGTERM", 15))
-    except Exception:
-        pass
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 
 
 atexit.register(_encerrar_tudo)
@@ -198,16 +144,102 @@ except Exception:
     pass
 
 
+# ---------------------------------------------------------------------------
+# Utilidades
+# ---------------------------------------------------------------------------
 def _client_ip():
-    """Retorna o IP do cliente (seguro para localhost)."""
     try:
         return request.remote_addr or "127.0.0.1"
     except Exception:
         return "127.0.0.1"
 
 
+def safe_parse_float(value, default: "float | None" = 0.0):
+    if value is None or value == "":
+        return default
+    try:
+        v_str = str(value).strip()
+        if "," in v_str and "." in v_str:
+            v_str = v_str.replace(".", "").replace(",", ".")
+        elif "," in v_str and "." not in v_str:
+            v_str = v_str.replace(",", ".")
+        return float(v_str)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_parse_float_required(value, default: float) -> float:
+    """Como safe_parse_float, mas o retorno é sempre float (nunca None)."""
+    v = safe_parse_float(value, default)
+    return default if v is None else float(v)
+
+
+def safe_parse_int(value, default: int = 0) -> int:
+    """Converte para inteiro aceitando vírgula decimal (ex.: '10,00' -> 10)."""
+    v = safe_parse_float(value, None)
+    if v is None:
+        return default
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # 404, 403, 405, 413... são respostas HTTP normais, não falhas da aplicação.
+    if isinstance(e, HTTPException):
+        return e
+    traceback.print_exc()
+    logging.error(traceback.format_exc())
+    msg = str(e) or "Erro interno desconhecido"
+
+    # API/AJAX → JSON para o JS consumir (fetch/atualizacoes.js, etc.)
+    if (request.path.startswith("/api/")
+            or request.accept_mimetypes.best == "application/json"
+            or request.headers.get("X-Requested-With") == "XMLHttpRequest"):
+        return jsonify({"ok": False, "erro": msg}), 500
+
+    # Navegação normal → AppModal.erro no frontend, depois redirecciona
+    ref = request.referrer or ""
+    if not ref.startswith("/") or ref.startswith("//") or "\\" in ref:
+        ref = url_for("dashboard")
+
+    payload = json.dumps({
+        "msg": msg,
+        "ref": ref,
+        "detalhes": traceback.format_exc()[:4000],
+    })
+    modal_src = url_for("static", filename="js/modal.js")
+    css_src   = url_for("static", filename="css/style.css")
+    return (
+        '<!DOCTYPE html><html lang="pt-MZ"><head><meta charset="utf-8">'
+        f'<link rel="stylesheet" href="{css_src}">'
+        '</head><body>'
+        f'<script src="{modal_src}"></script>'
+        '<script>'
+        f'var __err = {payload};'
+        '(function(){'
+        '  function mostrar(){'
+        '    if (window.AppModal) {'
+        '      window.AppModal.erro(__err.msg, __err.detalhes).then(function(){'
+        '        window.location.href = __err.ref;'
+        '      });'
+        '    } else {'
+        '      document.body.textContent = "Erro interno: " + __err.msg;'
+        '      setTimeout(function(){ window.location.href = __err.ref; }, 5000);'
+        '    }'
+        '  }'
+        '  if (document.readyState === "loading")'
+        '    document.addEventListener("DOMContentLoaded", mostrar);'
+        '  else mostrar();'
+        '})();'
+        '</script></body></html>'
+    ), 500
+
+
 # ---------------------------------------------------------------------------
-# Autenticação e controle de acesso
+# Autenticação
 # ---------------------------------------------------------------------------
 def login_required(view):
     @wraps(view)
@@ -232,27 +264,33 @@ def perfil_required(*perfis):
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# Context processor + filtros de formatação
+# ---------------------------------------------------------------------------
 @app.context_processor
 def inject_globals():
     emp = get_company_info()
     primeira_install = get_config("primeira_instalacao", "1") == "1"
     empresa_nome = "" if primeira_install else emp.get("nome", "")
+    diag = app.config.get("_diagnostico") or {}
     return {
         "current_user": {
             "nome": session.get("nome"),
             "perfil": session.get("perfil"),
         },
-        "empresa": {**emp, "nome": empresa_nome},
-        "config": {"moeda": get_config("moeda", "MZN")},
+        "empresa": {**emp, "nome": empresa_nome,
+                    "logo_url": _logo_url_para(emp.get("logo"))},
+        "config": {
+            "moeda": get_config("moeda", "MZN"),
+            "metodo_custeio": get_config("metodo_custeio", "media_ponderada"),
+        },
         "ano_atual": datetime.now().year,
         "app_name": APP_NAME,
-<<<<<<< HEAD
         "hoje": datetime.now().date().isoformat(),
+        "diagnostico": diag,
     }
 
-
 def _formatar_numero_pt(value, decimals=2):
-    """Formata um número no padrão pt-PT/pt-MZ: '.' para milhar, ',' para decimal."""
     try:
         decimals = int(decimals)
     except (TypeError, ValueError):
@@ -261,25 +299,22 @@ def _formatar_numero_pt(value, decimals=2):
         val = float(value)
     except (TypeError, ValueError):
         val = 0.0
-    # Guarda contra NaN/Inf (evita ValueError no format do Python)
     if not math.isfinite(val):
         val = 0.0
     formatted = f"{val:,.{decimals}f}"
-    parts = formatted.split('.')
-    integer_part = parts[0].replace(',', '.')
-    decimal_part = parts[1] if len(parts) > 1 else '0' * decimals
+    parts = formatted.split(".")
+    integer_part = parts[0].replace(",", ".")
+    decimal_part = parts[1] if len(parts) > 1 else "0" * decimals
     return f"{integer_part},{decimal_part}" if decimals else integer_part
 
 
 @app.template_filter("format_num")
 def format_num(value, decimals=2):
-    """Formata números genéricos no padrão pt: 1.234,56."""
     return _formatar_numero_pt(value, decimals)
 
 
 @app.template_filter("format_int")
 def format_int(value):
-    """Formata números como inteiros com separador de milhar (ex: 1.000)."""
     try:
         val = int(float(value))
     except (TypeError, ValueError):
@@ -289,12 +324,11 @@ def format_int(value):
 
 @app.template_filter("format_currency")
 def format_currency(value, decimals=2):
-    """Formata valores monetários (ex: 1.000,00)."""
     return _formatar_numero_pt(value, decimals)
+
 
 @app.template_filter("format_qtd")
 def format_qtd(value, unidade=None):
-    """Formata quantidade: 3 decimais apenas para 'kg', senão inteiro."""
     unidade_norm = (str(unidade) if unidade is not None else "").strip().lower()
     if unidade_norm == "kg":
         return _formatar_numero_pt(value, 3)
@@ -302,55 +336,13 @@ def format_qtd(value, unidade=None):
         return _formatar_numero_pt(round(float(value or 0)), 0)
     except (TypeError, ValueError):
         return "0"
-=======
-    }
-
-
-@app.template_filter("format_num")
-def format_num(value, decimals=2):
-    try:
-        return f"{float(value):,.{int(decimals)}f}"
-    except Exception:
-        return f"{0:,.{int(decimals)}f}"
-
-@app.template_filter("format_int")
-def format_int(value):
-    """Formata números como inteiros com separador de milhar (ex: 1.000)"""
-    try:
-        val = int(float(value))
-        return f"{val:,}".replace(',', '.')
-    except (TypeError, ValueError):
-        return "0"
-
-@app.template_filter("format_currency")
-def format_currency(value, decimals=2):
-    """Formata valores monetários com separador de milhar e vírgula decimal (ex: 1.000,00)"""
-    try:
-        val = float(value)
-        # Formata com separador de milhar (,) e ponto decimal (.)
-        formatted = f"{val:,.{int(decimals)}f}"
-        # Troca: . (separador milhar) -> . (mantém), , (decimal) -> , (mantém)
-        # Na verdade, o Python usa , para milhar e . para decimal
-        # Para português: . para milhar e , para decimal
-        parts = formatted.split('.')
-        integer_part = parts[0].replace(',', '.')
-        decimal_part = parts[1] if len(parts) > 1 else '0' * decimals
-        return f"{integer_part},{decimal_part}"
-    except (TypeError, ValueError):
-        zeros = '0' * decimals
-        return f"0,{zeros}"
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 
 
 # ---------------------------------------------------------------------------
-# Login / Logout / Recuperação de senha
+# Login / Logout / Recuperação
 # ---------------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
 def login():
-<<<<<<< HEAD
-=======
-    # Autocomplete OFF → não guardar último utilizador
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     if request.method == "POST":
         login_val = request.form.get("login", "").strip()
         senha = request.form.get("senha", "")
@@ -385,7 +377,11 @@ def login():
             session["_sid"] = str(uuid4())
             if get_config("primeira_instalacao", "1") == "1":
                 set_config("primeira_instalacao", "0")
-            return redirect(request.args.get("next") or url_for("dashboard"))
+            destino = request.args.get("next") or ""
+            # só caminhos internos ("/x"); recusa "//host" e "http://..."
+            if not destino.startswith("/") or destino.startswith("//") or "\\" in destino:
+                destino = url_for("dashboard")
+            return redirect(destino)
         else:
             bloq2, rest2 = services.login_bloqueado(conn, login_val)
             registrar_auditoria(conn, None, "usuarios", None, "LOGIN",
@@ -402,37 +398,74 @@ def login():
                 bloqueio_info={"bloqueado": bloq2, "segundos": rest2},
                 autocomplete="off",
             )
-    return render_template("login.html", autocomplete="off",
-                           bloqueio_info=None)
+    return render_template("login.html", autocomplete="off", bloqueio_info=None)
 
+@app.route("/favicon.ico")
+def favicon():
+    """Silencia o pedido do browser pelo favicon."""
+    from flask import send_from_directory
+    pasta = os.path.join(app.static_folder or "", "img")
+    if not os.path.exists(os.path.join(pasta, "favicon.ico")):
+        return ("", 204)
+    return send_from_directory(pasta, "favicon.ico",
+                               mimetype="image/vnd.microsoft.icon")
 
 @app.route("/recuperar-senha", methods=["GET", "POST"])
 def recuperar_senha_inicio():
-<<<<<<< HEAD
-    """Passo 1: pede o login e gera token."""
-=======
-    """Passo 1: pede o login e gera token (exibe na tela, pq é desktop/offline)."""
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     if request.method == "POST":
         login_val = request.form.get("login", "").strip()
         conn = get_conn()
         res = services.gerar_token_recuperacao(conn, login_val)
         conn.close()
         if res:
-            token, user = res
+            token, _user = res
             flash("Token gerado com sucesso.", "sucesso")
             return redirect(url_for("recuperar_senha_token", token=token))
         flash("Utilizador não encontrado ou inativo.", "erro")
     return render_template("recuperar_senha_passo1.html")
 
 
+def _logo_url_para(nome_logo: "str | None") -> "str | None":
+    """URL do logo servido pela rota /media/logo, com cache-busting.
+
+    Em produção o `static_folder` do Flask aponta para `_MEIPASS` (temp.),
+    mas o upload escreve em `get_base_dir()/static/img/` (persistente).
+    Esta função usa a rota que serve do sítio correto.
+    """
+    nome = (nome_logo or "").strip()
+    if not nome:
+        return None
+    if nome.startswith("data:image"):
+        return nome
+    # Sanitização: só aceita nome de ficheiro simples (sem path traversal)
+    nome = os.path.basename(nome)
+    caminho = os.path.join(get_base_dir(), "static", "img", nome)
+    if not os.path.exists(caminho):
+        return None
+    try:
+        v = int(os.path.getmtime(caminho))
+    except OSError:
+        v = 0
+    return url_for("serve_logo", v=v)
+
+
+@app.route("/media/logo")
+def serve_logo():
+    """Serve o logo da pasta de dados persistente."""
+    from flask import send_from_directory
+    nome = (get_config("logo_empresa", "") or "").strip()
+    if not nome or nome.startswith("data:"):
+        return ("", 404)
+    nome = os.path.basename(nome)
+    pasta = os.path.join(get_base_dir(), "static", "img")
+    caminho = os.path.join(pasta, nome)
+    if not os.path.exists(caminho):
+        logging.error(f"serve_logo: ficheiro não encontrado — {caminho}")
+        return ("", 404)
+    return send_from_directory(pasta, nome, max_age=3600)
+
 @app.route("/recuperar-senha/t/<token>", methods=["GET", "POST"])
 def recuperar_senha_token(token):
-<<<<<<< HEAD
-    """Passo 2: valida o token e permite definir nova senha."""
-=======
-    """Passo 2: valida o token e permite definir nova senha (com confirmação)."""
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     conn = get_conn()
     user = services.validar_token_recuperacao(conn, token)
     if not user:
@@ -477,33 +510,16 @@ def logout():
 
 
 @app.route("/api/shutdown", methods=["POST"])
-<<<<<<< HEAD
 @perfil_required("Admin", "Gerente")
 def shutdown_app():
-    """Endpoint chamado pelo botão 'Sair e encerrar'.
-
-    Em modo janela (pywebview), fecha a janela — o `webview.start()`
-    retorna e o `_encerrar_tudo()` corre em seguida no `finally`.
-
-    Em modo browser (fallback), mata o processo directamente.
-    """
     janela = app.config.get("_janela_webview")
     if janela is not None:
         try:
-            # Fecha a janela do pywebview
             janela.destroy()
         except Exception:
             pass
         return jsonify({"ok": True})
-
-    # Fallback (modo browser)
     t = threading.Timer(1.5, _encerrar_tudo)
-=======
-@login_required
-def shutdown_app():
-    """Endpoint chamado pelo botão 'Sair e encerrar' (Admin/Gerente)."""
-    t = threading.Timer(0.6, _encerrar_tudo)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     t.daemon = True
     t.start()
     return jsonify({"ok": True})
@@ -531,7 +547,9 @@ def dashboard():
     total_produtos = conn.execute(
         f"SELECT COUNT(*) c FROM produtos p WHERE p.ativo=1{filtro_cat_sql}", params_cat
     ).fetchone()["c"]
-    total_categorias = conn.execute("SELECT COUNT(*) c FROM categorias WHERE ativo=1").fetchone()["c"]
+    total_categorias = conn.execute(
+        "SELECT COUNT(*) c FROM categorias WHERE ativo=1"
+    ).fetchone()["c"]
 
     valor_custo = conn.execute(
         f"""SELECT COALESCE(SUM(e.saldo_atual * p.preco_custo),0) v
@@ -601,6 +619,41 @@ def dashboard():
 
     sugestoes = services.sugestoes_precos(conn)
     categorias = conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
+
+    # ---- Faturas a crédito por estado (para o gráfico) ----
+    faturas_estado = conn.execute("""
+        SELECT status,
+               COUNT(*) AS n,
+               COALESCE(SUM(valor_total), 0) AS total
+        FROM contas_receber
+        WHERE status != 'Cancelada'
+        GROUP BY status
+    """).fetchall()
+    _lbl = {"Aberta": "Em aberto",
+            "Parcial": "Parcialmente pagas",
+            "Liquidada": "Pagas"}
+    faturas_status_labels = []
+    faturas_status_valores = []
+    faturas_status_qtds = []
+    for _k in ("Aberta", "Parcial", "Liquidada"):
+        _r = next((x for x in faturas_estado if x["status"] == _k), None)
+        if _r:
+            faturas_status_labels.append(_lbl[_k])
+            faturas_status_valores.append(float(_r["total"] or 0))
+            faturas_status_qtds.append(int(_r["n"] or 0))
+
+    # ---- Top 10 clientes em dívida (para o gráfico) ----
+    top_clientes_divida = conn.execute("""
+        SELECT nome_cliente,
+               COUNT(*) AS n_faturas,
+               COALESCE(SUM(saldo), 0) AS saldo
+        FROM contas_receber
+        WHERE status != 'Cancelada' AND saldo > 0.01
+        GROUP BY nome_cliente
+        ORDER BY saldo DESC
+        LIMIT 10
+    """).fetchall()
+
     conn.close()
 
     return render_template(
@@ -613,6 +666,10 @@ def dashboard():
         compras_serie=compras_serie, vendas_serie=vendas_serie, lucro_serie=lucro_serie,
         mais_vendidos=mais_vendidos, sugestoes=sugestoes[:8],
         categorias=categorias, categoria_id=categoria_id, periodo_dias=periodo_dias,
+        faturas_status_labels=faturas_status_labels,
+        faturas_status_valores=faturas_status_valores,
+        faturas_status_qtds=faturas_status_qtds,
+        top_clientes_divida=top_clientes_divida,
     )
 
 
@@ -690,12 +747,7 @@ def categorias_excluir(id_categoria):
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Produtos
-=======
-# Produtos (atualizado: código automático, sem duplicados, 5 decimais,
-#             código de segurança para editar, auditoria, reflete estoque)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 @app.route("/produtos")
 @login_required
@@ -747,7 +799,6 @@ def produtos_novo():
 @app.route("/api/produtos/codigo-provisorio")
 @login_required
 def api_codigo_provisorio():
-    """Gera e reserva um novo código provisório (chamado via JS ao digitar o nome)."""
     if "_sid" not in session:
         session["_sid"] = str(uuid4())
     sessao_id = session["_sid"]
@@ -761,11 +812,9 @@ def api_codigo_provisorio():
 @perfil_required("Admin", "Gerente")
 def produtos_editar(id_produto):
     conn = get_conn()
-<<<<<<< HEAD
-    produto = conn.execute("SELECT * FROM produtos WHERE id_produto=? AND ativo=1", (id_produto,)).fetchone()
-=======
-    produto = conn.execute("SELECT * FROM produtos WHERE id_produto=?", (id_produto,)).fetchone()
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+    produto = conn.execute(
+        "SELECT * FROM produtos WHERE id_produto=? AND ativo=1", (id_produto,)
+    ).fetchone()
     categorias = conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
     if not produto:
@@ -781,16 +830,12 @@ def produtos_salvar():
     f = request.form
     conn = get_conn()
     try:
-        id_produto = f.get("id_produto")
+        id_produto_raw = f.get("id_produto")
+        id_produto: "int | None" = int(id_produto_raw) if id_produto_raw else None
         sessao_id = f.get("sessao_id") or session.get("_sid", "")
-        modo = "editar" if id_produto else "novo"
+        modo = "editar" if id_produto is not None else "novo"
 
-        # Segurança: para EDITAR, exige código se Admin tiver definido um
-        if modo == "editar":
-<<<<<<< HEAD
-=======
-            # Verifica se o código de segurança é exigido
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+        if id_produto is not None:
             codigo_seg_config = get_config("codigo_alteracao_produto", "")
             if codigo_seg_config:
                 codigo_seg_forn = f.get("codigo_seguranca", "")
@@ -799,22 +844,17 @@ def produtos_salvar():
                     conn.close()
                     return redirect(url_for("produtos_list"))
 
-        # Nome do produto
         nome = f.get("nome", "").strip()
         if not nome:
             flash("Informe o nome do produto.", "erro")
             conn.close()
             return redirect(url_for("produtos_list"))
 
-        # Duplicado de nome
-        if services.produto_nome_existe(conn, nome,
-                                        id_produto_excluir=int(id_produto) if id_produto else None):
-            flash("Já existe um produto ativo com este nome (nomes duplicados não são permitidos).", "erro")
+        if services.produto_nome_existe(conn, nome, id_produto_excluir=id_produto):
+            flash("Já existe um produto ativo com este nome.", "erro")
             conn.close()
             return redirect(url_for("produtos_list"))
 
-<<<<<<< HEAD
-        # Categoria — tratamento robusto
         id_cat_raw = f.get("id_categoria", "").strip()
         if not id_cat_raw:
             flash("Selecione uma categoria válida.", "erro")
@@ -827,9 +867,6 @@ def produtos_salvar():
             conn.close()
             return redirect(url_for("produtos_list"))
 
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-        # Código
         if modo == "novo":
             codigo = (f.get("codigo", "") or "").strip()
             if not codigo:
@@ -842,63 +879,53 @@ def produtos_salvar():
                 conn.close()
                 return redirect(url_for("produtos_list"))
 
-        # Converte valores com 5 casas decimais (teto)
         def parse_ceil(v):
-            if v is None or v == '':
+            if v is None or v == "":
                 return 0.0
             try:
                 v_str = str(v).strip()
-                if ',' in v_str and '.' in v_str:
-                    v_str = v_str.replace('.', '').replace(',', '.')
-                elif ',' in v_str and '.' not in v_str:
-                    v_str = v_str.replace(',', '.')
+                if "," in v_str and "." in v_str:
+                    v_str = v_str.replace(".", "").replace(",", ".")
+                elif "," in v_str and "." not in v_str:
+                    v_str = v_str.replace(",", ".")
                 return services.ceil5(float(v_str))
             except Exception:
                 return 0.0
 
         unidade_val = f.get("unidade") or "Unidade"
-        qtd_por_unidade_raw = int(f.get("qtd_por_unidade") or 1)
-        if unidade_val == "Unidade":
-            qtd_por_unidade_raw = 1
+        if unidade_val not in services.UNIDADES_VALIDAS:
+            flash("Unidade de medida inválida.", "erro")
+            conn.close()
+            return redirect(url_for("produtos_list"))
 
-<<<<<<< HEAD
-        # Calcula estoque_maximo ANTES de montar o dict
-        # (não é possível ter instruções dentro de dict(...))
+        if unidade_val in ("Unidade", "kg"):
+            qtd_por_unidade_raw = 1
+        else:
+            qtd_por_unidade_raw = safe_parse_int(f.get("qtd_por_unidade"), 1)
+            if qtd_por_unidade_raw < 1:
+                qtd_por_unidade_raw = 1
+
         em_raw = (f.get("estoque_maximo") or "").strip()
         estoque_maximo = None
         if em_raw:
-            try:
-                _em = int(float(em_raw))
-                estoque_maximo = _em if _em > 0 else None
-            except (TypeError, ValueError):
-                estoque_maximo = None
+            _em = safe_parse_int(em_raw, 0)
+            estoque_maximo = _em if _em > 0 else None
 
         dados = dict(
             codigo=codigo, nome=nome,
             id_categoria=id_categoria,
-=======
-        dados = dict(
-            codigo=codigo, nome=nome,
-            id_categoria=f.get("id_categoria", type=int) or f.get("id_categoria"),
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             unidade=unidade_val,
             qtd_por_unidade=qtd_por_unidade_raw,
             preco_custo=parse_ceil(f.get("preco_custo")),
             preco_venda=parse_ceil(f.get("preco_venda")),
-            estoque_minimo=int(float(f.get("estoque_minimo") or 0)),
-<<<<<<< HEAD
+            estoque_minimo=safe_parse_int(f.get("estoque_minimo"), 0),
             estoque_maximo=estoque_maximo,
-=======
-            estoque_maximo=(int(float(f.get("estoque_maximo"))) if f.get("estoque_maximo") else None),
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             validade=f.get("validade") or None,
             fornecedor=f.get("fornecedor", "").strip(),
             observacoes=f.get("observacoes", "").strip(),
         )
 
-        antigos = None
-        if modo == "editar":
-<<<<<<< HEAD
+        if id_produto is not None:
             row = conn.execute(
                 "SELECT * FROM produtos WHERE id_produto=?", (id_produto,)
             ).fetchone()
@@ -907,11 +934,6 @@ def produtos_salvar():
                 conn.close()
                 return redirect(url_for("produtos_list"))
             antigos = dict(row)
-=======
-            antigos = dict(conn.execute(
-                "SELECT * FROM produtos WHERE id_produto=?", (id_produto,)
-            ).fetchone())
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             conn.execute(
                 """UPDATE produtos SET codigo=?, nome=?, id_categoria=?, unidade=?, qtd_por_unidade=?,
                    preco_custo=?, preco_venda=?, estoque_minimo=?, estoque_maximo=?, validade=?,
@@ -922,13 +944,13 @@ def produtos_salvar():
                  dados["fornecedor"], dados["observacoes"], id_produto),
             )
             alterados = services.atualizar_produto_refletir_estoque(
-                conn, int(id_produto), antigos, dados)
+                conn, id_produto, antigos, dados)
             registrar_auditoria(conn, session.get("user_id"), "produtos",
-                                int(id_produto), "UPDATE",
-                                {**antigos, "campos_alterados": alterados} if antigos else None,
+                                id_produto, "UPDATE",
+                                {**antigos, "campos_alterados": alterados},
                                 {**dados, "campos_alterados": alterados},
                                 _client_ip())
-            flash("Produto atualizado com sucesso (alterações refletidas no estoque).", "sucesso")
+            flash("Produto atualizado com sucesso.", "sucesso")
         else:
             cur = conn.execute(
                 """INSERT INTO produtos (codigo, nome, id_categoria, unidade, qtd_por_unidade,
@@ -944,8 +966,21 @@ def produtos_salvar():
                 "INSERT INTO estoque (id_produto, saldo_atual, ultima_atualizacao) VALUES (?,0,?)",
                 (cur.lastrowid, datetime.now().isoformat(timespec="seconds")))
             registrar_auditoria(conn, session.get("user_id"), "produtos",
-                                cur.lastrowid, "INSERT", None, dados, _client_ip())
+                        cur.lastrowid, "INSERT", None, dados, _client_ip())
             flash("Produto cadastrado com sucesso.", "sucesso")
+
+        # --- 2.6: aviso de margem negativa no cadastro ---
+        _pc = float(dados.get("preco_custo") or 0)
+        _pv = float(dados.get("preco_venda") or 0)
+        if _pc > 0 and _pv > 0 and _pv <= _pc:
+            _margem = ((_pv - _pc) / _pv) * 100
+            flash(
+                f"⚠️ O produto '{dados['nome']}' tem MARGEM NEGATIVA "
+                f"({_margem:.1f}%): custo {_pc:.2f}, venda {_pv:.2f}. "
+                f"Reveja os preços — as vendas deste produto darão prejuízo.",
+                "aviso",
+            )
+
         conn.commit()
     except Exception as e:
         flash(f"Erro ao salvar produto: {e}", "erro")
@@ -956,7 +991,6 @@ def produtos_salvar():
 @app.route("/produtos/cancelar", methods=["POST"])
 @perfil_required("Admin", "Gerente")
 def produtos_cancelar():
-    """Libera o código provisório da sessão (usuário cancelou o formulário)."""
     sessao_id = request.form.get("sessao_id") or session.get("_sid", "")
     codigo = request.form.get("codigo") or None
     conn = get_conn()
@@ -968,8 +1002,6 @@ def produtos_cancelar():
 @app.route("/produtos/<int:id_produto>/excluir", methods=["POST"])
 @perfil_required("Admin")
 def produtos_excluir(id_produto):
-<<<<<<< HEAD
-    """Exclui o produto e TODOS os dados relacionados (cascata)."""
     conn = get_conn()
     try:
         antigos = conn.execute(
@@ -980,7 +1012,6 @@ def produtos_excluir(id_produto):
             conn.close()
             return redirect(url_for("produtos_list"))
 
-        # Contadores para auditoria
         movimentos_removidos = conn.execute(
             "SELECT COUNT(*) c FROM movimentos WHERE id_produto=?", (id_produto,)
         ).fetchone()["c"]
@@ -991,7 +1022,6 @@ def produtos_excluir(id_produto):
             "SELECT COUNT(*) c FROM itens_cotacao WHERE id_produto=?", (id_produto,)
         ).fetchone()["c"]
 
-        # Exclusão em cascata — ordem: tabelas dependentes primeiro
         conn.execute("DELETE FROM itens_cotacao WHERE id_produto=?", (id_produto,))
         conn.execute("DELETE FROM inventarios WHERE id_produto=?", (id_produto,))
         conn.execute("DELETE FROM movimentos WHERE id_produto=?", (id_produto,))
@@ -1000,15 +1030,12 @@ def produtos_excluir(id_produto):
         conn.execute("DELETE FROM produtos WHERE id_produto=?", (id_produto,))
 
         registrar_auditoria(
-            conn, session.get("user_id"), "produtos",
-            id_produto, "DELETE",
+            conn, session.get("user_id"), "produtos", id_produto, "DELETE",
             dict(antigos),
-            {
-                "acao": "EXCLUSAO_CASCATA",
-                "movimentos_removidos": movimentos_removidos,
-                "inventarios_removidos": inventarios_removidos,
-                "itens_cotacao_removidos": itens_cotacao_removidos,
-            },
+            {"acao": "EXCLUSAO_CASCATA",
+             "movimentos_removidos": movimentos_removidos,
+             "inventarios_removidos": inventarios_removidos,
+             "itens_cotacao_removidos": itens_cotacao_removidos},
             _client_ip()
         )
         conn.commit()
@@ -1025,31 +1052,7 @@ def produtos_excluir(id_produto):
     conn.close()
     return redirect(url_for("produtos_list"))
 
-=======
-    conn = get_conn()
-    antigos = conn.execute(
-        "SELECT * FROM produtos WHERE id_produto=?", (id_produto,)
-    ).fetchone()
-    tem_mov = conn.execute("SELECT COUNT(*) c FROM movimentos WHERE id_produto=?",
-                           (id_produto,)).fetchone()["c"]
-    if tem_mov:
-        conn.execute("UPDATE produtos SET ativo=0 WHERE id_produto=?", (id_produto,))
-        flash("Produto possui movimentações: foi desativado (exclusão lógica).", "info")
-    else:
-        conn.execute("DELETE FROM estoque WHERE id_produto=?", (id_produto,))
-        conn.execute("DELETE FROM produtos WHERE id_produto=?", (id_produto,))
-        flash("Produto excluído.", "sucesso")
-    registrar_auditoria(conn, session.get("user_id"), "produtos",
-                        id_produto, "DELETE",
-                        dict(antigos) if antigos else None,
-                        {"ativo": 0 if tem_mov else None},
-                        _client_ip())
-    conn.commit()
-    conn.close()
-    return redirect(url_for("produtos_list"))
 
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 @app.route("/api/produtos/buscar")
 @login_required
 def api_produtos_buscar():
@@ -1067,52 +1070,47 @@ def api_produtos_buscar():
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Inventário físico
-=======
-# Inventário físico (atualizado)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 @app.route("/estoque/inventario", methods=["GET", "POST"])
 @login_required
 def estoque_inventario():
     conn = get_conn()
     if request.method == "POST":
-<<<<<<< HEAD
-=======
-        acao = request.form.get("acao_apos", "guardar")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         exportar = request.form.get("exportar_pdf", "0") == "1"
-
         inventarios_inseridos = []
         invalid_entries = []
+
         for key, value in request.form.items():
             if not key.startswith("contagem_"):
                 continue
-            id_produto = int(key.split("_", 1)[1])
             try:
-                contagem = float(value or 0)
+                id_produto = int(key.split("_", 1)[1])
             except ValueError:
                 continue
-<<<<<<< HEAD
-=======
-            # enforce integer counts for Unidade products
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-            prod = conn.execute("SELECT nome, unidade FROM produtos WHERE id_produto=?", (id_produto,)).fetchone()
-            if prod and prod["unidade"] == "Unidade" and not float(contagem).is_integer():
-                invalid_entries.append(prod["nome"] if prod and prod["nome"] else str(id_produto))
+            texto = (value or "").strip()
+            if texto == "":
+                contagem = 0.0
+            else:
+                contagem = safe_parse_float(texto, None)
+                if contagem is None:
+                    continue
+            prod = conn.execute(
+                "SELECT nome, unidade FROM produtos WHERE id_produto=?", (id_produto,)
+            ).fetchone()
+            if (prod
+                    and prod["unidade"] not in services.UNIDADES_DECIMAIS
+                    and not float(contagem).is_integer()):
+                invalid_entries.append(prod["nome"] or str(id_produto))
                 continue
-            saldo_registrado = conn.execute(
+
+            saldo_row = conn.execute(
                 "SELECT COALESCE(saldo_atual,0) AS saldo FROM estoque WHERE id_produto=?",
                 (id_produto,),
             ).fetchone()
-            saldo_registrado = saldo_registrado["saldo"] if saldo_registrado else 0
+            saldo_registrado = saldo_row["saldo"] if saldo_row else 0
             diferenca = services.round5(contagem - saldo_registrado)
 
-<<<<<<< HEAD
-=======
-            # Se já tem inventário exportado, marca como "alterado após export"
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             anterior = conn.execute(
                 "SELECT MAX(id_inventario) AS ult FROM inventarios WHERE id_produto=? AND exportado=1",
                 (id_produto,),
@@ -1127,7 +1125,10 @@ def estoque_inventario():
                     valor_anterior = ult["contagem_fisica"]
 
             cur = conn.execute(
-                "INSERT INTO inventarios (id_produto, contagem_fisica, saldo_registrado, diferenca, data_registro, exportado, valor_anterior) VALUES (?,?,?,?,?,?,?)",
+                """INSERT INTO inventarios
+                   (id_produto, contagem_fisica, saldo_registrado, diferenca,
+                    data_registro, exportado, valor_anterior)
+                   VALUES (?,?,?,?,?,?,?)""",
                 (id_produto, contagem, saldo_registrado, diferenca,
                  datetime.now().isoformat(timespec="seconds"),
                  1 if exportar else 0, valor_anterior),
@@ -1135,52 +1136,33 @@ def estoque_inventario():
             inventarios_inseridos.append(cur.lastrowid)
         conn.commit()
 
-<<<<<<< HEAD
-                # Feedback ao utilizador
         if invalid_entries:
-            flash("As seguintes contagens foram ignoradas (produtos 'Unidade' "
-                  "exigem valores inteiros): " + ", ".join(invalid_entries), "erro")
+            flash("As seguintes contagens foram ignoradas (produtos que não "
+                  "são 'kg' exigem valores inteiros): " + ", ".join(invalid_entries), "erro")
 
-        # Exportação PDF (bloco independente de invalid_entries)
         if exportar and inventarios_inseridos:
-=======
-        if exportar and inventarios_inseridos:
-            # Auto-exporta PDF após a comparação
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+            placeholders = ",".join("?" * len(inventarios_inseridos))
             linhas_inventario = conn.execute(
-                """SELECT p.codigo, p.nome, i.saldo_registrado, i.contagem_fisica, i.diferenca, i.valor_anterior
-                   FROM inventarios i JOIN produtos p ON p.id_produto=i.id_produto
-                   WHERE i.id_inventario IN (%s) ORDER BY p.nome"""
-                % ",".join("?" * len(inventarios_inseridos)),
+                f"""SELECT p.codigo, p.nome, i.saldo_registrado, i.contagem_fisica,
+                           i.diferenca, i.valor_anterior
+                    FROM inventarios i JOIN produtos p ON p.id_produto=i.id_produto
+                    WHERE i.id_inventario IN ({placeholders}) ORDER BY p.nome""",
                 inventarios_inseridos,
             ).fetchall()
             conn.close()
             colunas = ["Código", "Produto", "Saldo Regist.", "Contagem Fís.", "Diferença", "Alterado"]
             linhas = []
             for r in linhas_inventario:
-<<<<<<< HEAD
                 dif = int(r["diferenca"] or 0)
                 alt = ""
                 if r["valor_anterior"] is not None:
                     delta = int(r["contagem_fisica"] or 0) - int(r["valor_anterior"] or 0)
-                    alt = f"(antes: {r['valor_anterior']} → Δ {delta:+d})"
+                    alt = f"(antes: {r['valor_anterior']} -> Δ {delta:+d})"
                 linhas.append([
                     r["codigo"], r["nome"],
                     int(r["saldo_registrado"] or 0),
                     int(r["contagem_fisica"] or 0),
-                    dif,
-                    alt,
-=======
-                dif = r["diferenca"]
-                alt = ""
-                if r["valor_anterior"] is not None:
-                    delta = services.round5(r["contagem_fisica"] - r["valor_anterior"])
-                    alt = f"(antes: {r['valor_anterior']} → Δ {delta:+})"
-                linhas.append([
-                    r["codigo"], r["nome"],
-                    f"{r['saldo_registrado']:.5f}", f"{r['contagem_fisica']:.5f}",
-                    f"{dif:+.5f}", alt,
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+                    dif, alt,
                 ])
             sub = f"Total de {len(linhas)} produtos contados em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             buf = reportmod.gerar_pdf("Relatório de Inventário Físico", colunas, linhas, subtitulo=sub)
@@ -1189,20 +1171,12 @@ def estoque_inventario():
             resp.headers["Content-Disposition"] = (
                 f"attachment; filename=inventario_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
             return resp
-<<<<<<< HEAD
 
         if not invalid_entries:
             flash("Contagem de inventário registrada com sucesso.", "sucesso")
         conn.close()
         return redirect(url_for("estoque_inventario"))
-=======
-        flash("Contagem de inventário registrada com sucesso.", "sucesso")
-        conn.close()
-        return redirect(url_for("estoque_inventario"))
 
-    # GET: a tela já envia os saldos, mas na VIEW eles ficam mascarados (via CSS + JS)
-    # até o utilizador terminar a contagem (ao submeter).
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     produtos_rows = conn.execute(
         """SELECT p.id_produto, p.codigo, p.nome, p.unidade, p.qtd_por_unidade,
                   COALESCE(e.saldo_atual,0) AS saldo_atual
@@ -1214,12 +1188,9 @@ def estoque_inventario():
     pos_export = set()
     for p in produtos_rows:
         pd = dict(p)
-<<<<<<< HEAD
-=======
-        # latest exported inventario -> valor_anterior
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         ult = conn.execute(
-            "SELECT valor_anterior FROM inventarios WHERE id_produto=? AND exportado=1 ORDER BY id_inventario DESC LIMIT 1",
+            "SELECT valor_anterior FROM inventarios WHERE id_produto=? AND exportado=1 "
+            "ORDER BY id_inventario DESC LIMIT 1",
             (pd["id_produto"],),
         ).fetchone()
         pd["valor_anterior"] = ult["valor_anterior"] if ult and "valor_anterior" in ult.keys() else None
@@ -1231,16 +1202,11 @@ def estoque_inventario():
             pos_export.add(pd["id_produto"])
         produtos.append(pd)
     conn.close()
-    return render_template("inventario.html", produtos=produtos,
-                           ids_exportados=pos_export)
+    return render_template("inventario.html", produtos=produtos, ids_exportados=pos_export)
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Movimentações
-=======
-# Movimentações (Entrada e Saída)  + exportações
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 @app.route("/movimentos")
 @login_required
@@ -1259,19 +1225,17 @@ def movimentos_list():
               LEFT JOIN categorias c ON c.id_categoria=p.id_categoria WHERE 1=1"""
     params = []
     if tipo in ("Entrada", "Saida"):
-        sql += " AND m.tipo=?"; params.append(tipo)
+        sql += " AND m.tipo=?"
+        params.append(tipo)
     if categoria_id:
-        sql += " AND p.id_categoria=?"; params.append(categoria_id)
+        sql += " AND p.id_categoria=?"
+        params.append(categoria_id)
     if data_ini:
-<<<<<<< HEAD
-        sql += " AND m.data_hora >= ?"; params.append(data_ini + "T00:00:00")
+        sql += " AND m.data_hora >= ?"
+        params.append(data_ini + "T00:00:00")
     if data_fim:
-        sql += " AND m.data_hora <= ?"; params.append(data_fim + "T23:59:59")
-=======
-        sql += " AND m.data_hora >= ?"; params.append(data_ini + " 00:00:00")
-    if data_fim:
-        sql += " AND m.data_hora <= ?"; params.append(data_fim + " 23:59:59")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+        sql += " AND m.data_hora <= ?"
+        params.append(data_fim + "T23:59:59")
     sql += " ORDER BY m.data_hora DESC LIMIT 500"
     movimentos = conn.execute(sql, params).fetchall()
     categorias = conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
@@ -1300,7 +1264,8 @@ def movimentos_list():
                              download_name=f"movimentacoes_{datetime.now():%Y%m%d_%H%M%S}.pdf")
         else:
             buf = reportmod.gerar_excel("Relatório de Movimentações", colunas, linhas)
-            return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            return send_file(buf,
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              as_attachment=True,
                              download_name=f"movimentacoes_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
 
@@ -1314,23 +1279,18 @@ def movimentos_list():
 @app.route("/movimentos/exportar/<formato>")
 @login_required
 def movimentos_exportar(formato):
-    """Atalho de exportação (compatibilidade)."""
     if formato not in ("pdf", "excel"):
         abort(404)
-<<<<<<< HEAD
-    args = dict(request.args)
-    args["exportar"] = formato
-    return redirect(url_for("movimentos_list", **args))
-
-datetime.now()
-=======
-    from flask import request as req2
-    args = dict(req2.args)
-    args["exportar"] = formato
-    return movimentos_list()
+    return redirect(url_for(
+        "movimentos_list",
+        exportar=formato,
+        tipo=request.args.get("tipo", ""),
+        categoria_id=request.args.get("categoria_id", ""),
+        data_ini=request.args.get("data_ini", ""),
+        data_fim=request.args.get("data_fim", ""),
+    ))
 
 
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 @app.route("/movimentos/entrada", methods=["GET", "POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def movimento_entrada():
@@ -1341,36 +1301,40 @@ def movimento_entrada():
             flash("Selecione um produto cadastrado e ativo antes de registrar a entrada.", "erro")
             conn.close()
             return redirect(url_for("movimento_entrada"))
+
+        # FIX: aceita vírgula decimal (pt-PT) e valida antes de chamar o serviço.
+        quantidade_val = safe_parse_float(request.form.get("quantidade"), None)
+        if quantidade_val is None or quantidade_val <= 0:
+            flash("Quantidade inválida (use números, ex.: 10 ou 10,5).", "erro")
+            conn.close()
+            return redirect(url_for("movimento_entrada"))
+
+        preco_val = safe_parse_float(request.form.get("preco_unitario"), None)
+        if preco_val is None or preco_val < 0:
+            flash("Preço unitário inválido (use números, ex.: 12,50).", "erro")
+            conn.close()
+            return redirect(url_for("movimento_entrada"))
+
+        unidade_val = request.form.get("unidade_original") or "Unidade"
+        if unidade_val == "Unidade" and not float(quantidade_val).is_integer():
+            flash("Quantidade inválida: produtos com unidade 'Unidade' devem ser inteiros.", "erro")
+            conn.close()
+            return redirect(url_for("movimento_entrada"))
+
         try:
-            quantidade_val = float(request.form["quantidade"])
-            unidade_val = request.form["unidade_original"]
-<<<<<<< HEAD
-=======
-            # Enforce integer quantities for Unidade
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-            if unidade_val == "Unidade" and not float(quantidade_val).is_integer():
-                flash("Quantidade inválida: produtos com unidade 'Unidade' devem ser números inteiros.", "erro")
-                conn.close()
-                return redirect(url_for("movimento_entrada"))
-<<<<<<< HEAD
             data_str = request.form.get("data_entrada") or ""
             data_hora = (data_str + "T" + datetime.now().strftime("%H:%M:%S")) if data_str else None
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             services.registrar_entrada(
                 conn,
                 id_produto=id_produto,
                 quantidade_original=quantidade_val,
                 unidade_original=unidade_val,
-                preco_unitario=float(request.form["preco_unitario"]),
+                preco_unitario=preco_val,
                 id_usuario=session["user_id"],
                 nota_fiscal=request.form.get("nota_fiscal") or None,
                 fornecedor=request.form.get("fornecedor") or None,
                 observacoes=request.form.get("observacoes") or None,
-<<<<<<< HEAD
                 data_hora=data_hora,
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                 ip_address=_client_ip(),
             )
             flash("Entrada registrada com sucesso.", "sucesso")
@@ -1390,19 +1354,17 @@ def movimento_entrada():
 def movimento_saida():
     conn = get_conn()
     if request.method == "POST":
-<<<<<<< HEAD
-        # Campos gerais da venda
         cliente = request.form.get("cliente") or None
         forma_pagamento = request.form.get("forma_pagamento") or None
         observacoes = request.form.get("observacoes") or None
+        data_str = request.form.get("data_venda") or ""
+        data_hora_venda = (data_str + "T" + datetime.now().strftime("%H:%M:%S")) if data_str else None
 
-        # Listas de itens (venda múltipla)
         ids_produto = request.form.getlist("id_produto[]")
         quantidades = request.form.getlist("quantidade[]")
         unidades = request.form.getlist("unidade_original[]")
         precos = request.form.getlist("preco_unitario[]")
 
-        # Validação básica
         if not ids_produto or not any(ids_produto):
             flash("Adicione pelo menos um produto à venda.", "erro")
             conn.close()
@@ -1411,30 +1373,35 @@ def movimento_saida():
         erros = []
         sucessos = 0
         alertas_minimo = []
+        margens_negativas = []  # lista de (nome_produto, lucro)
 
-        for i, id_prod_str in enumerate(ids_produto):
-            data_str = request.form.get("data_venda") or ""
-            data_hora_venda = (data_str + "T" + datetime.now().strftime("%H:%M:%S")) if data_str else None
-            if not id_prod_str:
-                continue
-            try:
-                id_produto = int(id_prod_str)
-                quantidade = float(quantidades[i] or 0)
-                unidade = unidades[i] if i < len(unidades) else "Unidade"
-                preco = float(precos[i] or 0)
-
-                if quantidade <= 0:
-                    erros.append(f"Item {i+1}: quantidade deve ser maior que zero.")
+        try:
+            for i, id_prod_str in enumerate(ids_produto):
+                if not id_prod_str:
+                    continue
+                try:
+                    id_produto = int(id_prod_str)
+                except (TypeError, ValueError):
+                    erros.append(f"Item {i+1}: produto inválido.")
                     continue
 
-                # Validar produto
+                quantidade = safe_parse_float(
+                    quantidades[i] if i < len(quantidades) else None, None)
+                unidade = unidades[i] if i < len(unidades) else "Unidade"
+                preco = safe_parse_float(
+                    precos[i] if i < len(precos) else None, None)
+
+                if quantidade is None or quantidade <= 0:
+                    erros.append(f"Item {i+1}: quantidade deve ser > 0 (use vírgula só para decimais).")
+                    continue
+                if preco is None or preco < 0:
+                    erros.append(f"Item {i+1}: preço inválido (ex.: 12,50 ou 12.50).")
+                    continue
                 if not services.validar_produto_cadastrado(conn, id_produto):
                     erros.append(f"Item {i+1}: produto inválido ou inativo.")
                     continue
-
-                # Validar inteiros para Unidade
                 if unidade == "Unidade" and not quantidade.is_integer():
-                    erros.append(f"Item {i+1}: produtos com unidade 'Unidade' devem ter quantidade inteira.")
+                    erros.append(f"Item {i+1}: unidade 'Unidade' requer inteiro.")
                     continue
 
                 resultado = services.registrar_saida(
@@ -1449,74 +1416,58 @@ def movimento_saida():
                     observacoes=observacoes,
                     data_hora=data_hora_venda,
                     ip_address=_client_ip(),
+                    commit=False,
                 )
                 sucessos += 1
                 if resultado["alerta_minimo"]:
                     alertas_minimo.append(id_produto)
 
-            except services.RegraNegocioError as e:
-                erros.append(f"Item {i+1}: {str(e)}")
-            except Exception as e:
-                erros.append(f"Item {i+1}: {str(e)}")
+                # --- 2.4: detectar margem negativa ---
+                mov = conn.execute(
+                    """SELECT m.lucro, p.nome
+                       FROM movimentos m
+                       JOIN produtos p ON p.id_produto = m.id_produto
+                       WHERE m.id_movimento = ?""",
+                    (resultado["id_movimento"],),
+                ).fetchone()
+                if mov and float(mov["lucro"] or 0) < 0:
+                    margens_negativas.append((mov["nome"], float(mov["lucro"])))
+        except services.RegraNegocioError as e:
+            erros.append(str(e))
+        except Exception as e:
+            erros.append(f"Erro inesperado: {e}")
 
         if erros:
+            conn.rollback()
             for e in erros:
                 flash(e, "erro")
-        if sucessos:
-            flash(f"{sucessos} saída(s) registrada(s) com sucesso.", "sucesso")
-        if alertas_minimo:
-            flash("Atenção: alguns produtos ficaram abaixo do estoque mínimo.", "aviso")
-
+            flash("Nenhuma saída foi registada (transacção cancelada).", "aviso")
+        elif sucessos:
+            conn.commit()
+            flash(f"{sucessos} saída(s) registada(s) com sucesso.", "sucesso")
+            if alertas_minimo:
+                flash("Atenção: alguns produtos ficaram abaixo do estoque mínimo.", "aviso")
+            if margens_negativas:
+                nomes = ", ".join(
+                    f"{nome} ({lucro:+.2f})"
+                    for nome, lucro in margens_negativas[:3]
+                )
+                flash(
+                    f"⚠️ {len(margens_negativas)} venda(s) com MARGEM NEGATIVA: {nomes}. "
+                    f"Verifique se o preço praticado corresponde à unidade vendida "
+                    f"(rolo, kg, unidade) ou se o produto está cadastrado com o "
+                    f"preço da embalagem em vez do preço unitário.",
+                    "aviso",
+                )
         conn.close()
         return redirect(url_for("movimento_saida"))
 
-=======
-        id_produto = request.form.get("id_produto", type=int)
-        if not id_produto or not services.validar_produto_cadastrado(conn, id_produto):
-            flash("Selecione um produto cadastrado e ativo antes de registrar a saída.", "erro")
-            conn.close()
-            return redirect(url_for("movimento_saida"))
-        try:
-            quantidade_val = float(request.form["quantidade"])
-            unidade_val = request.form["unidade_original"]
-            if unidade_val == "Unidade" and not float(quantidade_val).is_integer():
-                flash("Quantidade inválida: produtos com unidade 'Unidade' devem ser números inteiros.", "erro")
-                conn.close()
-                return redirect(url_for("movimento_saida"))
-            resultado = services.registrar_saida(
-                conn,
-                id_produto=id_produto,
-                quantidade_original=quantidade_val,
-                unidade_original=unidade_val,
-                preco_unitario=float(request.form["preco_unitario"]),
-                id_usuario=session["user_id"],
-                cliente=request.form.get("cliente") or None,
-                forma_pagamento=request.form.get("forma_pagamento") or None,
-                observacoes=request.form.get("observacoes") or None,
-                ip_address=_client_ip(),
-            )
-            flash("Saída registrada com sucesso.", "sucesso")
-            if resultado["alerta_minimo"]:
-                flash("Atenção: o estoque deste produto ficou abaixo do mínimo!", "aviso")
-            conn.close()
-            return redirect(url_for("movimento_saida"))
-        except services.RegraNegocioError as e:
-            flash(str(e), "erro")
-        except Exception as e:
-            flash(f"Erro ao registrar saída: {e}", "erro")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     produtos = conn.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
     return render_template("movimento_form.html", tipo="Saida", produtos=produtos)
 
-<<<<<<< HEAD
 # ---------------------------------------------------------------------------
 # Estoque atual
-=======
-
-# ---------------------------------------------------------------------------
-# Estoque atual (com exportação PDF/Excel)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 @app.route("/estoque")
 @login_required
@@ -1531,7 +1482,8 @@ def estoque_list():
               LEFT JOIN estoque e ON e.id_produto=p.id_produto WHERE p.ativo=1"""
     params = []
     if categoria_id:
-        sql += " AND p.id_categoria=?"; params.append(categoria_id)
+        sql += " AND p.id_categoria=?"
+        params.append(categoria_id)
     sql += " ORDER BY p.nome"
     produtos_raw = conn.execute(sql, params).fetchall()
 
@@ -1552,7 +1504,6 @@ def estoque_list():
         sit_label = {"abaixo_minimo": "Abaixo do mínimo",
                      "acima_maximo": "Acima do máximo", "normal": "Normal"}
         for p in linhas_processadas:
-<<<<<<< HEAD
             val_c = float(p["saldo_atual"] or 0) * float(p["preco_custo"] or 0)
             val_v = float(p["saldo_atual"] or 0) * float(p["preco_venda"] or 0)
             linhas.append([
@@ -1562,19 +1513,7 @@ def estoque_list():
                 int(p["estoque_maximo"]) if p["estoque_maximo"] else None,
                 float(p["preco_custo"] or 0),
                 float(p["preco_venda"] or 0),
-                val_c,
-                val_v,
-=======
-            val_c = services.round5(p["saldo_atual"] * p["preco_custo"])
-            val_v = services.round5(p["saldo_atual"] * p["preco_venda"])
-            linhas.append([
-                p["codigo"], p["nome"], p["categoria_nome"] or "—", p["unidade"],
-                f"{services.round5(p['saldo_atual']):.5f}",
-                p["estoque_minimo"], p["estoque_maximo"] or "—",
-                f"{services.round5(p['preco_custo']):.5f}",
-                f"{services.round5(p['preco_venda']):.5f}",
-                f"{val_c:.5f}", f"{val_v:.5f}",
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+                val_c, val_v,
                 sit_label.get(p["situacao"], p["situacao"]),
             ])
         sub = f"Filtros: categoria={categoria_id or 'Todas'} | situação={situacao_filtro or 'Todas'}"
@@ -1585,21 +1524,17 @@ def estoque_list():
                              download_name=f"estoque_{datetime.now():%Y%m%d_%H%M%S}.pdf")
         else:
             buf = reportmod.gerar_excel("Relatório de Estoque Atual", colunas, linhas)
-            return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            return send_file(buf,
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              as_attachment=True,
                              download_name=f"estoque_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
 
-<<<<<<< HEAD
-    valor_custo_total = 0
-=======
-    # compute totals for template (valor_custo_total, valor_venda_total)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     valor_custo_total = 0
     valor_venda_total = 0
     for p in linhas_processadas:
-        preco_custo = p.get('preco_custo') or 0
-        preco_venda = p.get('preco_venda') or 0
-        saldo = p.get('saldo_atual') or 0
+        preco_custo = p.get("preco_custo") or 0
+        preco_venda = p.get("preco_venda") or 0
+        saldo = p.get("saldo_atual") or 0
         valor_custo_total += float(saldo) * float(preco_custo)
         valor_venda_total += float(saldo) * float(preco_venda)
     conn.close()
@@ -1609,11 +1544,7 @@ def estoque_list():
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Relatórios
-=======
-# Relatórios existentes (mantém, com cabeçalho empresa automático via reports.py)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 def _consulta_relatorio(conn, tipo_relatorio, args):
     categoria_id = args.get("categoria_id", type=int)
@@ -1624,36 +1555,31 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
     data_fim = args.get("data_fim", "")
 
     if tipo_relatorio == "estoque_atual":
+        # FIX: agora lê p.estoque_maximo para a classificação ser correcta.
         sql = """SELECT p.codigo, p.nome, c.nome categoria, COALESCE(e.saldo_atual,0) saldo,
-                         p.preco_custo, p.preco_venda, p.estoque_minimo
+                         p.preco_custo, p.preco_venda, p.estoque_minimo, p.estoque_maximo
                   FROM produtos p LEFT JOIN categorias c ON c.id_categoria=p.id_categoria
                   LEFT JOIN estoque e ON e.id_produto=p.id_produto WHERE p.ativo=1"""
         params = []
         if categoria_id:
-            sql += " AND p.id_categoria=?"; params.append(categoria_id)
+            sql += " AND p.id_categoria=?"
+            params.append(categoria_id)
         if id_produto:
-            sql += " AND p.id_produto=?"; params.append(id_produto)
+            sql += " AND p.id_produto=?"
+            params.append(id_produto)
         sql += " ORDER BY p.nome"
         rows = conn.execute(sql, params).fetchall()
         colunas = ["Código", "Produto", "Categoria", "Saldo", "Custo (mzn)", "Venda (mzn)", "Situação"]
         linhas = []
         for r in rows:
-            sit = services.situacao_estoque(r["saldo"], r["estoque_minimo"], None)
+            sit = services.situacao_estoque(r["saldo"], r["estoque_minimo"], r["estoque_maximo"])
             sit_label = {"abaixo_minimo": "Abaixo do mínimo",
                          "acima_maximo": "Acima do máximo",
                          "normal": "Normal"}[sit]
-<<<<<<< HEAD
-            # Passa valores numéricos crus — reports.py formata (2 casas para valores)
             linhas.append([r["codigo"], r["nome"], r["categoria"] or "—",
                            int(r["saldo"] or 0),
                            float(r["preco_custo"] or 0),
                            float(r["preco_venda"] or 0), sit_label])
-=======
-            linhas.append([r["codigo"], r["nome"], r["categoria"] or "—",
-                           f"{services.round5(r['saldo']):.5f}",
-                           f"{services.round5(r['preco_custo']):.5f}",
-                           f"{services.round5(r['preco_venda']):.5f}", sit_label])
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         return "Relatório de Estoque Atual", colunas, linhas
 
     if tipo_relatorio == "movimentacoes":
@@ -1663,35 +1589,31 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
                   LEFT JOIN categorias c ON c.id_categoria=p.id_categoria WHERE 1=1"""
         params = []
         if data_ini:
-            sql += " AND m.data_hora >= ?"; params.append(data_ini)
+            sql += " AND m.data_hora >= ?"
+            params.append(data_ini)
         if data_fim:
-<<<<<<< HEAD
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + "T23:59:59")
-=======
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + " 23:59:59")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+            sql += " AND m.data_hora <= ?"
+            params.append(data_fim + "T23:59:59")
         if categoria_id:
-            sql += " AND p.id_categoria=?"; params.append(categoria_id)
+            sql += " AND p.id_categoria=?"
+            params.append(categoria_id)
         if id_produto:
-            sql += " AND p.id_produto=?"; params.append(id_produto)
+            sql += " AND p.id_produto=?"
+            params.append(id_produto)
         if tipo_mov in ("Entrada", "Saida"):
-            sql += " AND m.tipo=?"; params.append(tipo_mov)
+            sql += " AND m.tipo=?"
+            params.append(tipo_mov)
         if fornecedor:
-            sql += " AND m.fornecedor LIKE ?"; params.append(f"%{fornecedor}%")
+            sql += " AND m.fornecedor LIKE ?"
+            params.append(f"%{fornecedor}%")
         sql += " ORDER BY m.data_hora DESC"
         rows = conn.execute(sql, params).fetchall()
         colunas = ["Data/Hora", "Tipo", "Produto", "Qtd.", "Unid.",
                    "Preço Unit.", "Valor Total", "Fornecedor/Cliente"]
         linhas = [[r["data_hora"], r["tipo"], r["produto"],
-<<<<<<< HEAD
                    int(r["quantidade"] or 0), r["unidade_original"],
                    float(r["preco_unitario"] or 0),
                    float(r["valor_total"] or 0), r["terceiro"]] for r in rows]
-=======
-                   f"{services.round5(r['quantidade']):.5f}", r["unidade_original"],
-                   f"{services.round5(r['preco_unitario']):.5f}",
-                   f"{services.round5(r['valor_total']):.5f}", r["terceiro"]] for r in rows]
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         return "Relatório de Movimentações", colunas, linhas
 
     if tipo_relatorio == "vendas":
@@ -1701,62 +1623,44 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
                   WHERE m.tipo='Saida'"""
         params = []
         if data_ini:
-            sql += " AND m.data_hora >= ?"; params.append(data_ini)
+            sql += " AND m.data_hora >= ?"
+            params.append(data_ini)
         if data_fim:
-<<<<<<< HEAD
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + "T23:59:59")
-=======
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + " 23:59:59")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+            sql += " AND m.data_hora <= ?"
+            params.append(data_fim + "T23:59:59")
         if categoria_id:
-            sql += " AND p.id_categoria=?"; params.append(categoria_id)
+            sql += " AND p.id_categoria=?"
+            params.append(categoria_id)
         if id_produto:
-            sql += " AND p.id_produto=?"; params.append(id_produto)
+            sql += " AND p.id_produto=?"
+            params.append(id_produto)
         sql += " GROUP BY p.id_produto ORDER BY total DESC"
         rows = conn.execute(sql, params).fetchall()
         colunas = ["Produto", "Qtd. Vendida", "Receita Total (mzn)",
                    "Lucro Bruto (mzn)", "Margem (%)"]
         linhas = []
         for r in rows:
-<<<<<<< HEAD
             total = float(r["total"] or 0)
             lucro = float(r["lucro"] or 0)
             margem = (lucro / total * 100) if total else 0
             linhas.append([r["produto"], int(r["qtd"] or 0),
-                           total, lucro,
-                           f"{margem:.1f}%"])
-=======
-            margem = (r["lucro"] / r["total"] * 100) if r["total"] else 0
-            linhas.append([r["produto"], f"{services.round5(r['qtd']):.5f}",
-                           f"{services.round5(r['total']):.5f}",
-                           f"{services.round5(r['lucro']):.5f}", f"{margem:.1f}%"])
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+                           total, lucro, f"{margem:.1f}%"])
         return "Relatório de Vendas", colunas, linhas
 
     if tipo_relatorio == "estoque_baixo":
         rows = services.produtos_abaixo_minimo(conn)
         colunas = ["Código", "Produto", "Saldo Atual", "Estoque Mínimo", "Déficit"]
         linhas = [[r["codigo"], r["nome"],
-<<<<<<< HEAD
                    int(r["saldo_atual"] or 0),
                    int(r["estoque_minimo"] or 0),
                    int((r["estoque_minimo"] or 0) - (r["saldo_atual"] or 0))] for r in rows]
-=======
-                   f"{services.round5(r['saldo_atual']):.5f}",
-                   r["estoque_minimo"],
-                   f"{services.round5(r['estoque_minimo'] - r['saldo_atual']):.5f}"] for r in rows]
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         return "Relatório de Produtos com Estoque Baixo", colunas, linhas
 
     if tipo_relatorio == "validade":
         rows = services.produtos_proximos_validade(conn)
         colunas = ["Código", "Produto", "Validade", "Saldo Atual", "Situação"]
         linhas = [[r["codigo"], r["nome"], r["validade"],
-<<<<<<< HEAD
                    int(r["saldo_atual"] or 0),
-=======
-                   f"{services.round5(r['saldo_atual']):.5f}",
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                    "VENCIDO" if r["vencido"] else "Próximo ao vencimento"] for r in rows]
         return "Relatório de Validade", colunas, linhas
 
@@ -1769,64 +1673,40 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
         ).fetchall()
         colunas = ["Código", "Produto", "Categoria", "Preço Venda (mzn)", "Saldo Atual"]
         linhas = [[r["codigo"], r["nome"], r["categoria"] or "—",
-<<<<<<< HEAD
                    float(r["preco_venda"] or 0),
                    int(r["saldo"] or 0)] for r in rows]
         return "Relatório de Preços de Venda", colunas, linhas
 
     if tipo_relatorio == "lucratividade":
-        # CORRIGIDO: custo histórico real = valor_total - lucro (não usar preco_custo atual!)
         sql = """SELECT p.nome produto, SUM(m.quantidade) qtd, SUM(m.valor_total) receita,
                          SUM(m.valor_total) - SUM(m.lucro) AS custo_total,
                          SUM(m.lucro) lucro
-=======
-                   f"{services.round5(r['preco_venda']):.5f}",
-                   f"{services.round5(r['saldo']):.5f}"] for r in rows]
-        return "Relatório de Preços de Venda", colunas, linhas
-
-    if tipo_relatorio == "lucratividade":
-        sql = """SELECT p.nome produto, SUM(m.quantidade) qtd, SUM(m.valor_total) receita,
-                         SUM(m.quantidade * p.preco_custo) custo_total, SUM(m.lucro) lucro
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                   FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
                   WHERE m.tipo='Saida'"""
         params = []
         if data_ini:
-            sql += " AND m.data_hora >= ?"; params.append(data_ini)
+            sql += " AND m.data_hora >= ?"
+            params.append(data_ini)
         if data_fim:
-<<<<<<< HEAD
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + "T23:59:59")
-=======
-            sql += " AND m.data_hora <= ?"; params.append(data_fim + " 23:59:59")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+            sql += " AND m.data_hora <= ?"
+            params.append(data_fim + "T23:59:59")
         sql += " GROUP BY p.id_produto ORDER BY lucro DESC"
         rows = conn.execute(sql, params).fetchall()
         colunas = ["Produto", "Qtd. Vendida", "Receita (mzn)", "Custo (mzn)",
                    "Lucro Bruto (mzn)", "Margem (%)"]
         linhas = []
         for r in rows:
-<<<<<<< HEAD
             receita = float(r["receita"] or 0)
             lucro = float(r["lucro"] or 0)
             custo = float(r["custo_total"] or 0)
             margem = (lucro / receita * 100) if receita else 0
             linhas.append([r["produto"], int(r["qtd"] or 0),
                            receita, custo, lucro, f"{margem:.1f}%"])
-=======
-            margem = (r["lucro"] / r["receita"] * 100) if r["receita"] else 0
-            linhas.append([r["produto"], f"{services.round5(r['qtd']):.5f}",
-                           f"{services.round5(r['receita']):.5f}",
-                           f"{services.round5(r['custo_total']):.5f}",
-                           f"{services.round5(r['lucro']):.5f}", f"{margem:.1f}%"])
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         return "Relatório de Lucratividade por Produto", colunas, linhas
 
     return "Relatório", [], []
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 @app.route("/relatorios")
 @login_required
 def relatorios():
@@ -1858,17 +1738,14 @@ def relatorios_exportar(formato):
                          download_name=f"{tipo_relatorio}.pdf")
     if formato == "excel":
         buf = reportmod.gerar_excel(titulo, colunas, linhas)
-        return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        return send_file(buf,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True, download_name=f"{tipo_relatorio}.xlsx")
     abort(404)
 
 
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
 # Balancetes
-=======
-# Balancetes (mensal / trimestral / anual) + Extratos de categoria
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 # ---------------------------------------------------------------------------
 @app.route("/balancetes")
 @login_required
@@ -1892,10 +1769,6 @@ def balancetes():
     if not data_fim:
         data_fim = hoje.isoformat()
 
-<<<<<<< HEAD
-    # --- Estado inicial (SEMPRE definido, para evitar UnboundLocalError) ---
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     linhas = []
     totais = {}
     colunas = []
@@ -1904,44 +1777,25 @@ def balancetes():
     saldo_acum_final = 0
     entradas_acum_final = 0
     saidas_acum_final = 0
-<<<<<<< HEAD
     categoria_nome = ""
     extrato_produto_info = None
     extrato_produto_resumo = None
 
-=======
-
-    # Buscar produtos para o filtro
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     todos_produtos = conn.execute(
         "SELECT id_produto, codigo, nome FROM produtos WHERE ativo=1 ORDER BY nome"
     ).fetchall()
 
-<<<<<<< HEAD
-    # ======================================================================
-    # BLOCO 1: Determinar o tipo e construir linhas/totais/colunas/título
-    # ======================================================================
     if tipo == "extrato_cat":
-        # -------- Extrato por categoria --------
-=======
-    if tipo == "extrato_cat":
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         if id_categoria:
             linhas_ext, saldo_acum_final, entradas_acum_final, saidas_acum_final = (
                 services.calcular_extrato_categoria(conn, id_categoria, data_ini, data_fim)
             )
             linhas = linhas_ext
-<<<<<<< HEAD
             cat = conn.execute(
                 "SELECT nome FROM categorias WHERE id_categoria=?", (id_categoria,)
             ).fetchone()
             categoria_nome = cat["nome"] if cat else "—"
             titulo = f"Extrato de Categoria — {categoria_nome}"
-=======
-            cat = conn.execute("SELECT nome FROM categorias WHERE id_categoria=?", (id_categoria,)).fetchone()
-            cat_nome = cat["nome"] if cat else "—"
-            titulo = f"Extrato de Categoria — {cat_nome}"
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             colunas = ["Data/Hora", "Tipo", "Código", "Produto", "Qtd.", "Unid.",
                        "Preço Unit.", "Valor Total", "Saldo Acumulado"]
             subtitulo = (
@@ -1951,7 +1805,6 @@ def balancetes():
                 f"Saldo Final: {saldo_acum_final:.2f}"
             )
             totais = {
-<<<<<<< HEAD
                 "subtotais": {
                     "qtd_entradas": services.round5(
                         sum(r["quantidade"] for r in linhas_ext if r["tipo"] == "Entrada")),
@@ -1968,7 +1821,6 @@ def balancetes():
             }
 
     elif tipo == "extrato_prod":
-        # -------- Extrato por produto --------
         if id_produto:
             produto_ext, linhas_ext, resumo_ext = services.calcular_extrato_produto(
                 conn, id_produto, data_ini, data_fim
@@ -1978,7 +1830,6 @@ def balancetes():
                 extrato_produto_info = produto_ext
                 extrato_produto_resumo = resumo_ext
                 titulo = f"Extrato de Produto — {produto_ext['nome']}"
-                # 11 colunas (bate com o template e com a exportação)
                 colunas = ["Data/Hora", "Tipo", "Doc.",
                            "Qtd. Orig.", "Unid.", "Qtd. Base",
                            "Preço Unit.", "Valor Total", "Lucro",
@@ -2003,7 +1854,6 @@ def balancetes():
                 }
 
     elif tipo == "extrato_geral":
-        # -------- Extrato geral (todos os produtos) --------
         titulo = "Extrato Geral de Produtos"
         colunas = ["Código", "Produto", "Categoria",
                    "Saldo Inicial (Qtd)",
@@ -2014,38 +1864,13 @@ def balancetes():
             conn, "extrato_geral", data_ini, data_fim, id_categoria, id_produto)
         subtitulo = (
             f"Período: {data_ini} a {data_fim}  |  "
-            f"{len(linhas)} produto(s)  |  "
-            f"Saldo Inicial Total: {services.round5(totais.get('saldo_inicial_qtd', 0))}  |  "
-            f"Entradas: {services.round5(totais.get('entradas_val', 0)):.2f}  |  "
-            f"Saídas: {services.round5(totais.get('saidas_val', 0)):.2f}  |  "
-            f"Saldo Final Total: {services.round5(totais.get('saldo_final_qtd', 0))}  |  "
-            f"Lucro Total: {services.round5(totais.get('lucro', 0)):.2f}"
+            f"{len(linhas)} produto(s)"
         )
 
     else:
-        # -------- Balancete regular (mensal/trimestral/anual) --------
         periodo_label = {"mensal": "Mensal",
                          "trimestral": "Trimestral",
                          "anual": "Anual"}.get(tipo, "Personalizado")
-=======
-                "qtd_total": services.round5(sum(r["quantidade"] for r in linhas_ext)),
-                "valor_total": services.round5(sum(r["valor_total"] for r in linhas_ext)),
-                "saldo_acumulado_final": services.round5(saldo_acum_final),
-                "subtotais": {
-                    "qtd_entradas": services.round5(sum(r["quantidade"] for r in linhas_ext if r["tipo"] == "Entrada")),
-                    "qtd_saidas": services.round5(sum(r["quantidade"] for r in linhas_ext if r["tipo"] == "Saida")),
-                    "qtd_saldo": services.round5(saldo_acum_final),
-                    "valor_entradas": services.round5(sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Entrada")),
-                    "valor_saidas": services.round5(sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Saida")),
-                    "valor_saldo": services.round5(sum(r["valor_total"] for r in linhas_ext)),
-                },
-            }
-        else:
-            linhas = []
-            totais = {}
-    else:
-        periodo_label = {"mensal": "Mensal", "trimestral": "Trimestral", "anual": "Anual"}.get(tipo, "Personalizado")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         titulo = f"Balancete {periodo_label}"
         colunas = ["Código", "Produto", "Categoria",
                    "Saldo Inicial (Qtd)",
@@ -2054,46 +1879,29 @@ def balancetes():
                    "Saldo Final (Qtd)", "Lucro Bruto"]
         linhas, totais = services.calcular_balancete(
             conn, tipo, data_ini, data_fim, id_categoria, id_produto)
-        subtitulo = (
-            f"Período: {data_ini} a {data_fim}  |  "
-            f"Saldos Iniciais: {services.round5(totais.get('saldo_inicial', 0)):.2f}  |  "
-            f"Entradas: {services.round5(totais.get('entradas_val', 0)):.2f}  |  "
-            f"Saídas: {services.round5(totais.get('saidas_val', 0)):.2f}  |  "
-            f"Saldos Finais: {services.round5(totais.get('saldo_final', 0)):.2f}  |  "
-            f"Lucro Total: {services.round5(totais.get('lucro', 0)):.2f}"
-        )
+        subtitulo = f"Período: {data_ini} a {data_fim}"
 
-<<<<<<< HEAD
-    # ======================================================================
-    # BLOCO 2: Categorias (SEMPRE — fora de qualquer if)
-    # ======================================================================
     categorias = conn.execute(
         "SELECT * FROM categorias WHERE ativo=1 ORDER BY nome"
     ).fetchall()
 
-    # ======================================================================
-    # BLOCO 3: Exportação PDF/Excel
-    # ======================================================================
-=======
-    categorias = conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     if exportar in ("pdf", "excel"):
         out_colunas = colunas
         out_linhas = []
+
+        def _fmt_qtd_local(v, un):
+            if (un or "").lower() == "kg":
+                return f"{float(v or 0):.3f}".replace(".", ",")
+            return f"{int(round(float(v or 0)))}"
+
         if tipo == "extrato_cat":
             for r in linhas:
                 out_linhas.append([
                     r["data_hora"], r["tipo"], r["codigo"], r["produto"],
-<<<<<<< HEAD
                     r["quantidade"], r["unidade"],
                     r["preco_unitario"], r["valor_total"], r["saldo_acumulado"],
                 ])
         elif tipo == "extrato_prod":
-            def _fmt_qtd_local(v, un):
-                if (un or "").lower() == "kg":
-                    return f"{float(v or 0):.3f}".replace(".", ",")
-                return f"{int(round(float(v or 0)))}"
             for r in linhas:
                 out_linhas.append([
                     r["data_hora"], r["tipo"], r["documento"],
@@ -2104,50 +1912,26 @@ def balancetes():
                     r["lucro"],
                     _fmt_qtd_local(r["saldo_acumulado"], r["unidade_original"]),
                     r["terceiro"],
-=======
-                    f"{services.round5(r['quantidade']):.2f}", r["unidade"],
-                    f"{services.round5(r['preco_unitario']):.2f}",
-                    f"{services.round5(r['valor_total']):.2f}",
-                    f"{services.round5(r['saldo_acumulado']):.2f}",
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                 ])
         else:
             for r in linhas:
                 out_linhas.append([
                     r["codigo"], r["produto"], r["categoria"],
-<<<<<<< HEAD
                     r["saldo_inicial"], r["entradas_qtd"], r["entradas_val"],
                     r["saidas_qtd"], r["saidas_val"], r["saldo_final"], r["lucro"],
-=======
-                    f"{services.round5(r['saldo_inicial']):.2f}",
-                    f"{services.round5(r['entradas_qtd']):.2f}",
-                    f"{services.round5(r['entradas_val']):.2f}",
-                    f"{services.round5(r['saidas_qtd']):.2f}",
-                    f"{services.round5(r['saidas_val']):.2f}",
-                    f"{services.round5(r['saldo_final']):.2f}",
-                    f"{services.round5(r['lucro']):.2f}",
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
                 ])
         conn.close()
         if exportar == "pdf":
             buf = reportmod.gerar_pdf(titulo, out_colunas, out_linhas, subtitulo=subtitulo)
-<<<<<<< HEAD
-            return send_file(
-                buf, mimetype="application/pdf", as_attachment=True,
-                download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
-            )
+            return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                             download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.pdf")
         else:
             buf = reportmod.gerar_excel(titulo, out_colunas, out_linhas)
-            return send_file(
-                buf,
-                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                as_attachment=True,
-                download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
-            )
+            return send_file(buf,
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             as_attachment=True,
+                             download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
 
-    # ======================================================================
-    # BLOCO 4: Render
-    # ======================================================================
     conn.close()
     return render_template(
         "balancetes.html",
@@ -2157,6 +1941,8 @@ def balancetes():
         categorias=categorias,
         categoria_nome=categoria_nome,
         todos_produtos=todos_produtos,
+        id_produto=id_produto,          
+        categoria_id=id_categoria,      
         extrato_produto=extrato_produto_info,
         extrato_resumo=extrato_produto_resumo,
         filtros={"categoria_id": id_categoria, "id_produto": id_produto},
@@ -2165,16 +1951,15 @@ def balancetes():
                      "saidas": saidas_acum_final},
     )
 
+
 @app.route("/balancetes/imprimir-branco")
 @login_required
 def balancetes_imprimir_branco():
-    """Folha de contagem física: nome do produto + qtd + data em branco."""
     conn = get_conn()
     id_categoria = request.args.get("categoria_id", type=int)
     id_produto = request.args.get("id_produto", type=int)
 
-    sql = """SELECT p.codigo, p.nome, p.unidade,
-                    c.nome AS categoria_nome
+    sql = """SELECT p.codigo, p.nome, p.unidade, c.nome AS categoria_nome
              FROM produtos p
              LEFT JOIN categorias c ON c.id_categoria=p.id_categoria
              WHERE p.ativo=1"""
@@ -2190,48 +1975,22 @@ def balancetes_imprimir_branco():
     produtos = conn.execute(sql, params).fetchall()
     conn.close()
 
-    # Folha simples: 3 colunas — Produto | Quantidade | Data
     colunas = ["Produto", "Quantidade Contada", "Data"]
-
     linhas = []
     for p in produtos:
-        # Nome + código/unidade numa única célula para caber mais na folha
         rotulo = f"{p['nome']}  ({p['codigo']})"
         linhas.append([rotulo, "", ""])
 
     sub = (f"Contagem física manual  |  {len(linhas)} produto(s)  |  "
-           f"Emitido em {datetime.now()}")
+           f"Emitido em {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
     buf = reportmod.gerar_pdf(
         "Folha de Contagem — Preenchimento Manual",
-        colunas,
-        linhas,
-        subtitulo=sub,
-        landscape_mode=False,  # retrato é suficiente para 3 colunas
+        colunas, linhas, subtitulo=sub, landscape_mode=False,
     )
-    return send_file(
-        buf, mimetype="application/pdf", as_attachment=True,
-        download_name=f"folha_contagem_{datetime.now()}.pdf",
-    )
-=======
-            return send_file(buf, mimetype="application/pdf", as_attachment=True,
-                             download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.pdf")
-        else:
-            buf = reportmod.gerar_excel(titulo, out_colunas, out_linhas)
-            return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                             as_attachment=True, download_name=f"{tipo}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+    return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                     download_name=f"folha_contagem_{datetime.now():%Y%m%d_%H%M%S}.pdf")
 
-    conn.close()
-    return render_template("balancetes.html",
-                           tipo=tipo, data_ini=data_ini, data_fim=data_fim,
-                           titulo=titulo, colunas=colunas, linhas=linhas,
-                           totais=totais, subtitulo=subtitulo,
-                           categorias=categorias,
-                           todos_produtos=todos_produtos,  # <-- CORREÇÃO: variável adicionada
-                           filtros={"categoria_id": id_categoria, "id_produto": id_produto},
-                           extrato_sum={"saldo": saldo_acum_final, "entradas": entradas_acum_final, "saidas": saidas_acum_final})
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 
 @app.route("/relatorios/precos")
 @login_required
@@ -2245,18 +2004,16 @@ def relatorio_precos():
                          download_name="precos_venda.pdf")
     elif exportar == "excel":
         buf = reportmod.gerar_excel("Lista de Preços de Venda", colunas, linhas)
-        return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        return send_file(buf,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True, download_name="precos_venda.xlsx")
     conn.close()
     return render_template("relatorio_precos.html", colunas=colunas, linhas=linhas)
 
 
-<<<<<<< HEAD
 # ---------------------------------------------------------------------------
 # Cotações
 # ---------------------------------------------------------------------------
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 @app.route("/cotacoes")
 @login_required
 def cotacoes_list():
@@ -2273,6 +2030,45 @@ def cotacoes_list():
     return render_template("cotacoes.html", cotacoes=cotacoes, status_filtro=status)
 
 
+def _itens_cotacao_do_form():
+    """Lê os itens do formulário de cotação (nova ou edição).
+    Devolve (itens, erro). Linhas totalmente vazias são ignoradas."""
+    ids = request.form.getlist("id_produto[]")
+    qtds = request.form.getlist("quantidade[]")
+    precos = request.form.getlist("preco_unitario[]")
+    descontos = request.form.getlist("desconto[]")
+
+    def _na(lista, i):
+        return lista[i].strip() if i < len(lista) and lista[i] is not None else ""
+
+    itens = []
+    for i in range(len(ids)):
+        id_txt, qtd_txt, preco_txt = ids[i].strip(), _na(qtds, i), _na(precos, i)
+        if not (id_txt or qtd_txt or preco_txt):
+            continue                                   # linha em branco
+        n = len(itens) + 1
+        if not (id_txt and qtd_txt and preco_txt):
+            return None, f"Item {n}: escolha o produto e preencha quantidade e preço."
+        try:
+            id_produto = int(id_txt)
+        except ValueError:
+            return None, f"Item {n}: produto inválido."
+        qtd = safe_parse_float(qtd_txt, None)
+        preco = safe_parse_float(preco_txt, None)
+        desconto = safe_parse_float(_na(descontos, i), 0.0)
+        if qtd is None or qtd <= 0:
+            return None, f"Item {n}: quantidade inválida."
+        if preco is None or preco < 0:
+            return None, f"Item {n}: preço inválido."
+        if desconto is None or not 0 <= desconto <= 100:
+            return None, f"Item {n}: o desconto deve estar entre 0 e 100%."
+        itens.append({"id_produto": id_produto, "quantidade": qtd,
+                      "preco_unitario": preco, "desconto_percentual": desconto})
+    if not itens:
+        return None, "Adicione pelo menos um item."
+    return itens, None
+
+
 @app.route("/cotacoes/nova", methods=["GET", "POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def cotacao_nova():
@@ -2281,41 +2077,30 @@ def cotacao_nova():
         if not cliente_nome:
             flash("Nome do cliente é obrigatório.", "erro")
             return redirect(url_for("cotacao_nova"))
-        itens = []
-        ids_produto = request.form.getlist("id_produto[]")
-        quantidades = request.form.getlist("quantidade[]")
-        precos = request.form.getlist("preco_unitario[]")
-        descontos = request.form.getlist("desconto[]")
-        for i in range(len(ids_produto)):
-            if ids_produto[i] and quantidades[i] and precos[i]:
-                itens.append({
-                    "id_produto": int(ids_produto[i]),
-                    "quantidade": int(quantidades[i]),
-                    "preco_unitario": float(precos[i]),
-                    "desconto_percentual": float(descontos[i] or 0)
-                })
-        if not itens:
-            flash("Adicione pelo menos um item.", "erro")
+        itens, erro = _itens_cotacao_do_form()
+        if erro:
+            flash(erro, "erro")
             return redirect(url_for("cotacao_nova"))
+        conn = get_conn()
         try:
-            conn = get_conn()
             id_cotacao = services.criar_cotacao(
                 conn,
                 id_usuario=session["user_id"],
                 cliente_nome=cliente_nome,
-                cliente_email=request.form.get("cliente_email"),
-                cliente_telefone=request.form.get("cliente_telefone"),
-                data_validade=request.form.get("data_validade"),
-                observacoes=request.form.get("observacoes"),
+                cliente_email=request.form.get("cliente_email") or None,
+                cliente_telefone=request.form.get("cliente_telefone") or None,
+                data_validade=request.form.get("data_validade") or None,
+                observacoes=request.form.get("observacoes") or None,
                 itens=itens,
             )
-            conn.close()
             flash("Cotação criada com sucesso.", "sucesso")
             return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
         except services.RegraNegocioError as e:
             flash(str(e), "erro")
         except Exception as e:
             flash(f"Erro ao criar cotação: {e}", "erro")
+        finally:
+            conn.close()
         return redirect(url_for("cotacao_nova"))
 
     conn = get_conn()
@@ -2324,64 +2109,46 @@ def cotacao_nova():
     validade_default = (datetime.now() + timedelta(days=30)).date().isoformat()
     return render_template("cotacao_form.html", produtos=produtos, validade_default=validade_default)
 
-<<<<<<< HEAD
+
 @app.route("/cotacoes/<int:id_cotacao>/editar", methods=["GET"])
 @perfil_required("Admin", "Gerente", "Operador")
 def cotacao_editar(id_cotacao):
-    """Mostra o formulário pré-preenchido para edição de uma cotação Aberta."""
     conn = get_conn()
     res = services.obter_cotacao(conn, id_cotacao)
-    produtos = conn.execute(
-        "SELECT * FROM produtos WHERE ativo=1 ORDER BY nome"
-    ).fetchall()
-    conn.close()
     if not res:
+        conn.close()
         abort(404)
     cotacao, itens = res
+    # activos + os que já constam na cotação (mesmo que entretanto desactivados)
+    produtos = conn.execute(
+        "SELECT * FROM produtos WHERE ativo=1 OR id_produto IN "
+        "(SELECT id_produto FROM itens_cotacao WHERE id_cotacao=?) ORDER BY nome",
+        (id_cotacao,)).fetchall()
+    conn.close()
     if cotacao["status"] != "Aberta":
         flash("Apenas cotações com status 'Aberta' podem ser editadas.", "erro")
         return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
-    return render_template(
-        "cotacao_form.html",
-        produtos=produtos,
-        cotacao=cotacao,
-        itens=itens,
-        validade_default=cotacao["data_validade"][:10],
-    )
+    return render_template("cotacao_form.html", produtos=produtos, cotacao=cotacao,
+                           itens=itens, validade_default=cotacao["data_validade"][:10])
 
 
 @app.route("/cotacoes/<int:id_cotacao>/atualizar", methods=["POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def cotacao_atualizar(id_cotacao):
-    """Persiste alterações numa cotação existente (só se ainda estiver Aberta)."""
     cliente_nome = request.form.get("cliente_nome", "").strip()
     if not cliente_nome:
         flash("Nome do cliente é obrigatório.", "erro")
         return redirect(url_for("cotacao_editar", id_cotacao=id_cotacao))
 
-    itens = []
-    ids_produto = request.form.getlist("id_produto[]")
-    quantidades = request.form.getlist("quantidade[]")
-    precos = request.form.getlist("preco_unitario[]")
-    descontos = request.form.getlist("desconto[]")
-    for i in range(len(ids_produto)):
-        if ids_produto[i] and quantidades[i] and precos[i]:
-            itens.append({
-                "id_produto": int(ids_produto[i]),
-                "quantidade": int(quantidades[i]),
-                "preco_unitario": float(precos[i]),
-                "desconto_percentual": float(descontos[i] or 0),
-            })
-    if not itens:
-        flash("Adicione pelo menos um item.", "erro")
+    itens, erro = _itens_cotacao_do_form()
+    if erro:
+        flash(erro, "erro")
         return redirect(url_for("cotacao_editar", id_cotacao=id_cotacao))
 
     conn = get_conn()
     try:
         services.atualizar_cotacao(
-            conn,
-            id_cotacao=id_cotacao,
-            id_usuario=session["user_id"],
+            conn, id_cotacao=id_cotacao, id_usuario=session["user_id"],
             cliente_nome=cliente_nome,
             cliente_email=request.form.get("cliente_email") or None,
             cliente_telefone=request.form.get("cliente_telefone") or None,
@@ -2398,25 +2165,17 @@ def cotacao_atualizar(id_cotacao):
         flash(f"Erro ao atualizar cotação: {e}", "erro")
     conn.close()
     return redirect(url_for("cotacao_editar", id_cotacao=id_cotacao))
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+
 
 @app.route("/cotacoes/<int:id_cotacao>")
 @login_required
 def cotacao_detalhe(id_cotacao):
     conn = get_conn()
-<<<<<<< HEAD
     res = services.obter_cotacao(conn, id_cotacao)
     conn.close()
     if not res:
         abort(404)
     cotacao, itens = res
-=======
-    cotacao, itens = services.obter_cotacao(conn, id_cotacao)
-    conn.close()
-    if not cotacao:
-        abort(404)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     return render_template("cotacao_detalhe.html", cotacao=cotacao, itens=itens)
 
 
@@ -2424,18 +2183,11 @@ def cotacao_detalhe(id_cotacao):
 @login_required
 def cotacao_exportar(id_cotacao, formato):
     conn = get_conn()
-<<<<<<< HEAD
     res = services.obter_cotacao(conn, id_cotacao)
     conn.close()
     if not res:
         abort(404)
     cotacao, itens = res
-=======
-    cotacao, itens = services.obter_cotacao(conn, id_cotacao)
-    conn.close()
-    if not cotacao:
-        abort(404)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     if formato == "pdf":
         buf = reportmod.gerar_pdf_cotacao(cotacao, itens)
         return send_file(buf, mimetype="application/pdf", as_attachment=True,
@@ -2445,15 +2197,15 @@ def cotacao_exportar(id_cotacao, formato):
         linhas = []
         for item in itens:
             linhas.append([
-                item["codigo"],
-                item["produto_nome"],
+                item["codigo"], item["produto_nome"],
                 int(item["quantidade"]),
                 services.arredondar_moeda(item["preco_unitario"]),
                 f"{item['desconto_percentual']:.0f}%",
                 services.arredondar_moeda(item["valor_total"]),
             ])
         buf = reportmod.gerar_excel(f"Cotação {cotacao['numero']}", colunas, linhas)
-        return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        return send_file(buf,
+                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True, download_name=f"cotacao_{cotacao['numero']}.xlsx")
     abort(404)
 
@@ -2484,7 +2236,19 @@ def cotacao_rejeitar(id_cotacao):
     return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
 
 
-<<<<<<< HEAD
+@app.route("/cotacoes/<int:id_cotacao>/converter", methods=["POST"])
+@perfil_required("Admin", "Gerente")
+def cotacao_converter(id_cotacao):
+    conn = get_conn()
+    try:
+        services.converter_cotacao_em_venda(conn, id_cotacao, session["user_id"])
+        flash("Cotação convertida em venda com sucesso.", "sucesso")
+    except services.RegraNegocioError as e:
+        flash(str(e), "erro")
+    conn.close()
+    return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
+
+
 @app.route("/cotacoes/<int:id_cotacao>/faturar", methods=["POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def cotacao_faturar(id_cotacao):
@@ -2492,10 +2256,8 @@ def cotacao_faturar(id_cotacao):
     try:
         data_venc = request.form.get("data_vencimento") or None
         isento = request.form.get("isento_iva") == "1"
-        try:
-            taxa = float(request.form.get("taxa_iva") or 0)
-        except (TypeError, ValueError):
-            taxa = None
+        taxa_txt = (request.form.get("taxa_iva") or "").strip()
+        taxa = safe_parse_float(taxa_txt, None) if taxa_txt else None
         res = services.faturar_cotacao(
             conn, id_cotacao, session["user_id"],
             ip_address=_client_ip(),
@@ -2512,6 +2274,7 @@ def cotacao_faturar(id_cotacao):
         flash(f"Erro: {e}", "erro")
     conn.close()
     return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
+
 
 # ---------------------------------------------------------------------------
 # Vendas a Crédito / Contas a Receber / Recibos
@@ -2532,19 +2295,46 @@ def venda_credito():
         unidades = request.form.getlist("unidade_original[]")
         precos = request.form.getlist("preco_unitario[]")
 
+        # Validação item a item: nunca descartar em silêncio.
+        erros_parse = []
         itens = []
         for i, id_str in enumerate(ids_produto):
             if not id_str:
                 continue
             try:
-                itens.append({
-                    "id_produto": int(id_str),
-                    "quantidade": float(quantidades[i] or 0),
-                    "unidade": unidades[i] if i < len(unidades) else "Unidade",
-                    "preco_unitario": float(precos[i] or 0),
-                })
-            except (ValueError, IndexError):
-                pass
+                id_prod = int(id_str)
+            except (TypeError, ValueError):
+                erros_parse.append(f"Item {i+1}: produto inválido.")
+                continue
+
+            qtd_txt = quantidades[i] if i < len(quantidades) else None
+            preco_txt = precos[i] if i < len(precos) else None
+            unidade = unidades[i] if i < len(unidades) else "Unidade"
+
+            quantidade = safe_parse_float(qtd_txt, None)
+            preco = safe_parse_float(preco_txt, None)
+
+            if quantidade is None or quantidade <= 0:
+                erros_parse.append(
+                    f"Item {i+1}: quantidade inválida (use 10 ou 10,5).")
+                continue
+            if preco is None or preco < 0:
+                erros_parse.append(
+                    f"Item {i+1}: preço inválido (use 12,50 ou 12.50).")
+                continue
+
+            itens.append({
+                "id_produto": id_prod,
+                "quantidade": quantidade,
+                "unidade": unidade,
+                "preco_unitario": preco,
+            })
+
+        if erros_parse:
+            for e in erros_parse:
+                flash(e, "erro")
+            conn.close()
+            return redirect(url_for("venda_credito"))
 
         if not itens:
             flash("Adicione pelo menos um produto à fatura.", "erro")
@@ -2554,13 +2344,11 @@ def venda_credito():
         data_venda = request.form.get("data_venda") or ""
         data_venda_iso = (data_venda + "T" + datetime.now().strftime("%H:%M:%S")) if data_venda else None
         data_venc = request.form.get("data_vencimento") or None
-
         isento = request.form.get("isento_iva") == "1"
-        try:
-            taxa = float(request.form.get("taxa_iva") or 0)
-        except (TypeError, ValueError):
-            taxa = None
+        taxa_txt = (request.form.get("taxa_iva") or "").strip()
+        taxa = safe_parse_float(taxa_txt, None) if taxa_txt else None
 
+        # --- 1) Criar a fatura ---
         try:
             resultado = services.registrar_venda_credito(
                 conn,
@@ -2581,19 +2369,56 @@ def venda_credito():
                 data_venda=data_venda_iso,
                 ip_address=_client_ip(),
             )
-            flash(
-                f"Fatura {resultado['numero_fatura']} criada com "
-                f"{resultado['n_itens']} produto(s) — total {resultado['valor']:.2f} "
-                f"{get_config('moeda','MZN')}.",
-                "sucesso"
-            )
-            conn.close()
-            return redirect(url_for("conta_receber_detalhe", id_conta=resultado["id_conta"]))
         except services.RegraNegocioError as e:
             flash(str(e), "erro")
+            conn.close()
+            return redirect(url_for("venda_credito"))
         except Exception as e:
-            flash(f"Erro: {e}", "erro")
+            flash(f"Erro ao criar fatura: {e}", "erro")
+            conn.close()
+            return redirect(url_for("venda_credito"))
 
+        # --- 2) Sucesso: fatura já está commitada ---
+        flash(
+            f"Fatura {resultado['numero_fatura']} criada com "
+            f"{resultado['n_itens']} produto(s) — total {resultado['valor']:.2f} "
+            f"{get_config('moeda', 'MZN')}.",
+            "sucesso"
+        )
+
+        # --- 3) 2.5: avisar margens negativas (cosmético, não bloqueia) ---
+        try:
+            criticos = conn.execute(
+                """SELECT p.nome, m.lucro
+                   FROM movimentos m
+                   JOIN produtos p ON p.id_produto = m.id_produto
+                   WHERE m.tipo = 'Saida'
+                     AND m.id_movimento IN (
+                         SELECT id_movimento FROM contas_receber_itens
+                         WHERE id_conta = ?
+                     )
+                     AND m.lucro < 0""",
+                (resultado["id_conta"],),
+            ).fetchall()
+
+            if criticos:
+                nomes = ", ".join(
+                    f"{c['nome']} ({float(c['lucro']):+.2f})"
+                    for c in criticos[:3]
+                )
+                flash(
+                    f"⚠️ {len(criticos)} item(ns) desta fatura ficaram com "
+                    f"MARGEM NEGATIVA: {nomes}. Verifique os preços de venda "
+                    f"para a unidade praticada.",
+                    "aviso",
+                )
+        except Exception as e:
+            logging.warning(f"Falha ao verificar margens da fatura: {e}")
+
+        conn.close()
+        return redirect(url_for("conta_receber_detalhe", id_conta=resultado["id_conta"]))
+
+    # GET: mostrar formulário
     produtos = conn.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
     return render_template("venda_credito_form.html", produtos=produtos)
@@ -2624,14 +2449,20 @@ def conta_receber_detalhe(id_conta):
         abort(404)
     conta, itens, recibos = res
     return render_template("conta_receber_detalhe.html",
-    conta=conta, itens=itens, recibos=recibos)
+                           conta=conta, itens=itens, recibos=recibos)
+
 
 @app.route("/contas-receber/<int:id_conta>/liquidar", methods=["POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def conta_receber_liquidar(id_conta):
     conn = get_conn()
     try:
-        valor = float(request.form.get("valor") or 0)
+        # FIX: aceita vírgula decimal em vez de rebentar com ValueError.
+        valor = safe_parse_float(request.form.get("valor"), 0)
+        if valor is None or valor <= 0:
+            flash("Valor de pagamento inválido.", "erro")
+            conn.close()
+            return redirect(url_for("conta_receber_detalhe", id_conta=id_conta))
         forma = request.form.get("forma_pagamento") or "Dinheiro"
         data_pg = request.form.get("data_pagamento") or ""
         data_pg_iso = (data_pg + "T" + datetime.now().strftime("%H:%M:%S")) if data_pg else None
@@ -2651,14 +2482,13 @@ def conta_receber_liquidar(id_conta):
     conn.close()
     return redirect(url_for("conta_receber_detalhe", id_conta=id_conta))
 
+
 @app.route("/contas-receber/<int:id_conta>/eliminar", methods=["POST"])
 @perfil_required("Admin", "Gerente")
 def conta_receber_eliminar(id_conta):
     conn = get_conn()
     try:
-        res = services.cancelar_conta_receber(
-            conn, id_conta, session["user_id"], _client_ip()
-        )
+        res = services.cancelar_conta_receber(conn, id_conta, session["user_id"], _client_ip())
         flash(
             f"Fatura eliminada. {res['movimentos_revertidos']} movimento(s) revertido(s) "
             f"e o stock foi reposto.",
@@ -2685,6 +2515,156 @@ def conta_receber_fatura_pdf(id_conta):
     nome_arq = (conta.get("numero_fatura") or f"FT-{id_conta:05d}").replace(" ", "_").replace("/", "-")
     return send_file(buf, mimetype="application/pdf", as_attachment=True,
                      download_name=f"{nome_arq}.pdf")
+
+@app.route("/contas-receber/extrato-clientes")
+@login_required
+def contas_receber_extrato_clientes():
+    """Extrato agregado de faturas a crédito por cliente."""
+    conn = get_conn()
+    filtro_nome = request.args.get("cliente", "").strip()
+    exportar = request.args.get("exportar", "")
+
+    sql = """
+        SELECT nome_cliente,
+               COUNT(*) AS n_faturas,
+               COALESCE(SUM(valor_total), 0) AS total,
+               COALESCE(SUM(valor_pago), 0) AS pago,
+               COALESCE(SUM(saldo), 0) AS saldo,
+               SUM(CASE WHEN status = 'Aberta'    THEN 1 ELSE 0 END) AS n_abertas,
+               SUM(CASE WHEN status = 'Parcial'   THEN 1 ELSE 0 END) AS n_parciais,
+               SUM(CASE WHEN status = 'Liquidada' THEN 1 ELSE 0 END) AS n_liquidadas,
+               MAX(data_emissao) AS ultima_emissao
+        FROM contas_receber
+        WHERE status != 'Cancelada'
+    """
+    params = []
+    if filtro_nome:
+        sql += " AND nome_cliente LIKE ?"
+        params.append(f"%{filtro_nome}%")
+    sql += " GROUP BY nome_cliente ORDER BY saldo DESC, nome_cliente ASC"
+
+    clientes = conn.execute(sql, params).fetchall()
+
+    totais = conn.execute("""
+        SELECT COUNT(*) AS n_faturas,
+               COUNT(DISTINCT nome_cliente) AS n_clientes,
+               COALESCE(SUM(valor_total), 0) AS total,
+               COALESCE(SUM(valor_pago), 0) AS pago,
+               COALESCE(SUM(saldo), 0) AS saldo
+        FROM contas_receber
+        WHERE status != 'Cancelada'
+    """).fetchone()
+
+    if exportar in ("pdf", "excel"):
+        colunas = ["Cliente", "Nº Faturas", "Total", "Pago", "Saldo em Dívida",
+                   "Abertas", "Parciais", "Pagas", "Última Fatura"]
+        linhas = []
+        for c in clientes:
+            linhas.append([
+                c["nome_cliente"],
+                int(c["n_faturas"] or 0),
+                float(c["total"] or 0),
+                float(c["pago"] or 0),
+                float(c["saldo"] or 0),
+                int(c["n_abertas"] or 0),
+                int(c["n_parciais"] or 0),
+                int(c["n_liquidadas"] or 0),
+                (c["ultima_emissao"] or "—")[:10],
+            ])
+        linhas.append([
+            "TOTAL",
+            int(totais["n_faturas"] or 0),
+            float(totais["total"] or 0),
+            float(totais["pago"] or 0),
+            float(totais["saldo"] or 0),
+            "", "", "", "",
+        ])
+        sub = f"Filtro: {filtro_nome or 'Todos os clientes'}  |  " \
+              f"{totais['n_clientes']} cliente(s)  |  {totais['n_faturas']} fatura(s)"
+        conn.close()
+        if exportar == "pdf":
+            buf = reportmod.gerar_pdf("Extrato de Faturas a Crédito por Cliente",
+                                      colunas, linhas, subtitulo=sub)
+            return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                             download_name=f"extrato_clientes_{datetime.now():%Y%m%d_%H%M%S}.pdf")
+        else:
+            buf = reportmod.gerar_excel("Extrato de Faturas a Crédito por Cliente",
+                                        colunas, linhas)
+            return send_file(buf,
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             as_attachment=True,
+                             download_name=f"extrato_clientes_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+
+    conn.close()
+    return render_template("contas_receber_extrato.html",
+                           clientes=clientes, totais=totais,
+                           filtro_nome=filtro_nome)
+
+
+@app.route("/contas-receber/extrato-clientes/<path:nome_cliente>")
+@login_required
+def conta_receber_extrato_cliente(nome_cliente):
+    """Extrato detalhado de todas as faturas de um cliente."""
+    conn = get_conn()
+    exportar = request.args.get("exportar", "")
+
+    faturas = conn.execute("""
+        SELECT * FROM contas_receber
+        WHERE nome_cliente = ? AND status != 'Cancelada'
+        ORDER BY data_emissao DESC
+    """, (nome_cliente,)).fetchall()
+
+    if not faturas:
+        conn.close()
+        abort(404)
+
+    total = sum(float(f["valor_total"] or 0) for f in faturas)
+    pago = sum(float(f["valor_pago"] or 0) for f in faturas)
+    saldo = sum(float(f["saldo"] or 0) for f in faturas)
+    n_abertas = sum(1 for f in faturas if f["status"] == "Aberta")
+    n_parciais = sum(1 for f in faturas if f["status"] == "Parcial")
+    n_liquidadas = sum(1 for f in faturas if f["status"] == "Liquidada")
+
+    if exportar in ("pdf", "excel"):
+        colunas = ["Fatura", "Emissão", "Vencimento", "Status",
+                   "Total", "Pago", "Saldo", "Cond. Pagamento"]
+        linhas = []
+        for f in faturas:
+            linhas.append([
+                f["numero_fatura"] or f"FT-{f['id_conta']:05d}",
+                (f["data_emissao"] or "")[:10],
+                (f["data_vencimento"] or "—")[:10] if f["data_vencimento"] else "—",
+                f["status"],
+                float(f["valor_total"] or 0),
+                float(f["valor_pago"] or 0),
+                float(f["saldo"] or 0),
+                f["condicao_pagamento"] or "—",
+            ])
+        linhas.append(["TOTAL", "", "", "",
+                       float(total), float(pago), float(saldo), ""])
+        sub = f"Cliente: {nome_cliente}  |  {len(faturas)} fatura(s)"
+        conn.close()
+        nome_limpo = "".join(c if c.isalnum() else "_" for c in nome_cliente[:40])
+        if exportar == "pdf":
+            buf = reportmod.gerar_pdf(f"Extrato de Faturas — {nome_cliente}",
+                                      colunas, linhas, subtitulo=sub)
+            return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                             download_name=f"extrato_{nome_limpo}_{datetime.now():%Y%m%d_%H%M%S}.pdf")
+        else:
+            buf = reportmod.gerar_excel(f"Extrato de Faturas — {nome_cliente}",
+                                        colunas, linhas)
+            return send_file(buf,
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             as_attachment=True,
+                             download_name=f"extrato_{nome_limpo}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+
+    conn.close()
+    return render_template("conta_receber_extrato_cliente.html",
+                           nome_cliente=nome_cliente,
+                           faturas=faturas,
+                           total=total, pago=pago, saldo=saldo,
+                           n_abertas=n_abertas, n_parciais=n_parciais,
+                           n_liquidadas=n_liquidadas)
 
 @app.route("/recibos/<int:id_recibo>.pdf")
 @login_required
@@ -2730,8 +2710,10 @@ def auditoria_nova():
                 tipo=request.form.get("tipo", "completa"),
                 id_categoria=request.form.get("id_categoria", type=int),
                 responsavel_id=session["user_id"],
-                tolerancia_percentual=request.form.get("tolerancia_percentual", "1"),
-                tolerancia_valor_minimo=request.form.get("tolerancia_valor_minimo", "0"),
+                tolerancia_percentual=safe_parse_float_required(
+                    request.form.get("tolerancia_percentual"), 1.0),
+                tolerancia_valor_minimo=safe_parse_float_required(
+                    request.form.get("tolerancia_valor_minimo"), 0.0),
                 observacoes=request.form.get("observacoes"),
                 ip_address=_client_ip(),
             )
@@ -2789,7 +2771,12 @@ def auditoria_contar(id_auditoria):
     conn = get_conn()
     try:
         id_produto = int(request.form["id_produto"])
-        quantidade = float(request.form["quantidade"])
+        # FIX: aceita vírgula decimal.
+        quantidade = safe_parse_float(request.form.get("quantidade"), None)
+        if quantidade is None or quantidade <= 0:
+            flash("Quantidade inválida.", "erro")
+            conn.close()
+            return redirect(url_for("auditoria_detalhe", id_auditoria=id_auditoria))
         services.registrar_contagem(
             conn, id_auditoria, id_produto, quantidade,
             id_usuario=session["user_id"],
@@ -2865,36 +2852,6 @@ def auditoria_relatorio_pdf(id_auditoria):
                      download_name=f"auditoria_{id_auditoria}.pdf")
 
 
-@app.route("/fechos-mensais", methods=["GET", "POST"])
-@perfil_required("Admin", "Gerente")
-def fechos_mensais_list():
-    conn = get_conn()
-    if request.method == "POST":
-        try:
-            ano = int(request.form["ano"])
-            mes = int(request.form["mes"])
-            sobrescrever = request.form.get("sobrescrever") == "1"
-            res = services.gerar_fecho_mensal(
-                conn, ano, mes, session["user_id"], _client_ip(),
-                sobrescrever=sobrescrever)
-            flash(
-                f"Fecho {mes:02d}/{ano} gerado: {res['n_itens']} produtos, "
-                f"custo total {res['total_custo']:.2f}.",
-                "sucesso"
-            )
-        except services.RegraNegocioError as e:
-            flash(str(e), "erro")
-        except Exception as e:
-            flash(f"Erro: {e}", "erro")
-        conn.close()
-        return redirect(url_for("fechos_mensais_list"))
-
-    fechos = services.listar_fechos(conn)
-    conn.close()
-    return render_template("fechos_mensais.html",
-                           fechos=fechos,
-                           hoje=datetime.now().date().isoformat())
-
 @app.route("/auditorias/divergencia/<int:id_div>/justificar", methods=["POST"])
 @perfil_required("Admin", "Gerente")
 def auditoria_justificar(id_div):
@@ -2940,6 +2897,108 @@ def auditoria_aceitar(id_div):
     return redirect(request.referrer or url_for("auditorias_list"))
 
 
+@app.route("/auditorias/<int:id_auditoria>/relatorios/<tipo>")
+@login_required
+def auditoria_relatorio(id_auditoria, tipo):
+    conn = get_conn()
+    aud = services.obter_auditoria(conn, id_auditoria)
+    if not aud:
+        conn.close()
+        abort(404)
+
+    contexto = {"aud": aud, "tipo": tipo, "titulo": "", "colunas": [], "linhas": []}
+
+    if tipo == "resumo":
+        dados = services.resumo_executivo(conn, id_auditoria)
+        contexto.update(dados or {})
+        contexto["titulo"] = f"Resumo Executivo — Auditoria #{id_auditoria}"
+    elif tipo == "reconciliacao":
+        linhas, tot = services.reconciliacao_periodo(
+            conn, aud["data_inicio"], aud["data_fim"], aud.get("id_categoria"))
+        contexto["linhas"] = linhas
+        contexto["totais"] = tot
+        contexto["titulo"] = f"Reconciliação — {aud['data_inicio']} a {aud['data_fim']}"
+    elif tipo == "abc":
+        itens, valor_total = services.curva_abc(conn, id_auditoria)
+        contexto["itens"] = itens
+        contexto["valor_total"] = valor_total
+        contexto["titulo"] = "Curva ABC por Valor de Estoque"
+    elif tipo == "perdas":
+        perdas, validade = services.perdas_e_validade(conn)
+        contexto["perdas"] = perdas
+        contexto["validade"] = validade
+        contexto["titulo"] = "Perdas e Validade"
+    elif tipo == "excecoes":
+        lista = services.excecoes(conn)
+        contexto["excecoes"] = lista
+        contexto["titulo"] = "Exceções"
+    elif tipo == "detalhe":
+        divs = services.divergencias_da_auditoria(conn, id_auditoria)
+        contexto["divergencias"] = divs
+        contexto["titulo"] = f"Detalhe por Produto — Auditoria #{id_auditoria}"
+
+    conn.close()
+    return render_template("auditoria_relatorios.html", **contexto)
+
+
+# ---------------------------------------------------------------------------
+# FECHOS MENSAIS
+# ---------------------------------------------------------------------------
+@app.route("/fechos-mensais", methods=["GET", "POST"])
+@perfil_required("Admin", "Gerente")
+def fechos_mensais_list():
+    conn = get_conn()
+    if request.method == "POST":
+        try:
+            ano = int(request.form["ano"])
+            mes = int(request.form["mes"])
+            sobrescrever = request.form.get("sobrescrever") == "1"
+            res = services.gerar_fecho_mensal(
+                conn, ano, mes, session["user_id"], _client_ip(),
+                sobrescrever=sobrescrever)
+            flash(
+                f"Fecho {mes:02d}/{ano} gerado: {res['n_itens']} produtos, "
+                f"custo total {res['total_custo']:.2f}.",
+                "sucesso"
+            )
+        except services.RegraNegocioError as e:
+            flash(str(e), "erro")
+        except Exception as e:
+            flash(f"Erro: {e}", "erro")
+        conn.close()
+        return redirect(url_for("fechos_mensais_list"))
+
+    fechos = services.listar_fechos(conn)
+    conn.close()
+    return render_template("fechos_mensais.html", fechos=fechos,
+                           hoje=datetime.now().date().isoformat())
+
+
+@app.route("/fechos-mensais/<int:id_fecho>")
+@perfil_required("Admin", "Gerente")
+def fecho_detalhe(id_fecho):
+    conn = get_conn()
+    fecho = conn.execute(
+        "SELECT * FROM fechos_mensais WHERE id_fecho=?", (id_fecho,)
+    ).fetchone()
+    if not fecho:
+        conn.close()
+        abort(404)
+    itens = conn.execute(
+        """SELECT i.*, p.codigo, p.nome, p.unidade
+           FROM fechos_mensais_itens i
+           JOIN produtos p ON p.id_produto=i.id_produto
+           WHERE i.id_fecho=?
+           ORDER BY p.nome""",
+        (id_fecho,),
+    ).fetchall()
+    conn.close()
+    return render_template("fecho_detalhe.html", fecho=fecho, itens=itens)
+
+
+# ---------------------------------------------------------------------------
+# PERDAS
+# ---------------------------------------------------------------------------
 @app.route("/perdas", methods=["GET", "POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def perdas_list():
@@ -2947,7 +3006,12 @@ def perdas_list():
     if request.method == "POST":
         try:
             id_produto = int(request.form["id_produto"])
-            quantidade = float(request.form["quantidade"])
+            # FIX: aceita vírgula decimal.
+            quantidade = safe_parse_float(request.form.get("quantidade"), None)
+            if quantidade is None or quantidade <= 0:
+                flash("Quantidade inválida.", "erro")
+                conn.close()
+                return redirect(url_for("perdas_list"))
             motivo = request.form.get("motivo", "Outro")
             data_str = request.form.get("data_perda") or ""
             data_hora = (data_str + "T" + datetime.now().strftime("%H:%M:%S")) if data_str else None
@@ -2974,99 +3038,14 @@ def perdas_list():
            WHERE m.subtipo LIKE 'Perda_%'
            ORDER BY m.data_hora DESC LIMIT 300"""
     ).fetchall()
-    produtos = conn.execute(
-        "SELECT * FROM produtos WHERE ativo=1 ORDER BY nome"
-    ).fetchall()
+    produtos = conn.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
     return render_template("perdas.html", perdas=perdas, produtos=produtos,
                            hoje=datetime.now().date().isoformat())
 
-@app.route("/fechos-mensais/<int:id_fecho>")
-@perfil_required("Admin", "Gerente")
-def fecho_detalhe(id_fecho):
-    conn = get_conn()
-    fecho = conn.execute(
-        "SELECT * FROM fechos_mensais WHERE id_fecho=?", (id_fecho,)
-    ).fetchone()
-    if not fecho:
-        conn.close()
-        abort(404)
-    itens = conn.execute(
-        """SELECT i.*, p.codigo, p.nome, p.unidade
-           FROM fechos_mensais_itens i
-           JOIN produtos p ON p.id_produto=i.id_produto
-           WHERE i.id_fecho=?
-           ORDER BY p.nome""",
-        (id_fecho,),
-    ).fetchall()
-    conn.close()
-    return render_template("fecho_detalhe.html", fecho=fecho, itens=itens)
-
-@app.route("/auditorias/<int:id_auditoria>/relatorios/<tipo>")
-@login_required
-def auditoria_relatorio(id_auditoria, tipo):
-    conn = get_conn()
-    aud = services.obter_auditoria(conn, id_auditoria)
-    if not aud:
-        conn.close()
-        abort(404)
-
-    contexto = {"aud": aud, "tipo": tipo, "titulo": "", "colunas": [], "linhas": []}
-
-    if tipo == "resumo":
-        dados = services.resumo_executivo(conn, id_auditoria)
-        contexto.update(dados or {})
-        contexto["titulo"] = f"Resumo Executivo — Auditoria #{id_auditoria}"
-
-    elif tipo == "reconciliacao":
-        linhas, tot = services.reconciliacao_periodo(
-            conn, aud["data_inicio"], aud["data_fim"],
-            aud.get("id_categoria"))
-        contexto["linhas"] = linhas
-        contexto["totais"] = tot
-        contexto["titulo"] = f"Reconciliação — {aud['data_inicio']} a {aud['data_fim']}"
-
-    elif tipo == "abc":
-        itens, valor_total = services.curva_abc(conn, id_auditoria)
-        contexto["itens"] = itens
-        contexto["valor_total"] = valor_total
-        contexto["titulo"] = "Curva ABC por Valor de Estoque"
-
-    elif tipo == "perdas":
-        perdas, validade = services.perdas_e_validade(conn)
-        contexto["perdas"] = perdas
-        contexto["validade"] = validade
-        contexto["titulo"] = "Perdas e Validade"
-
-    elif tipo == "excecoes":
-        lista = services.excecoes(conn)
-        contexto["excecoes"] = lista
-        contexto["titulo"] = "Exceções"
-
-    elif tipo == "detalhe":
-        divs = services.divergencias_da_auditoria(conn, id_auditoria)
-        contexto["divergencias"] = divs
-        contexto["titulo"] = f"Detalhe por Produto — Auditoria #{id_auditoria}"
-
-    conn.close()
-    return render_template("auditoria_relatorios.html", **contexto)
-=======
-@app.route("/cotacoes/<int:id_cotacao>/converter", methods=["POST"])
-@perfil_required("Admin", "Gerente")
-def cotacao_converter(id_cotacao):
-    conn = get_conn()
-    try:
-        services.converter_cotacao_em_venda(conn, id_cotacao, session["user_id"])
-        flash("Cotação convertida em venda com sucesso.", "sucesso")
-    except services.RegraNegocioError as e:
-        flash(str(e), "erro")
-    conn.close()
-    return redirect(url_for("cotacao_detalhe", id_cotacao=id_cotacao))
-
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 
 # ---------------------------------------------------------------------------
-# Segurança / perfil do usuário
+# Segurança / perfil
 # ---------------------------------------------------------------------------
 @app.route("/perfil/senha", methods=["GET", "POST"])
 @login_required
@@ -3118,7 +3097,6 @@ def usuarios_salvar():
         id_usuario = f.get("id_usuario")
         senha = f.get("senha", "").strip()
         if id_usuario:
-<<<<<<< HEAD
             row = conn.execute(
                 "SELECT * FROM usuarios WHERE id_usuario=?", (id_usuario,)
             ).fetchone()
@@ -3127,11 +3105,6 @@ def usuarios_salvar():
                 conn.close()
                 return redirect(url_for("usuarios_list"))
             antigos = dict(row)
-=======
-            antigos = dict(conn.execute(
-                "SELECT * FROM usuarios WHERE id_usuario=?", (id_usuario,)
-            ).fetchone())
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
             dados_novos = {"nome": f["nome"], "login": f["login"],
                            "perfil": f["perfil"],
                            "email": f.get("email", "").strip() or None,
@@ -3184,7 +3157,6 @@ def usuarios_toggle(id_usuario):
     if id_usuario == session["user_id"]:
         flash("Você não pode desativar seu próprio usuário.", "erro")
     else:
-<<<<<<< HEAD
         row = conn.execute(
             "SELECT * FROM usuarios WHERE id_usuario=?", (id_usuario,)
         ).fetchone()
@@ -3198,17 +3170,6 @@ def usuarios_toggle(id_usuario):
                                 id_usuario, "UPDATE", antigos, {"ativo": novo_ativo}, _client_ip())
             conn.commit()
             flash("Status do usuário atualizado.", "sucesso")
-=======
-        antigos = dict(conn.execute(
-            "SELECT * FROM usuarios WHERE id_usuario=?", (id_usuario,)
-        ).fetchone())
-        novo_ativo = 0 if antigos["ativo"] else 1
-        conn.execute("UPDATE usuarios SET ativo = ? WHERE id_usuario=?", (novo_ativo, id_usuario,))
-        registrar_auditoria(conn, session["user_id"], "usuarios",
-                            id_usuario, "UPDATE", antigos, {"ativo": novo_ativo}, _client_ip())
-        conn.commit()
-        flash("Status do usuário atualizado.", "sucesso")
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     conn.close()
     return redirect(url_for("usuarios_list"))
 
@@ -3245,98 +3206,309 @@ def usuarios_excluir(id_usuario):
     return redirect(url_for("usuarios_list"))
 
 
+@app.route("/comparar-estoque", methods=["GET", "POST"])
+@login_required
+def comparar_estoque():
+    """Importa Excel/PDF e compara quantidades com o sistema.
+    NÃO escreve na base de dados.
+    Modos: 'estoque' (saldo actual) ou 'vendas' (período)."""
+    if request.method == "POST":
+        arquivo = request.files.get("arquivo")
+        if not arquivo or not arquivo.filename:
+            flash("Selecione um ficheiro (.xlsx ou .pdf).", "erro")
+            return redirect(url_for("comparar_estoque"))
+
+        modo = request.form.get("modo", "estoque")
+        if modo not in ("estoque", "vendas"):
+            modo = "estoque"
+
+        data_ini = request.form.get("data_ini", "").strip()
+        data_fim = request.form.get("data_fim", "").strip()
+        if modo == "vendas":
+            if not data_ini:
+                data_ini = datetime.now().replace(day=1).strftime("%Y-%m-%d")
+            if not data_fim:
+                data_fim = datetime.now().strftime("%Y-%m-%d")
+
+        ext = arquivo.filename.rsplit(".", 1)[-1].lower() if "." in arquivo.filename else ""
+        try:
+            if ext in ("xlsx", "xls"):
+                linhas = compmod.ler_excel(arquivo)
+            elif ext == "pdf":
+                linhas = compmod.ler_pdf(arquivo)
+            else:
+                flash("Formato não suportado. Use .xlsx ou .pdf.", "erro")
+                return redirect(url_for("comparar_estoque"))
+        except ImportError as e:
+            flash(str(e), "aviso")
+            return redirect(url_for("comparar_estoque"))
+        except Exception as e:
+            logging.error(f"Erro a ler ficheiro: {e}")
+            flash(f"Erro ao ler o ficheiro: {e}", "erro")
+            return redirect(url_for("comparar_estoque"))
+
+        if not linhas:
+            flash("Não foi possível extrair linhas do ficheiro. "
+                  "Verifique se tem uma tabela com 'Produto' e 'Quantidade'.", "aviso")
+            return redirect(url_for("comparar_estoque"))
+
+        conn = get_conn()
+        try:
+            if modo == "vendas":
+                # Quantidades VENDIDAS no período
+                produtos = [dict(r) for r in conn.execute("""
+                    SELECT p.id_produto, p.codigo, p.nome, p.unidade,
+                           COALESCE(SUM(m.quantidade), 0) AS saldo
+                    FROM produtos p
+                    LEFT JOIN movimentos m
+                        ON m.id_produto = p.id_produto
+                       AND m.tipo = 'Saida'
+                       AND m.data_hora >= ?
+                       AND m.data_hora <= ?
+                    WHERE p.ativo = 1
+                    GROUP BY p.id_produto
+                """, (data_ini + "T00:00:00",
+                      data_fim + "T23:59:59")).fetchall()]
+            else:
+                # Saldo ACTUAL em estoque
+                produtos = [dict(r) for r in conn.execute("""
+                    SELECT p.id_produto, p.codigo, p.nome, p.unidade,
+                           COALESCE(e.saldo_atual, 0) AS saldo
+                    FROM produtos p
+                    LEFT JOIN estoque e ON e.id_produto = p.id_produto
+                    WHERE p.ativo = 1
+                """).fetchall()]
+        finally:
+            conn.close()
+
+        encontrados, nao_encontrados = compmod.comparar(linhas, produtos)
+
+        # Guardar resultado em ficheiro temporário (para exportação)
+        comp_id = str(uuid4())
+        pasta_comp = os.path.join(get_base_dir(), "dados", "_comparacoes")
+        os.makedirs(pasta_comp, exist_ok=True)
+
+        # Limpar ficheiros com mais de 7 dias
+        try:
+            limite = time.time() - 7 * 86400
+            for f in os.listdir(pasta_comp):
+                p = os.path.join(pasta_comp, f)
+                if os.path.isfile(p) and os.path.getmtime(p) < limite:
+                    os.remove(p)
+        except Exception:
+            pass
+
+        dados_comp = {
+            "modo": modo,
+            "data_ini": data_ini,
+            "data_fim": data_fim,
+            "nome_ficheiro": arquivo.filename,
+            "total_ficheiro": len(linhas),
+            "encontrados": encontrados,
+            "nao_encontrados": nao_encontrados,
+        }
+        with open(os.path.join(pasta_comp, f"{comp_id}.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump(dados_comp, f, ensure_ascii=False)
+
+        return redirect(url_for("comparar_estoque_resultado", comp_id=comp_id))
+
+    return render_template("comparar_estoque.html")
+
+
+@app.route("/comparar-estoque/resultado/<comp_id>")
+@login_required
+def comparar_estoque_resultado(comp_id):
+    pasta_comp = os.path.join(get_base_dir(), "dados", "_comparacoes")
+    caminho = os.path.join(pasta_comp, f"{comp_id}.json")
+    if not os.path.exists(caminho):
+        flash("Resultado expirado ou inexistente. Refaça a comparação.", "erro")
+        return redirect(url_for("comparar_estoque"))
+
+    with open(caminho, "r", encoding="utf-8") as f:
+        dados = json.load(f)
+
+    total_encontrados = len(dados["encontrados"])
+    total_nao_encontrados = len(dados["nao_encontrados"])
+    total_divergencias = sum(1 for r in dados["encontrados"]
+                             if abs(r["diferenca"]) > 0.001)
+
+    return render_template(
+        "comparar_estoque_resultado.html",
+        comp_id=comp_id,
+        modo=dados["modo"],
+        data_ini=dados["data_ini"],
+        data_fim=dados["data_fim"],
+        encontrados=dados["encontrados"],
+        nao_encontrados=dados["nao_encontrados"],
+        nome_ficheiro=dados["nome_ficheiro"],
+        total_ficheiro=dados["total_ficheiro"],
+        total_encontrados=total_encontrados,
+        total_nao_encontrados=total_nao_encontrados,
+        total_divergencias=total_divergencias,
+    )
+
+
+@app.route("/comparar-estoque/resultado/<comp_id>/exportar/<formato>")
+@login_required
+def comparar_estoque_exportar(comp_id, formato):
+    if formato not in ("pdf", "excel"):
+        abort(404)
+
+    pasta_comp = os.path.join(get_base_dir(), "dados", "_comparacoes")
+    caminho = os.path.join(pasta_comp, f"{comp_id}.json")
+    if not os.path.exists(caminho):
+        abort(404)
+
+    with open(caminho, "r", encoding="utf-8") as f:
+        dados = json.load(f)
+
+    modo_label = "Estoque" if dados["modo"] == "estoque" else "Vendas"
+    titulo = f"Comparação de {modo_label} — {dados['nome_ficheiro']}"
+    sub = f"Modo: {modo_label}"
+    if dados["modo"] == "vendas" and dados["data_ini"]:
+        sub += f"  |  Período: {dados['data_ini']} a {dados['data_fim']}"
+    sub += (f"  |  {len(dados['encontrados'])} encontrado(s)"
+            f"  |  {len(dados['nao_encontrados'])} não encontrado(s)")
+
+    col_qtd_sist = "Qtd. Vendida (Sistema)" if dados["modo"] == "vendas" else "Qtd. Atual (Sistema)"
+    colunas = ["Código", "Produto", "Unid.", "Qtd. Ficheiro", col_qtd_sist,
+               "Diferença", "Similaridade %"]
+    linhas = []
+    for r in dados["encontrados"]:
+        linhas.append([
+            r["codigo"],
+            r["nome_sistema"],
+            r["unidade"],
+            r["quantidade_ficheiro"],
+            r["saldo_sistema"],
+            r["diferenca"],
+            f"{r['similaridade']}%",
+        ])
+
+    if dados["nao_encontrados"]:
+        linhas.append(["", "", "", "", "", "", ""])
+        linhas.append(["PRODUTOS NÃO ENCONTRADOS NO SISTEMA", "", "", "", "", "", ""])
+        for r in dados["nao_encontrados"]:
+            linhas.append([
+                "", r["nome_ficheiro"], "",
+                r["quantidade_ficheiro"], "",
+                "não encontrado",
+                f"{r['melhor_score']}%",
+            ])
+
+    buf = None
+    if formato == "pdf":
+        buf = reportmod.gerar_pdf(titulo, colunas, linhas, subtitulo=sub)
+        nome = f"comparacao_{dados['modo']}_{datetime.now():%Y%m%d_%H%M%S}.pdf"
+        return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                         download_name=nome)
+    else:
+        buf = reportmod.gerar_excel(titulo, colunas, linhas)
+        nome = f"comparacao_{dados['modo']}_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+        return send_file(
+            buf,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True, download_name=nome
+        )
 # ---------------------------------------------------------------------------
-<<<<<<< HEAD
-# Configurações  ← ESTA É A FUNÇÃO QUE ESTAVA A FALTAR
-=======
-# Configurações 
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+# Configurações
 # ---------------------------------------------------------------------------
 @app.route("/configuracoes", methods=["GET", "POST"])
 @perfil_required("Admin")
 def configuracoes():
     if request.method == "POST":
+        # ---- Negócio ----
         set_config("metodo_custeio", request.form.get("metodo_custeio", "media_ponderada"))
         set_config("dias_alerta_validade", request.form.get("dias_alerta_validade", "7"))
         set_config("margem_lucro_desejada", request.form.get("margem_lucro_desejada", "30"))
-<<<<<<< HEAD
-        set_config("permitir_estoque_negativo","1" if request.form.get("permitir_estoque_negativo") else "0")
-        set_config("nome_empresa", (request.form.get("nome_empresa") or "").strip())
-        set_config("moeda", (request.form.get("moeda") or "MZN").strip())
-        set_config("estoque_minimo_padrao", request.form.get("estoque_minimo_padrao", "0"))
-        set_config("backup_automatico","1" if request.form.get("backup_automatico") else "0")
-        set_config("max_tentativas_login", request.form.get("max_tentativas_login", "5"))
-        set_config("tempo_bloqueio_login_min", request.form.get("tempo_bloqueio_login_min", "5"))
-=======
         set_config("permitir_estoque_negativo",
                    "1" if request.form.get("permitir_estoque_negativo") else "0")
-        set_config("nome_empresa", (request.form.get("nome_empresa") or "").strip())
-        set_config("moeda", (request.form.get("moeda") or "MZN").strip())
         set_config("estoque_minimo_padrao", request.form.get("estoque_minimo_padrao", "0"))
         set_config("backup_automatico",
                    "1" if request.form.get("backup_automatico") else "0")
+        set_config("max_tentativas_login", request.form.get("max_tentativas_login", "5"))
+        set_config("tempo_bloqueio_login_min", request.form.get("tempo_bloqueio_login_min", "5"))
 
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
+        # ---- Empresa ----
+        set_config("nome_empresa", (request.form.get("nome_empresa") or "").strip())
+        set_config("moeda", (request.form.get("moeda") or "MZN").strip())
         set_config("morada_empresa", (request.form.get("morada_empresa") or "").strip())
         set_config("nuit_empresa", (request.form.get("nuit_empresa") or "").strip())
         set_config("contacto_empresa", (request.form.get("contacto_empresa") or "").strip())
         set_config("email_empresa", (request.form.get("email_empresa") or "").strip())
-<<<<<<< HEAD
+
+        # ---- Documentos fiscais ----
         set_config("serie_fatura", (request.form.get("serie_fatura") or "FT").strip())
         set_config("proximo_num_fatura", request.form.get("proximo_num_fatura", "1").strip())
         set_config("tipo_documento", (request.form.get("tipo_documento") or "Factura").strip())
-        set_config("condicoes_pagamento_padrao", (request.form.get("condicoes_pagamento_padrao") or "").strip())
+        set_config("condicoes_pagamento_padrao",
+                   (request.form.get("condicoes_pagamento_padrao") or "").strip())
         set_config("cambio_padrao", (request.form.get("cambio_padrao") or "0,00").strip())
         set_config("moeda_cambio", (request.form.get("moeda_cambio") or "USD").strip())
         set_config("taxa_iva_padrao", request.form.get("taxa_iva_padrao", "16").strip())
         set_config("regime_iva", (request.form.get("regime_iva") or "Regime Geral").strip())
-        set_config("motivo_isencao_iva",(request.form.get("motivo_isencao_iva") or "").strip())
-        set_config("texto_rodape_fatura", (request.form.get("texto_rodape_fatura") or "").strip())
+        set_config("motivo_isencao_iva",
+                   (request.form.get("motivo_isencao_iva") or "").strip())
+        set_config("texto_rodape_fatura",
+                   (request.form.get("texto_rodape_fatura") or "").strip())
         set_config("banco_nome", (request.form.get("banco_nome") or "").strip())
         set_config("iban_empresa", (request.form.get("iban_empresa") or "").strip())
         set_config("numero_conta", (request.form.get("numero_conta") or "").strip())
         set_config("nib_empresa", (request.form.get("nib_empresa") or "").strip())
 
-
-        # Código de segurança para alterar produto — guardado como HASH
+        # ---- Segurança ----
         codigo_seg_novo = (request.form.get("codigo_alteracao_produto") or "").strip()
         if codigo_seg_novo:
             set_config("codigo_alteracao_produto",
                        generate_password_hash(codigo_seg_novo))
-=======
-
-        # Código de segurança para alterar produto
-        codigo_seg_novo = (request.form.get("codigo_alteracao_produto") or "").strip()
-        if codigo_seg_novo:
-            set_config("codigo_alteracao_produto", codigo_seg_novo)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
         elif request.form.get("limpar_codigo_alteracao") == "1":
             set_config("codigo_alteracao_produto", "")
 
-        # Upload do logo
+        # ---- Upload do logo ----
         logo_arquivo = request.files.get("logo_arquivo")
         if logo_arquivo and logo_arquivo.filename:
             try:
-                ext = logo_arquivo.filename.rsplit(".", 1)[-1].lower()
+                fname = logo_arquivo.filename
+                if "." not in fname:
+                    raise ValueError("Ficheiro sem extensão")
+                ext = fname.rsplit(".", 1)[-1].lower()
                 if ext not in ("png", "jpg", "jpeg", "gif", "bmp", "webp"):
-                    raise ValueError("Formato de imagem não suportado")
-<<<<<<< HEAD
+                    raise ValueError(f"Formato de imagem não suportado ({ext})")
+
                 pasta_img = os.path.join(get_base_dir(), "static", "img")
                 os.makedirs(pasta_img, exist_ok=True)
                 nome_seguro = f"logo_empresa.{ext}"
-                caminho = os.path.join(pasta_img, nome_seguro)
-=======
-                os.makedirs(os.path.join(get_base_dir(), "static", "img"), exist_ok=True)
-                nome_seguro = f"logo_empresa.{ext}"
-                caminho = os.path.join(get_base_dir(), "static", "img", nome_seguro)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-                logo_arquivo.save(caminho)
-                set_config("logo_empresa", nome_seguro)
-            except Exception as e:
-                flash(f"Erro ao carregar logo: {e}", "erro")
-        if request.form.get("remover_logo") == "1":
-            set_config("logo_empresa", "")
+                caminho_destino = os.path.join(pasta_img, nome_seguro)
 
+                # remove logos antigos de outras extensões
+                import glob
+                for antigo in glob.glob(os.path.join(pasta_img, "logo_empresa.*")):
+                    if os.path.abspath(antigo) != os.path.abspath(caminho_destino):
+                        try:
+                            os.remove(antigo)
+                        except OSError:
+                            pass
+
+                logo_arquivo.save(caminho_destino)
+                if not os.path.exists(caminho_destino) or os.path.getsize(caminho_destino) == 0:
+                    raise IOError("Ficheiro vazio ou inacessível após gravação")
+                set_config("logo_empresa", nome_seguro)
+                flash("Logo atualizado com sucesso.", "sucesso")
+            except Exception as e:
+                logging.error(f"Falha ao guardar logo: {e}")
+                flash(f"Erro ao carregar logo: {e}", "erro")
+
+        if request.form.get("remover_logo") == "1":
+            nome_atual = get_config("logo_empresa", "")
+            if nome_atual and not nome_atual.startswith("data:"):
+                caminho = os.path.join(get_base_dir(), "static", "img", nome_atual)
+                try:
+                    if os.path.exists(caminho):
+                        os.remove(caminho)
+                except OSError:
+                    pass
+            set_config("logo_empresa", "")
         flash("Configurações salvas com sucesso.", "sucesso")
         return redirect(url_for("configuracoes"))
 
@@ -3355,7 +3527,6 @@ def configuracoes():
         "email_empresa": get_config("email_empresa", ""),
         "logo_empresa": get_config("logo_empresa", ""),
         "codigo_alteracao_produto": get_config("codigo_alteracao_produto", ""),
-<<<<<<< HEAD
         "max_tentativas_login": get_config("max_tentativas_login", "5"),
         "tempo_bloqueio_login_min": get_config("tempo_bloqueio_login_min", "5"),
         "primeira_instalacao": get_config("primeira_instalacao", "1"),
@@ -3370,20 +3541,16 @@ def configuracoes():
         "motivo_isencao_iva": get_config("motivo_isencao_iva", ""),
         "texto_rodape_fatura": get_config("texto_rodape_fatura", ""),
         "banco_nome": get_config("banco_nome", ""),
-        "banco_logo": get_config("banco_logo", ""),
         "iban_empresa": get_config("iban_empresa", ""),
         "numero_conta": get_config("numero_conta", ""),
         "nib_empresa": get_config("nib_empresa", ""),
     }
     logo_url = None
     if config["logo_empresa"]:
-        logo_url = url_for("static", filename=f"img/{config['logo_empresa']}")
+        caminho_logo = os.path.join(get_base_dir(), "static", "img", config["logo_empresa"])
+        if os.path.exists(caminho_logo):
+            logo_url = _logo_url_para(config["logo_empresa"])
     return render_template("configuracoes.html", config=config, logo_url=logo_url)
-=======
-        "primeira_instalacao": get_config("primeira_instalacao", "1"),
-    }
-    return render_template("configuracoes.html", config=config)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
 
 
 @app.route("/configuracoes/backup")
@@ -3393,17 +3560,10 @@ def configuracoes_backup():
     os.makedirs(backup_dir, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = os.path.join(backup_dir, f"estoque_backup_{ts}.db")
-<<<<<<< HEAD
-    try:
-        c = sqlite3.connect(DB_PATH)
-        c.execute("PRAGMA wal_checkpoint(FULL)")
-        c.close()
-    except Exception:
-        pass
-=======
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-    shutil.copy2(DB_PATH, backup_path)
-    return send_file(backup_path, as_attachment=True, download_name=os.path.basename(backup_path))
+    from database import copiar_base_dados
+    copiar_base_dados(backup_path)
+    return send_file(backup_path, as_attachment=True,
+                     download_name=os.path.basename(backup_path))
 
 
 @app.route("/configuracoes/restaurar", methods=["POST"])
@@ -3418,10 +3578,9 @@ def configuracoes_restaurar():
         flash("Selecione um arquivo de backup para restaurar.", "erro")
         return redirect(url_for("configuracoes"))
 
-    nome_seguro = secure_filename(arquivo.filename)
+    nome_seguro = secure_filename(arquivo.filename or "")
     pasta_upload = os.path.join(get_base_dir(), "backups")
     os.makedirs(pasta_upload, exist_ok=True)
-<<<<<<< HEAD
     caminho_temp = os.path.join(
         pasta_upload,
         f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{nome_seguro}",
@@ -3431,7 +3590,6 @@ def configuracoes_restaurar():
     tabelas_esperadas = {"produtos", "usuarios", "movimentos", "estoque",
                          "categorias", "configuracoes"}
     try:
-        # 1) Validação: o ficheiro é uma BD SQLite do SGE?
         conn = sqlite3.connect(caminho_temp)
         tabelas_existentes = {
             r[0] for r in conn.execute(
@@ -3442,7 +3600,6 @@ def configuracoes_restaurar():
         if not tabelas_esperadas.issubset(tabelas_existentes):
             raise sqlite3.Error("Schema incompatível com o SGE.")
 
-        # 2) Checkpoint WAL da BD atual antes de mexer
         try:
             c = sqlite3.connect(DB_PATH)
             c.execute("PRAGMA wal_checkpoint(FULL)")
@@ -3450,17 +3607,17 @@ def configuracoes_restaurar():
         except Exception:
             pass
 
-        # 3) Guarda o atual como pré-restauro (rollback)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         pre_restore = os.path.join(get_base_dir(), "backups", f"pre_restore_{ts}.db")
         os.makedirs(os.path.dirname(pre_restore), exist_ok=True)
         if os.path.exists(DB_PATH):
             try:
-                shutil.copy2(DB_PATH, pre_restore)
-            except Exception:
-                pass
+                # FIX: usar a API de backup do SQLite em vez de shutil.copy2
+                from database import copiar_base_dados
+                copiar_base_dados(pre_restore)
+            except Exception as e:
+                logging.error(f"Falha na cópia pré-restauro: {e}")
 
-        # 4) FIX CRÍTICO: remove WAL/SHM antigos ANTES de substituir a BD
         for sufixo in ("-wal", "-shm", "-journal"):
             f = DB_PATH + sufixo
             if os.path.exists(f):
@@ -3469,10 +3626,8 @@ def configuracoes_restaurar():
                 except OSError:
                     pass
 
-        # 5) Substitui a BD
         shutil.copy2(caminho_temp, DB_PATH)
 
-        # 6) Aplica migrações do schema atual (para backups antigos)
         try:
             init_db()
             migracao_ok = True
@@ -3481,25 +3636,27 @@ def configuracoes_restaurar():
             logging.error(f"Falha ao migrar backup restaurado: {mig_err}")
             if os.path.exists(pre_restore):
                 try:
-                    shutil.copy2(pre_restore, DB_PATH)
+                    # Reverter usando API de backup do SQLite
+                    origin = sqlite3.connect(pre_restore)
+                    dest = sqlite3.connect(DB_PATH)
+                    try:
+                        origin.backup(dest)
+                    finally:
+                        origin.close()
+                        dest.close()
                     init_db()
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logging.error(f"Falha ao reverter restauro: {rollback_err}")
 
+        # FIX: forçar logout após restauro — a sessão pode apontar para um
+        # utilizador que já não existe na DB restaurada, causando erros de FK.
+        session.clear()
         if migracao_ok:
-            flash(
-                "Backup restaurado e migrado para o schema actual com sucesso. "
-                "Recomenda-se reiniciar a aplicação.",
-                "sucesso",
-            )
+            flash("Backup restaurado e migrado com sucesso. Faça login novamente.", "sucesso")
         else:
-            flash(
-                "Backup restaurado, mas a migração falhou. "
-                "O sistema reverteu para o estado anterior.",
-                "erro",
-            )
+            flash("Backup restaurado, mas a migração falhou. Sistema revertido.", "erro")
     except sqlite3.Error as e:
-        flash(f"O arquivo selecionado não é um backup válido do sistema. ({e})", "erro")
+        flash(f"O arquivo não é um backup válido do sistema. ({e})", "erro")
     except Exception as e:
         flash(f"Erro ao restaurar backup: {e}", "erro")
     finally:
@@ -3508,28 +3665,10 @@ def configuracoes_restaurar():
                 os.remove(caminho_temp)
             except OSError:
                 pass
-=======
-    caminho_temp = os.path.join(pasta_upload,
-                                 f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{nome_seguro}")
-    arquivo.save(caminho_temp)
 
-    try:
-        conn = sqlite3.connect(caminho_temp)
-        conn.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
-        conn.close()
-        shutil.copy2(caminho_temp, DB_PATH)
-        flash("Backup restaurado com sucesso.", "sucesso")
-    except sqlite3.Error:
-        flash("O arquivo selecionado não é um backup válido do sistema.", "erro")
-    finally:
-        if os.path.exists(caminho_temp):
-            os.remove(caminho_temp)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
-
-    return redirect(url_for("configuracoes"))
+    return redirect(url_for("login"))
 
 
-<<<<<<< HEAD
 @app.route("/configuracoes/formatar", methods=["GET", "POST"])
 @perfil_required("Admin")
 def configuracoes_formatar():
@@ -3537,6 +3676,16 @@ def configuracoes_formatar():
         nivel = request.form.get("nivel", "").strip()
         confirmacao = request.form.get("confirmacao", "").strip().upper()
         ciencia = request.form.get("ciencia") == "1"
+        senha_admin = request.form.get("senha_admin", "")
+
+        conn_auth = get_conn()
+        utilizador = conn_auth.execute(
+            "SELECT senha_hash FROM usuarios WHERE id_usuario=?", (session["user_id"],)
+        ).fetchone()
+        conn_auth.close()
+        if not utilizador or not check_password_hash(utilizador["senha_hash"], senha_admin):
+            flash("Senha incorrecta. Para formatar a base de dados confirme a sua senha.", "erro")
+            return redirect(url_for("configuracoes_formatar"))
 
         if nivel not in services.NIVEIS_RESET:
             flash("Selecione um nível de reset válido.", "erro")
@@ -3551,8 +3700,7 @@ def configuracoes_formatar():
         conn = get_conn()
         try:
             resultado = services.formatar_base_dados(
-                conn,
-                nivel=nivel,
+                conn, nivel=nivel,
                 id_usuario_admin=session["user_id"],
                 ip_address=_client_ip(),
             )
@@ -3571,11 +3719,9 @@ def configuracoes_formatar():
                 pass
 
             session.clear()
-
             flash(
                 f"Reset concluído ({services.NIVEIS_RESET[nivel]}). "
-                f"Backup automático guardado em backups/. "
-                f"Volte a entrar com as credenciais padrão (admin/admin123) se escolheu reset total.",
+                f"Backup automático guardado em backups/.",
                 "sucesso"
             )
             return redirect(url_for("login"))
@@ -3590,12 +3736,178 @@ def configuracoes_formatar():
                 pass
         return redirect(url_for("configuracoes_formatar"))
 
-    return render_template(
-        "configuracoes_formatar.html",
-        niveis=services.NIVEIS_RESET,
+    return render_template("configuracoes_formatar.html", niveis=services.NIVEIS_RESET)
+
+
+@app.route("/diagnostico")
+@perfil_required("Admin", "Gerente")
+def diagnostico_view():
+    """Executa o diagnóstico em tempo real e mostra o relatório."""
+    rel = diagmod.executar_diagnostico_completo()
+    diagmod.guardar_relatorio(rel)
+    app.config["_diagnostico"] = rel
+    return render_template("diagnostico.html", rel=rel)
+
+@app.route("/api/diagnostico/recheck", methods=["POST"])
+@perfil_required("Admin", "Gerente")
+def diagnostico_recheck():
+    """Força uma nova execução do diagnóstico sem reiniciar a app."""
+    try:
+        rel = diagmod.executar_diagnostico_completo()
+        diagmod.guardar_relatorio(rel)
+        app.config["_diagnostico"] = rel
+        return jsonify({
+            "ok": True,
+            "tem_alertas": rel["tem_alertas"],
+            "contagens": rel["contagens"],
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)}), 500
+
+# ---------------------------------------------------------------------------
+# ATUALIZAÇÕES
+# ---------------------------------------------------------------------------
+def _base_dir_app():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _versao_actual():
+    base = _base_dir_app()
+    # Fonte de verdade: _codigo\version.json (o que o updater escreve).
+    # Fallback: raiz (compatibilidade com builds antigos).
+    for p in (os.path.join(base, "_codigo", "version.json"),
+              os.path.join(base, "version.json")):
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+    return {"version": "0.0.0", "format_version": 1}
+
+
+@app.route("/atualizacoes")
+@perfil_required("Admin")
+def atualizacoes_view():
+    return render_template("atualizacoes.html", versao=_versao_actual())
+
+
+@app.route("/api/atualizacoes/validar", methods=["POST"])
+@perfil_required("Admin")
+def api_atualizacoes_validar():
+    if "pacote" not in request.files:
+        return jsonify({"ok": False, "erro": "Nenhum ficheiro enviado."}), 400
+
+    f = request.files["pacote"]
+    if not f.filename or not f.filename.lower().endswith(".sgeu"):
+        return jsonify({"ok": False, "erro": "Envie um ficheiro .sgeu."}), 400
+
+    temp = os.path.join(
+        tempfile.gettempdir(),
+        f"sge_update_{secrets.token_hex(8)}.sgeu",
     )
+    f.save(temp)
+
+    try:
+        manifest = _atualizador.validar_pacote(temp, _base_dir_app())
+        return jsonify({
+            "ok": True,
+            "manifest": manifest,
+            "temp_path": temp,
+            "tamanho": os.path.getsize(temp),
+        })
+    except _atualizador.PacoteInvalido as e:
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        return jsonify({"ok": False, "erro": str(e)}), 400
+    except Exception as e:
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+        return jsonify({"ok": False, "erro": f"Erro: {e}"}), 500
 
 
+@app.route("/api/atualizacoes/aplicar", methods=["POST"])
+@perfil_required("Admin")
+def api_atualizacoes_aplicar():
+    global _UPDATE_STATE
+    if _UPDATE_STATE["state"] == "applying":
+        return jsonify({"ok": False, "erro": "Ja ha uma atualizacao em curso."}), 409
+
+    data = request.get_json(silent=True) or {}
+    temp_path = data.get("temp_path")
+    if not temp_path or not os.path.isfile(temp_path):
+        return jsonify({"ok": False, "erro": "Pacote nao encontrado."}), 400
+
+    _UPDATE_STATE = {
+        "state": "applying",
+        "current": 0,
+        "total": 0,
+        "file": "A preparar...",
+        "error": None,
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "finished_at": None,
+    }
+
+    def _progresso(current, total, nome):
+        _UPDATE_STATE["current"] = current
+        _UPDATE_STATE["total"] = total
+        _UPDATE_STATE["file"] = nome
+
+    def _runner():
+        global _UPDATE_STATE
+        try:
+            resultado = _atualizador.preparar_update(
+                temp_path, _base_dir_app(), callback_progresso=_progresso,
+            )
+            if resultado["ok"]:
+                _UPDATE_STATE.update({
+                    "state": "done",
+                    "versao_nova": resultado["versao"],
+                    "requires_restart": resultado["requires_restart"],
+                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                })
+            else:
+                _UPDATE_STATE.update({
+                    "state": "error",
+                    "error": resultado.get("erro"),
+                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                })
+        except Exception as e:
+            _UPDATE_STATE.update({
+                "state": "error",
+                "error": str(e),
+                "finished_at": datetime.now().isoformat(timespec="seconds"),
+            })
+        finally:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+    threading.Thread(target=_runner, daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/atualizacoes/estado")
+@perfil_required("Admin")
+def api_atualizacoes_estado():
+    return jsonify(_UPDATE_STATE)
+
+
+@app.route("/api/atualizacoes/reiniciar", methods=["POST"])
+@perfil_required("Admin")
+def api_atualizacoes_reiniciar():
+    """Modo seguro: NÃO relança. Pede ao utilizador para fechar e reabrir."""
+    return jsonify({
+        "ok": True,
+        "manual_restart": True,
+        "msg": "Feche o SGE completamente e abra novamente.",
+    })
 # ---------------------------------------------------------------------------
 # Inicialização
 # ---------------------------------------------------------------------------
@@ -3604,9 +3916,21 @@ try:
 except Exception as _e:
     logging.error(f"Falha ao inicializar a base de dados: {_e}")
 
+# --- Diagnóstico automático no arranque --------------------------------
+try:
+    _relatorio_diag = diagmod.executar_diagnostico_completo()
+    diagmod.guardar_relatorio(_relatorio_diag)
+    app.config["_diagnostico"] = _relatorio_diag
+    if _relatorio_diag.get("tem_alertas"):
+        logging.warning(
+            "Diagnóstico no arranque: %s alertas",
+            sum(_relatorio_diag.get("contagens", {}).values()),
+        )
+except Exception as _e:
+    logging.error(f"Falha ao correr diagnóstico no arranque: {_e}")
+    app.config["_diagnostico"] = None
 
 def abrir_navegador():
-    """Abre o browser padrão do sistema no endereço da aplicação."""
     try:
         webbrowser.open(f"http://127.0.0.1:{APP_PORT}/")
     except Exception as e:
@@ -3614,6 +3938,7 @@ def abrir_navegador():
 
 
 if __name__ == "__main__":
+   
     if "--no-browser" not in sys.argv:
         threading.Timer(1.2, abrir_navegador).start()
 
@@ -3625,19 +3950,5 @@ if __name__ == "__main__":
             threaded=True,
             use_reloader=False,
         )
-=======
-# ---------------------------------------------------------------------------
-# Inicialização
-# ---------------------------------------------------------------------------
-def abrir_navegador():
-    webbrowser.open(f"http://127.0.0.1:{APP_PORT}/")
-
-if __name__ == "__main__":
-    init_db()
-    if "--no-browser" not in sys.argv:
-        threading.Timer(1.2, abrir_navegador).start()
-    try:
-        app.run(host="127.0.0.1", port=APP_PORT, debug=False, threaded=True)
->>>>>>> 64ec9886f1e598d60850f545ee865d1da75d06e9
     finally:
         _encerrar_tudo()
