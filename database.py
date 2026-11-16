@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS produtos (
     qtd_por_unidade INTEGER NOT NULL DEFAULT 1,
     preco_custo REAL NOT NULL DEFAULT 0,
     preco_venda REAL NOT NULL DEFAULT 0,
+    ultimo_preco_entrada REAL DEFAULT 0,
     estoque_minimo INTEGER NOT NULL DEFAULT 0,
     estoque_maximo INTEGER,
     validade TEXT,
@@ -498,7 +499,17 @@ def init_db():
         conn.execute("PRAGMA foreign_keys=ON")
         conn.commit()
 
-        # Migração: novas colunas em contas_receber
+
+        # Migração: coluna ultimo_preco_entrada em produtos
+    cur.execute("PRAGMA table_info(produtos)")
+    cols_prod = [c[1] for c in cur.fetchall()]
+    if "ultimo_preco_entrada" not in cols_prod:
+        cur.execute("ALTER TABLE produtos ADD COLUMN ultimo_preco_entrada REAL DEFAULT 0")
+        # Inicializa com o custo atual para os produtos existentes
+        cur.execute("UPDATE produtos SET ultimo_preco_entrada = preco_custo WHERE ultimo_preco_entrada IS NULL")
+
+        
+    # Migração: novas colunas em contas_receber
     cur.execute("PRAGMA table_info(contas_receber)")
     cols_cr = [c[1] for c in cur.fetchall()]
     novas_cr = [

@@ -552,7 +552,7 @@ def dashboard():
     ).fetchone()["c"]
 
     valor_custo = conn.execute(
-        f"""SELECT COALESCE(SUM(e.saldo_atual * p.preco_custo),0) v
+        f"""SELECT COALESCE(SUM(e.saldo_atual * COALESCE(NULLIF(p.ultimo_preco_entrada, 0), p.preco_custo)),0) v
             FROM produtos p JOIN estoque e ON e.id_produto=p.id_produto
             WHERE p.ativo=1{filtro_cat_sql}""", params_cat
     ).fetchone()["v"]
@@ -1154,7 +1154,7 @@ def estoque_inventario():
             linhas = []
             for r in linhas_inventario:
                 dif = int(r["diferenca"] or 0)
-                alt = ""
+                alt = "" 
                 if r["valor_anterior"] is not None:
                     delta = int(r["contagem_fisica"] or 0) - int(r["valor_anterior"] or 0)
                     alt = f"(antes: {r['valor_anterior']} -> Δ {delta:+d})"
@@ -1504,7 +1504,8 @@ def estoque_list():
         sit_label = {"abaixo_minimo": "Abaixo do mínimo",
                      "acima_maximo": "Acima do máximo", "normal": "Normal"}
         for p in linhas_processadas:
-            val_c = float(p["saldo_atual"] or 0) * float(p["preco_custo"] or 0)
+            custo_unit = float(p["ultimo_preco_entrada"] or p["preco_custo"] or 0)
+            val_c = float(p["saldo_atual"] or 0) * custo_unit
             val_v = float(p["saldo_atual"] or 0) * float(p["preco_venda"] or 0)
             linhas.append([
                 p["codigo"], p["nome"], p["categoria_nome"] or "—", p["unidade"],
@@ -1532,10 +1533,10 @@ def estoque_list():
     valor_custo_total = 0
     valor_venda_total = 0
     for p in linhas_processadas:
-        preco_custo = p.get("preco_custo") or 0
+        custo_unit = p.get("ultimo_preco_entrada") or p.get("preco_custo") or 0
         preco_venda = p.get("preco_venda") or 0
         saldo = p.get("saldo_atual") or 0
-        valor_custo_total += float(saldo) * float(preco_custo)
+        valor_custo_total += float(saldo) * float(custo_unit)
         valor_venda_total += float(saldo) * float(preco_venda)
     conn.close()
     return render_template("estoque.html", produtos=linhas_processadas, categorias=categorias,

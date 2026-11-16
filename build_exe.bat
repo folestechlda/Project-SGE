@@ -89,11 +89,11 @@ echo.
 REM ---------------------------------------------------------------------------
 REM 6. Criar icone padrao (se nao existir)
 REM ---------------------------------------------------------------------------
-if not exist "static\img\app.ico" (
-    echo [AVISO] static\img\app.ico nao encontrado. O executavel usara o icone padrao.
+if not exist "static\img\favicon.ico" (
+    echo [AVISO] static\img\favicon.ico nao encontrado. O executavel usara o icone padrao.
     set "ICONE="
 ) else (
-    set "ICONE=--icon=static\img\app.ico"
+    set "ICONE=--icon=static\img\favicon.ico"
 )
 
 REM ---------------------------------------------------------------------------

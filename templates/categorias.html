@@ -38,9 +38,13 @@
           <td class="muted">{{ c.descricao or '—' }}</td>
           <td>{% if c.ativo %}<span class="tag tag-good">Ativa</span>{% else %}<span class="tag tag-danger">Inativa</span>{% endif %}</td>
           <td class="actions-cell">
-            <button class="link-action" onclick="editarCategoria('{{ c.id_categoria }}','{{ c.nome|e }}','{{ (c.descricao or '')|e }}')">Editar</button>
+            <button type="button" class="link-action btn-editar-cat"
+                    data-id="{{ c.id_categoria }}"
+                    data-nome="{{ c.nome }}"
+                    data-descricao="{{ c.descricao or '' }}">Editar</button>
             <form method="POST" action="{{ url_for('categorias_excluir', id_categoria=c.id_categoria) }}" class="inline-form"
-                  onsubmit="return confirm('Excluir/Desativar esta categoria?');">
+                  data-confirmar="Excluir/Desativar a categoria {{ c.nome }}?"
+                  data-confirmar-tipo="erro" data-confirmar-ok="Excluir">
               <button type="submit" class="link-action link-danger">Excluir</button>
             </form>
           </td>
@@ -66,5 +70,13 @@ function limparFormCategoria() {
   document.getElementById('nome').value = '';
   document.getElementById('descricao').value = '';
 }
+
+// Botões "Editar": ler data-* (sem onclick inline)
+document.querySelectorAll('.btn-editar-cat').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var d = this.dataset;
+    editarCategoria(d.id, d.nome, d.descricao);
+  });
+});
 </script>
 {% endblock %}

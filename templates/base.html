@@ -80,7 +80,7 @@
           <small>{{ current_user.perfil }}</small>
         </div>
       </div>
-      <a href="{{ url_for('logout') }}" class="logout-link">Sair</a>
+      <a href="{{ url_for('logout') }}" class="logout-link" data-confirmar="Tem a certeza que deseja sair do sistema?">Sair</a>
     </div>
   </aside>
 
@@ -98,7 +98,7 @@
         ← Voltar
       </button>
       {% if current_user.perfil in ['Admin', 'Gerente'] %}
-      <button type="button" class="btn-shutdown" onclick="sairEncerrarApp()" title="Fechar sessão e encerrar app">
+      <button type="button" class="btn-shutdown btn-encerrar" title="Fechar sessão e encerrar app" data-confirmar="Deseja encerrar o sistema? A sessão será fechada.">
         ⏻ Encerrar
       </button>
       {% endif %}
@@ -169,6 +169,42 @@
   {% block content_noauth %}{% endblock %}
 {% endif %}
 <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+<script>
+// Intercetor para links <a> com data-confirmar (ex: Sair)
+document.addEventListener('click', function(ev) {
+  var link = ev.target.closest('a[data-confirmar]');
+  if (!link) return;
+  ev.preventDefault();
+  if (link.getAttribute('data-confirmado') === '1') {
+    link.removeAttribute('data-confirmado');
+    window.location.href = link.href;
+    return;
+  }
+  window.AppModal.confirmar(link.getAttribute('data-confirmar')).then(function(ok) {
+    if (ok) {
+      link.setAttribute('data-confirmado', '1');
+      window.location.href = link.href;
+    }
+  });
+});
+
+// Intercetor para o botão Encerrar
+document.querySelectorAll('.btn-encerrar').forEach(function(btn) {
+  btn.addEventListener('click', function(ev) {
+    if (btn.getAttribute('data-confirmado') === '1') {
+      btn.removeAttribute('data-confirmado');
+      return;
+    }
+    ev.preventDefault();
+    window.AppModal.confirmar(btn.getAttribute('data-confirmar')).then(function(ok) {
+      if (ok) {
+        btn.setAttribute('data-confirmado', '1');
+        if (typeof sairEncerrarApp === 'function') sairEncerrarApp();
+      }
+    });
+  });
+});
+</script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

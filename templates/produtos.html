@@ -55,7 +55,8 @@
           {% endif %}
           {% if current_user.perfil == 'Admin' %}
           <form method="POST" action="{{ url_for('produtos_excluir', id_produto=p.id_produto) }}" class="inline-form"
-                onsubmit="return confirm('Excluir este produto?');">
+                data-confirmar="Excluir o produto {{ p.nome }}? Esta operação é irreversível."
+                data-confirmar-tipo="erro" data-confirmar-ok="Excluir">
             <button type="submit" class="link-action link-danger">Excluir</button>
           </form>
           {% endif %}

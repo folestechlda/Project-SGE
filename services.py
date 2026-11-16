@@ -414,15 +414,29 @@ def registrar_entrada(conn, id_produto, quantidade_original, unidade_original,
     custo_atual = float(produto["preco_custo"] or 0)
 
     if metodo == "manual":
-        novo_custo = custo_atual
+        novo_custo = custo_atual          # O cadastro NÃO muda
         atualizar_custo = False
+        # Guardamos o preço real desta entrada no novo campo
+        conn.execute(
+            "UPDATE produtos SET ultimo_preco_entrada=? WHERE id_produto=?",
+            (preco_unitario_base, id_produto)
+        )
     elif metodo == "media_ponderada" and (saldo + qtd_base) > 0:
         novo_custo = (saldo * custo_atual + valor_total) / (saldo + qtd_base)
         novo_custo = arredondar_moeda(novo_custo)
         atualizar_custo = True
+        # Actualiza ambos no modo CMP
+        conn.execute(
+            "UPDATE produtos SET ultimo_preco_entrada=? WHERE id_produto=?",
+            (novo_custo, id_produto)
+        )
     else:
         novo_custo = preco_unitario_base
         atualizar_custo = True
+        conn.execute(
+            "UPDATE produtos SET ultimo_preco_entrada=? WHERE id_produto=?",
+            (preco_unitario_base, id_produto)
+        )
 
     data_hora = data_hora or datetime.now().isoformat(timespec="seconds")
 
@@ -499,8 +513,9 @@ def registrar_saida(conn, id_produto, quantidade_original, unidade_original,
 
     permitir_negativo = get_config("permitir_estoque_negativo", "0") == "1"
 
-    custo_medio = float(produto["preco_custo"] or 0)
-    custo_total_venda = arredondar_moeda(custo_medio * qtd_base)
+    # Usa o último preço de entrada se existir, senão o do cadastro
+    custo_real = float(produto["ultimo_preco_entrada"] or produto["preco_custo"] or 0)
+    custo_total_venda = arredondar_moeda(custo_real * qtd_base)
     lucro = arredondar_moeda(valor_total - custo_total_venda)
 
     data_hora = data_hora or datetime.now().isoformat(timespec="seconds")
@@ -1657,7 +1672,6 @@ def solicitar_recontagem(conn, id_divergencia, id_usuario, ip_address=None):
 def marcar_aceite(conn, id_divergencia, id_usuario, ip_address=None):
     from database import registrar_auditoria
 
-    # --- VALIDAÇÃO DE SEGURANÇA ---
     div = conn.execute(
         "SELECT estado FROM auditoria_divergencias WHERE id_divergencia=?",
         (id_divergencia,),
@@ -1668,7 +1682,6 @@ def marcar_aceite(conn, id_divergencia, id_usuario, ip_address=None):
         raise RegraNegocioError(
             "Só é possível aceitar divergências que já foram justificadas."
         )
-    # ------------------------------
 
     conn.execute(
         "UPDATE auditoria_divergencias SET estado='aceita' WHERE id_divergencia=?",

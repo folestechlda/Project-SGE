@@ -2,9 +2,6 @@
    utilitários globais: encerrar app, formatação 5 decimais, balancete helpers.
 */
 
-// ==========================================================================
-// Gráficos SVG leves (barras simples) — usados no Dashboard / Relatórios
-// ==========================================================================
 function renderDualChart(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
@@ -91,9 +88,6 @@ function renderDualChart(containerId) {
   el.innerHTML = svg;
 }
 
-// ==========================================================================
-// Redesenha gráficos ao redimensionar janela (debounced)
-// ==========================================================================
 let resizeTimer;
 window.addEventListener("resize", function () {
   clearTimeout(resizeTimer);
@@ -104,15 +98,9 @@ window.addEventListener("resize", function () {
   }, 200);
 });
 
-// ==========================================================================
 // Encerramento da App (botão ⏻ Encerrar no top-header)
-// Envia POST para /api/shutdown para o Flask matar o processo frozen,
-// tenta fechar a janela e, como fallback, redirecciona para /logout.
-// ==========================================================================
+// O confirm() nativo foi removido daqui; a confirmação é feita no base.html
 function sairEncerrarApp() {
-  if (!confirm('Deseja realmente encerrar o SGE?\n\nTodos os processos serão terminados.')) {
-    return;
-  }
   try {
     fetch('/api/shutdown', {
       method: 'POST',
@@ -127,9 +115,7 @@ function sairEncerrarApp() {
   }, 600);
 }
 
-// ==========================================================================
-// Helpers de formatação (5 casas decimais, moeda, datas)
-// ==========================================================================
+// Helpers de formatação
 function fmt5(v) {
   const n = Number(v);
   if (isNaN(n)) return '0.00000';
@@ -141,9 +127,7 @@ function fmtMoeda(v, simbolo) {
   return s + ' ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-// ==========================================================================
-// Balancetes: atalhos de período rápido (mensal corrente, trimestral, anual)
-// ==========================================================================
+// Balancetes: atalhos de período rápido
 function periodoRapido(tipo) {
   const hoje = new Date();
   let ini, fim;

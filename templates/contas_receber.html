@@ -60,7 +60,8 @@
           {% set ft_num = 'FT-' ~ ('00000' ~ (c.id_conta|string))[-5:] %}
           <form method="POST" action="{{ url_for('conta_receber_eliminar', id_conta=c.id_conta) }}"
                 class="inline-form"
-                onsubmit="return confirm('Eliminar a fatura {{ ft_num }}? Os produtos serao devolvidos ao stock.');">
+                data-confirmar="Eliminar a fatura {{ ft_num }}? Os produtos serão devolvidos ao stock."
+                data-confirmar-tipo="erro" data-confirmar-ok="Eliminar">
             <button type="submit" class="link-action link-danger">Eliminar</button>
           </form>
           {% endif %}

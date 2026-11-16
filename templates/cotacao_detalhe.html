@@ -12,11 +12,13 @@
     <a href="{{ url_for('cotacao_exportar', id_cotacao=cotacao.id_cotacao, formato='excel') }}" class="btn btn-secondary">⬇ Excel</a>
     {% if cotacao.status == 'Aberta' %}
     <a href="{{ url_for('cotacao_editar', id_cotacao=cotacao.id_cotacao) }}" class="btn btn-secondary">✎ Editar</a>
-    <form method="POST" action="{{ url_for('cotacao_aprovar', id_cotacao=cotacao.id_cotacao) }}" style="display:inline;">
-      <button type="submit" class="btn btn-primary" onclick="return confirm('Aprovar?')">Aprovar</button>
+    <form method="POST" action="{{ url_for('cotacao_aprovar', id_cotacao=cotacao.id_cotacao) }}" style="display:inline;"
+          data-confirmar="Aprovar esta cotação?" data-confirmar-ok="Aprovar">
+      <button type="submit" class="btn btn-primary">Aprovar</button>
     </form>
-    <form method="POST" action="{{ url_for('cotacao_rejeitar', id_cotacao=cotacao.id_cotacao) }}" style="display:inline;">
-      <button type="submit" class="btn btn-danger" onclick="return confirm('Rejeitar?')">Rejeitar</button>
+    <form method="POST" action="{{ url_for('cotacao_rejeitar', id_cotacao=cotacao.id_cotacao) }}" style="display:inline;"
+          data-confirmar="Rejeitar esta cotação?" data-confirmar-tipo="erro" data-confirmar-ok="Rejeitar">
+      <button type="submit" class="btn btn-danger">Rejeitar</button>
     </form>
     {% endif %}
     {% if cotacao.status in ['Aberta','Aprovada'] %}

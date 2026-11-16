@@ -15,7 +15,8 @@
     <form method="POST"
           action="{{ url_for('conta_receber_eliminar', id_conta=conta.id_conta) }}"
           style="display:inline"
-          onsubmit="return confirm('⚠️ Eliminar esta fatura?\n\nOs produtos serão DEVOLVIDOS ao stock.\nEsta acção é irreversível. Continuar?');">
+          data-confirmar="Eliminar esta fatura? Os produtos serão DEVOLVIDOS ao stock. Esta acção é irreversível."
+          data-confirmar-tipo="erro" data-confirmar-ok="Eliminar">
       <button type="submit" class="btn btn-danger">🗑 Eliminar Fatura (repõe stock)</button>
     </form>
     {% endif %}

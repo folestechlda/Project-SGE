@@ -115,8 +115,6 @@
 
 {% block scripts %}
 <script>
-// FIX: toggleIVA() passa a ser global (antes estava dentro de uma IIFE
-// e o `onchange="toggleIVA()"` do HTML nunca a encontrava).
 function toggleIVA() {
   const chk = document.getElementById('chkIsento');
   const inp = document.getElementById('inpTaxaIVA');
@@ -195,7 +193,7 @@ function toggleIVA() {
         row.remove();
         calcularTotal();
       } else {
-        AppModal.alert('A venda deve ter pelo menos um produto.');
+        AppModal.aviso('A venda deve ter pelo menos um produto.');
       }
     });
   }

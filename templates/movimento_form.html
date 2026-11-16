@@ -109,10 +109,12 @@
 
     <!-- PONTO 1: Aviso de alteração de custo em tempo real -->
     <div class="span-2" id="custo-futuro" style="display:none; padding:10px 14px; background:#F0F7F0; border-radius:6px; border-left:4px solid #2F5233; font-size:13px; margin-bottom: 10px;">
-      <strong>Custo do produto:</strong>
+      <strong>Custo do produto no estoque:</strong>
       actual <span id="custo-actual" style="font-weight:bold">—</span> →
       após esta entrada <span id="custo-novo" style="color:#2F5233; font-weight:bold; font-size:14px">—</span>
-      <div class="muted" style="font-size:11px; margin-top:4px">Método de custeio actual: <strong id="metodo-actual">—</strong></div>
+      <div class="muted" style="font-size:11px; margin-top:4px">
+        Este valor é apenas para o stock actual. O custo de cadastro do produto não será alterado.
+      </div>
     </div>
 
     <label>Quantidade *
