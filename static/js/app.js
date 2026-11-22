@@ -101,6 +101,7 @@ window.addEventListener("resize", function () {
 // Encerramento da App (botão ⏻ Encerrar no top-header)
 // O confirm() nativo foi removido daqui; a confirmação é feita no base.html
 function sairEncerrarApp() {
+  if (window.SGE_SERVIDOR) { window.location.href = '/logout'; return; }   // online: só termina a sessão
   try {
     fetch('/api/shutdown', {
       method: 'POST',

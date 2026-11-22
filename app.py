@@ -27,6 +27,7 @@ from flask import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from database import (
     init_db, get_conn, get_config, set_config,
@@ -46,11 +47,18 @@ import comparador_estoque as compmod
 APP_PORT = 5701
 APP_NAME = "SGE"
 
+# Modo servidor (hospedagem online): SGE_MODO_SERVIDOR=1. Sem esta variável o SGE comporta-se
+# exactamente como a versão desktop.
+SERVIDOR = os.environ.get("SGE_MODO_SERVIDOR") == "1"
+
 
 # ---------------------------------------------------------------------------
 # Chave de sessão persistente
 # ---------------------------------------------------------------------------
 def _get_or_create_secret_key():
+    env_key = (os.environ.get("SGE_SECRET_KEY") or "").strip()
+    if env_key:
+        return env_key
     key_path = os.path.join(get_base_dir(), ".secret_key")
     try:
         with open(key_path, "r") as f:
@@ -101,14 +109,25 @@ app = Flask(
     static_url_path="/static",
 )
 app.secret_key = _get_or_create_secret_key()
-app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["TEMPLATES_AUTO_RELOAD"] = not SERVIDOR
 app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # cabe um backup grande
 
-logging.basicConfig(
-    filename=os.path.join(get_base_dir(), "app_errors.log"),
-    level=logging.ERROR,
-    format="%(asctime)s %(levelname)s %(message)s",
-)
+if SERVIDOR:
+    # Atrás do proxy do serviço (HTTPS): usa o IP real do cliente e o esquema https
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.environ.get("SGE_COOKIE_SECURE", "1") != "0",
+    )
+    logging.basicConfig(level=logging.WARNING,       # logs vão para a consola do serviço
+                        format="%(asctime)s %(levelname)s %(message)s")
+else:
+    logging.basicConfig(
+        filename=os.path.join(get_base_dir(), "app_errors.log"),
+        level=logging.ERROR,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,12 +157,33 @@ def _encerrar_tudo():
             pass
 
 
-atexit.register(_encerrar_tudo)
-try:
-    signal.signal(signal.SIGINT, lambda s, f: (_encerrar_tudo(), sys.exit(0)))
-    signal.signal(signal.SIGTERM, lambda s, f: (_encerrar_tudo(), sys.exit(0)))
-except Exception:
-    pass
+if not SERVIDOR:   # num servidor quem gere o ciclo de vida é o gunicorn
+    atexit.register(_encerrar_tudo)
+    try:
+        signal.signal(signal.SIGINT, lambda s, f: (_encerrar_tudo(), sys.exit(0)))
+        signal.signal(signal.SIGTERM, lambda s, f: (_encerrar_tudo(), sys.exit(0)))
+    except Exception:
+        pass
+
+
+@app.before_request
+def _bloquear_funcoes_de_desktop():
+    """Em modo servidor não há encerrar/actualizar pacotes .sgeu (o código vem do deploy)."""
+    if SERVIDOR and (request.path == "/api/shutdown" or request.path.startswith(
+            ("/atualizacoes", "/api/atualizacoes"))):
+        abort(404)
+
+
+@app.route("/healthz")
+def healthz():
+    """Verificação de saúde para o serviço de hospedagem (sem login)."""
+    try:
+        conn = get_conn()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+    except Exception:
+        return ("erro", 503)
+    return ("ok", 200)
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +339,7 @@ def inject_globals():
         },
         "ano_atual": datetime.now().year,
         "app_name": APP_NAME,
+        "modo_servidor": SERVIDOR,
         "hoje": datetime.now().date().isoformat(),
         "diagnostico": diag,
         "nav_pendentes": _contar_pendentes_menu(),

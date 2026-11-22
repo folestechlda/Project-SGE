@@ -125,7 +125,7 @@
           <a href="{{ url_for('usuarios_list') }}" class="{{ 'active' if ep.startswith('usuario') }}">Utilizadores</a>
           <a href="{{ url_for('configuracoes') }}" class="{{ 'active' if ep=='configuracoes' }}">Configurações</a>
           <a href="{{ url_for('diagnostico_view') }}" class="{{ 'active' if ep=='diagnostico_view' }}">Diagnóstico</a>
-          <a href="{{ url_for('atualizacoes_view') }}" class="{{ 'active' if ep=='atualizacoes_view' }}">Atualizações</a>
+          {% if not modo_servidor %}<a href="{{ url_for('atualizacoes_view') }}" class="{{ 'active' if ep=='atualizacoes_view' }}">Atualizações</a>{% endif %}
         </div>
       </details>
       {% endif %}
@@ -165,8 +165,8 @@
         ← Voltar
       </button>
       {% if current_user.perfil in ['Admin', 'Gerente'] %}
-      <button type="button" class="btn-shutdown btn-encerrar" title="Fechar sessão e encerrar app" data-confirmar="Deseja encerrar o sistema? A sessão será fechada.">
-        ⏻ Encerrar
+      <button type="button" class="btn-shutdown btn-encerrar" title="{{ 'Terminar sessão' if modo_servidor else 'Fechar sessão e encerrar app' }}" data-confirmar="{{ 'Deseja terminar a sessão?' if modo_servidor else 'Deseja encerrar o sistema? A sessão será fechada.' }}">
+        ⏻ {{ 'Sair' if modo_servidor else 'Encerrar' }}
       </button>
       {% endif %}
     </div>
@@ -272,6 +272,7 @@ document.querySelectorAll('.btn-encerrar').forEach(function(btn) {
   });
 });
 </script>
+<script>window.SGE_SERVIDOR = {{ 'true' if modo_servidor else 'false' }};</script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
