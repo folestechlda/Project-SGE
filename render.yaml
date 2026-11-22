@@ -1,0 +1,25 @@
+# Blueprint do Render (https://render.com). Cria o serviço web + disco persistente.
+services:
+  - type: web
+    name: sge
+    runtime: python
+    plan: starter            # discos persistentes exigem um plano pago
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app -c gunicorn.conf.py
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: sge-dados
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: SGE_MODO_SERVIDOR
+        value: "1"
+      - key: SGE_BASE_DIR
+        value: /var/data
+      - key: SGE_SECRET_KEY
+        generateValue: true
+      - key: SGE_ADMIN_PASSWORD
+        sync: false          # defina no painel do Render (não vai para o Git)
