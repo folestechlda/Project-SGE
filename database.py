@@ -7,12 +7,6 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash
 
 def get_base_dir():
-    # Modo servidor: SGE_BASE_DIR aponta para o disco persistente (ex.: /var/data); aí ficam
-    # dados/, backups/, o logo carregado e a chave secreta.
-    env = os.environ.get("SGE_BASE_DIR")
-    if env:
-        os.makedirs(env, exist_ok=True)
-        return env
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
@@ -601,8 +595,7 @@ def init_db():
     if cur.fetchone()["c"] == 0:
         cur.execute(
             "INSERT INTO usuarios (nome, login, senha_hash, perfil, ativo) VALUES (?,?,?,?,1)",
-            ("Administrador", "admin",
-             generate_password_hash(os.environ.get("SGE_ADMIN_PASSWORD") or "admin123"), "Admin"),
+            ("Administrador", "admin", generate_password_hash("admin123"), "Admin"),
         )
 
     # Cria categorias padrão

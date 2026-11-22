@@ -13,88 +13,105 @@
 </div>
 
 {% if tipo == 'Saida' %}
-<div class="panel form-panel">
-    <form method="POST" id="form-venda-multipla">
-    <input type="hidden" name="token_envio" value="{{ token_envio }}">
-    <h3>Dados do Cliente</h3>
-    <div class="grid-form">
-      <label>Cliente <span class="hint">(opcional)</span>
-        <input type="text" name="cliente" maxlength="100">
-      </label>
-      <label>Forma de pagamento
-        <select name="forma_pagamento" required>
-          <option value="">Selecione…</option>
-          <option value="Dinheiro">Dinheiro (caixa)</option>
-          <option value="M-Pesa">M-Pesa</option>
-          <option value="e-Mola">e-Mola</option>
-          <option value="Cartão">Cartão</option>
-          <option value="Transferência">Transferência</option>
-        </select>
-      </label>
-      <label>Data da venda
-        <input type="date" name="data_venda" value="{{ hoje }}">
-      </label>
-      <label class="span-2">Observações
-        <textarea name="observacoes" rows="2"></textarea>
-      </label>
-    </div>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/venda_ui.css') }}">
+<form method="POST" id="form-venda-multipla" class="venda-ui">
+  <input type="hidden" name="token_envio" value="{{ token_envio }}">
+  <div class="vd-grid">
 
-    <hr style="margin: 20px 0; border-color: var(--borda);">
-
-    <h3>Produtos da Venda</h3>
-    <div class="pesq-produto">
-      <input type="search" id="pesqInput" placeholder="Pesquisar produto por nome ou código e carregar Enter para adicionar" autocomplete="off" aria-label="Pesquisar produto">
-      <div class="pesq-lista" id="pesqLista" role="listbox" hidden></div>
-    </div>
-    <p class="hint pesq-dica">Também pode escolher o produto na lista de cada linha.</p>
-    <div id="itens-venda">
-      <div class="venda-item-row" style="display:grid; grid-template-columns: 3fr 1fr 1.2fr 1.2fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px; padding:10px; background: var(--fundo-2, #f9f9f9); border-radius:6px;">
-        <label>Produto *
-          <select name="id_produto[]" class="produto-select" required>
-            <option value="">Selecione...</option>
-            {% for p in produtos %}
-            <option value="{{ p.id_produto }}" data-preco="{{ p.preco_venda }}"
-                    data-unidade="{{ p.unidade }}" data-qtd-unidade="{{ p.qtd_por_unidade }}">
-              {{ p.codigo }} · {{ p.nome }}{% if p.unidade == 'kg' %} [kg]{% endif %}
-            </option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>Quantidade *
-          <input type="number" name="quantidade[]" step="0.001" min="0.001" value="1" required class="qtd-input">
-        </label>
-        <label>Unidade *
-          <select name="unidade_original[]" class="unidade-select" required>
-            <option value="Unidade">Unidade</option>
-            <option value="Caixa">Caixa</option>
-            <option value="Embalagem">Embalagem</option>
-            <option value="kg">kg (Quilograma)</option>
-          </select>
-        </label>
-        <label>Preço Unit. ({{ config.moeda }}) *
-          <input type="number" name="preco_unitario[]" step="0.01" min="0" required class="preco-input">
-        </label>
-        <label>Subtotal
-          <span class="subtotal-display" style="font-weight:bold;">0.00</span>
-        </label>
-        <button type="button" class="btn btn-danger btn-sm remover-linha" style="align-self:center;">✕</button>
+    <section class="vd-main">
+      <div class="pesq-produto vd-pesq">
+        <input type="search" id="pesqInput" placeholder="Pesquisar produto por nome ou código" autocomplete="off" aria-label="Pesquisar produto">
+        <div class="pesq-lista" id="pesqLista" role="listbox" hidden></div>
       </div>
-    </div>
 
-    <div style="margin:10px 0;">
-      <button type="button" class="btn btn-secondary" id="adicionar-linha">+ Adicionar Produto</button>
-    </div>
+      <div class="vd-cab" aria-hidden="true">
+        <span>Produto</span><span>Quantidade</span><span>Unidade</span><span>Preço ({{ config.moeda }})</span><span class="r">Subtotal</span><span></span>
+      </div>
+      <div id="itens-venda">
+        <div class="venda-item-row vd-linha">
+          <label class="vd-c-prod"><span class="vd-l">Produto *</span>
+            <select name="id_produto[]" class="produto-select" required>
+              <option value="">Selecione...</option>
+              {% for p in produtos %}
+              <option value="{{ p.id_produto }}" data-preco="{{ p.preco_venda }}"
+                      data-unidade="{{ p.unidade }}" data-qtd-unidade="{{ p.qtd_por_unidade }}">
+                {{ p.codigo }} · {{ p.nome }}{% if p.unidade == 'kg' %} [kg]{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label><span class="vd-l">Quantidade *</span>
+            <span class="vd-step">
+              <button type="button" class="vd-menos" aria-label="Diminuir quantidade" tabindex="-1">−</button>
+              <input type="number" name="quantidade[]" step="0.001" min="0.001" value="1" required class="qtd-input">
+              <button type="button" class="vd-mais" aria-label="Aumentar quantidade" tabindex="-1">+</button>
+            </span>
+          </label>
+          <label><span class="vd-l">Unidade *</span>
+            <select name="unidade_original[]" class="unidade-select" required>
+              <option value="Unidade">Unidade</option>
+              <option value="Caixa">Caixa</option>
+              <option value="Embalagem">Embalagem</option>
+              <option value="kg">kg (Quilograma)</option>
+            </select>
+          </label>
+          <label><span class="vd-l">Preço unit. ({{ config.moeda }}) *</span>
+            <input type="number" name="preco_unitario[]" step="0.01" min="0" required class="preco-input">
+          </label>
+          <label class="vd-c-sub"><span class="vd-l">Subtotal</span>
+            <span class="subtotal-display">0.00</span>
+          </label>
+          <button type="button" class="btn btn-danger btn-sm remover-linha vd-remover" title="Remover linha" aria-label="Remover linha">✕</button>
+        </div>
+      </div>
+      <button type="button" class="vd-add" id="adicionar-linha">+ Linha em branco</button>
+    </section>
 
-    <div style="text-align:right; font-size:1.2em; font-weight:bold; margin-top:10px; padding:10px; background: var(--fundo-2, #f0f0f0); border-radius:6px;">
-      TOTAL DA VENDA: <span id="total-geral">0.00</span> {{ config.moeda }}
-    </div>
+    <aside class="vd-lado">
+      <div class="vd-talao">
+        <div class="vd-talao-cab"><strong>Talão da venda</strong><span id="vd-data">{{ hoje }}</span></div>
+        <div class="vd-tracejado"></div>
+        <div id="vd-linhas" class="vd-talao-linhas"><p class="vd-vazio">Pesquise e adicione produtos.</p></div>
+        <div class="vd-tracejado"></div>
+        <div class="vd-total">Total
+          <strong><span id="total-geral">0.00</span> <small>{{ config.moeda }}</small></strong>
+        </div>
+        <div class="vd-tracejado"></div>
+        <div class="vd-campo">
+          <span class="vd-rot" id="vd-pag-rot">Forma de pagamento</span>
+          <div class="vd-chips" role="group" aria-labelledby="vd-pag-rot">
+            <button type="button" class="vd-chip" data-pag="Dinheiro">Dinheiro</button>
+            <button type="button" class="vd-chip" data-pag="M-Pesa">M-Pesa</button>
+            <button type="button" class="vd-chip" data-pag="e-Mola">e-Mola</button>
+            <button type="button" class="vd-chip" data-pag="Cartão">Cartão</button>
+            <button type="button" class="vd-chip" data-pag="Transferência">Transferência</button>
+          </div>
+          <select name="forma_pagamento" required class="vd-pag-select">
+            <option value="">Selecione…</option>
+            <option value="Dinheiro">Dinheiro (caixa)</option>
+            <option value="M-Pesa">M-Pesa</option>
+            <option value="e-Mola">e-Mola</option>
+            <option value="Cartão">Cartão</option>
+            <option value="Transferência">Transferência</option>
+          </select>
+        </div>
+        <label>Cliente <span class="hint">(opcional)</span>
+          <input type="text" name="cliente" maxlength="100" placeholder="Nome do cliente">
+        </label>
+        <label>Data da venda
+          <input type="date" name="data_venda" value="{{ hoje }}">
+        </label>
+        <label>Observações
+          <textarea name="observacoes" rows="2" placeholder="Opcional"></textarea>
+        </label>
+      </div>
+      <div class="vd-serra" aria-hidden="true"></div>
+      <button type="submit" class="btn btn-primary vd-registar">Registar venda</button>
+      <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost vd-ver">Ver movimentações</a>
+    </aside>
 
-    <div class="form-actions" style="margin-top:20px;">
-      <button type="submit" class="btn btn-primary">Registar Venda</button>
-      <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost">Ver Movimentações</a>
-    </div>
-  </form>
-</div>
+  </div>
+</form>
 
 {% else %}
 <div class="panel form-panel">
@@ -345,5 +362,6 @@ VendaValidacao.iniciar(document.getElementById('form-venda-multipla'), {
   ok: 'Registar'
 });
 </script>
+<script src="{{ url_for('static', filename='js/venda_ui.js') }}"></script>
 {% endif %}
 {% endblock %}

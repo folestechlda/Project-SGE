@@ -1,0 +1,1074 @@
+{% extends "base.html" %}
+{% block title %}Manual do Utilizador · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="manual">
+
+  <!-- ============================= NAVEGAÇÃO ============================= -->
+  <aside class="manual-nav">
+    <div class="manual-nav-title">Conteúdo</div>
+    <nav>
+      <a href="#intro">Introdução</a>
+      <a href="#login">Início de sessão</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#produtos">Cadastro de produtos</a>
+      <a href="#entradas">Entradas de mercadoria</a>
+      <a href="#vendas">Registo de vendas</a>
+      <a href="#estoque">Consulta de stock</a>
+      <a href="#inventario">Inventário físico</a>
+      <a href="#credito">Contas a receber</a>
+      <a href="#cotacoes">Cotações</a>
+      <a href="#relatorios">Relatórios</a>
+      <a href="#perfis">Perfis e permissões</a>
+      <a href="#problemas">Resolução de problemas</a>
+    </nav>
+    <div class="manual-nav-foot">
+      {{ app_name }}<br>
+      <span>{{ hoje.split('-')|reverse|join('/') }}</span>
+    </div>
+  </aside>
+
+  <!-- ============================= CONTEÚDO ============================= -->
+  <main class="manual-content">
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="intro" class="doc-section">
+      <h1>Manual do Utilizador</h1>
+      <p class="lead">Este manual descreve, tarefa a tarefa, como operar o {{ app_name }}.
+         Cada secção mostra uma representação da tela correspondente com os elementos
+         numerados; os passos abaixo correspondem a essa numeração.</p>
+
+      <table class="doc-table">
+        <thead>
+          <tr><th>Conceito</th><th>Significado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Produto</td><td>Artigo gerido pelo sistema. Tem código, unidade e preços.</td></tr>
+          <tr><td>Entrada</td><td>Compra ou recepção de mercadoria. Aumenta o saldo.</td></tr>
+          <tr><td>Saída / Venda</td><td>Venda ou consumo. Diminui o saldo e gera lucro.</td></tr>
+          <tr><td>Inventário</td><td>Contagem física comparada com o saldo do sistema.</td></tr>
+          <tr><td>Balancete</td><td>Movimento de stock entre duas datas, com saldo inicial e final.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="login" class="doc-section">
+      <h2>1. Início de sessão</h2>
+      <p class="lead">O acesso é restrito a utilizadores registados pelo Administrador.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">{{ app_name }} — Entrar</span>
+        </div>
+        <div class="mockup-body mockup-body--login">
+          <div class="mockup-login">
+            <div class="mockup-field">
+              <div class="mockup-label">Utilizador <span class="n">1</span></div>
+              <div class="mockup-input"></div>
+            </div>
+            <div class="mockup-field">
+              <div class="mockup-label">Senha <span class="n">2</span></div>
+              <div class="mockup-input"></div>
+            </div>
+            <button class="mockup-btn mockup-btn--primary">Entrar <span class="n">3</span></button>
+            <div class="mockup-link">Esqueci a senha <span class="n">4</span></div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Introduza o <strong>nome de utilizador</strong> fornecido pelo Administrador.</li>
+        <li><span>2</span>Introduza a <strong>senha</strong>. É sensível a maiúsculas e minúsculas.</li>
+        <li><span>3</span>Clique em <strong>Entrar</strong>.</li>
+        <li><span>4</span>Se esqueceu a senha, use <strong>Esqueci a senha</strong>. O sistema gera um token de recuperação.</li>
+      </ol>
+
+      <div class="doc-note">
+        <div class="doc-note-title">Nota de segurança</div>
+        Após cinco tentativas falhadas, a conta é bloqueada temporariamente. Aguarde
+        alguns minutos antes de tentar novamente.
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="dashboard" class="doc-section">
+      <h2>2. Dashboard</h2>
+      <p class="lead">Primeira tela após autenticação. É um painel de leitura — não altera dados.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">{{ app_name }} — Dashboard</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-sidebar">
+            <div class="mockup-brand">{{ app_name }}</div>
+            <div class="mockup-sidebar-item active">Dashboard <span class="n">1</span></div>
+            <div class="mockup-sidebar-item">Produtos</div>
+            <div class="mockup-sidebar-item">Estoque</div>
+            <div class="mockup-sidebar-item">Movimentos</div>
+            <div class="mockup-sidebar-item">Relatórios</div>
+          </div>
+          <div class="mockup-main">
+            <div class="mockup-toolbar">
+              <div class="mockup-select">Categoria <span class="n">2</span></div>
+              <div class="mockup-select">Período <span class="n">3</span></div>
+            </div>
+            <div class="mockup-cards">
+              <div class="mockup-card"><small>Produtos</small><b>128</b></div>
+              <div class="mockup-card"><small>Valor em stock</small><b>MT 1.240.000</b></div>
+              <div class="mockup-card"><small>Alertas</small><b>7</b></div>
+              <div class="mockup-card"><small>Lucro do mês</small><b>MT 82.500</b></div>
+            </div>
+            <div class="mockup-chart">
+              <div class="mockup-chart-label">Movimentos do período <span class="n">4</span></div>
+              <div class="mockup-chart-bars">
+                <i style="height:40%"></i><i style="height:65%"></i><i style="height:30%"></i>
+                <i style="height:80%"></i><i style="height:55%"></i><i style="height:70%"></i>
+                <i style="height:45%"></i><i style="height:90%"></i><i style="height:60%"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>O <strong>menu lateral</strong> dá acesso a todos os módulos. O item realçado é a página actual.</li>
+        <li><span>2</span>Filtro de <strong>categoria</strong> — restringe todos os gráficos a uma categoria.</li>
+        <li><span>3</span>Filtro de <strong>período</strong> — 30, 60 ou 90 dias.</li>
+        <li><span>4</span>Cada gráfico apresenta uma métrica distinta: movimentos, compras vs vendas, lucro, faturas em aberto e top devedores.</li>
+      </ol>
+
+      <div class="doc-note">
+        <div class="doc-note-title">Leitura dos indicadores</div>
+        O bloco <em>Alertas</em> soma produtos abaixo do stock mínimo com produtos próximos
+        do vencimento. Um clique conduz à lista detalhada.
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="produtos" class="doc-section">
+      <h2>3. Cadastro de produtos</h2>
+      <p class="lead">Obrigatório antes de qualquer entrada ou venda. É a base de todo o sistema.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Produtos → Novo produto</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-sidebar">
+            <div class="mockup-brand">{{ app_name }}</div>
+            <div class="mockup-sidebar-item active">Produtos</div>
+            <div class="mockup-sidebar-item">Categorias <span class="n">1</span></div>
+            <div class="mockup-sidebar-item">Estoque</div>
+            <div class="mockup-sidebar-item">Movimentos</div>
+          </div>
+          <div class="mockup-main">
+            <div class="mockup-toolbar">
+              <div class="mockup-title">Novo produto</div>
+              <button class="mockup-btn mockup-btn--primary">Guardar <span class="n">7</span></button>
+            </div>
+            <div class="mockup-form">
+              <div class="mockup-field"><div class="mockup-label">Nome <span class="n">2</span></div><div class="mockup-input"></div></div>
+              <div class="mockup-field"><div class="mockup-label">Categoria <span class="n">3</span></div><div class="mockup-select" style="width:100%"></div></div>
+              <div class="mockup-field"><div class="mockup-label">Unidade <span class="n">4</span></div><div class="mockup-select" style="width:100%"></div></div>
+              <div class="mockup-row">
+                <div class="mockup-field"><div class="mockup-label">Preço de custo <span class="n">5</span></div><div class="mockup-input"></div></div>
+                <div class="mockup-field"><div class="mockup-label">Preço de venda <span class="n">5</span></div><div class="mockup-input"></div></div>
+              </div>
+              <div class="mockup-row">
+                <div class="mockup-field"><div class="mockup-label">Stock mínimo <span class="n">6</span></div><div class="mockup-input"></div></div>
+                <div class="mockup-field"><div class="mockup-label">Stock máximo <span class="n">6</span></div><div class="mockup-input"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Se a categoria ainda não existir, crie-a primeiro em <strong>Categorias</strong>.</li>
+        <li><span>2</span><strong>Nome</strong> — descrição do produto. Não pode repetir um nome já activo.</li>
+        <li><span>3</span><strong>Categoria</strong> — agrupamento lógico (alimentar, limpeza, etc.).</li>
+        <li><span>4</span><strong>Unidade</strong> — <code>Unidade</code>, <code>kg</code>, <code>Caixa</code>, <code>Litro</code>, entre outras.</li>
+        <li><span>5</span><strong>Preços</strong> — custo (pago ao fornecedor) e venda (cobrado ao cliente).</li>
+        <li><span>6</span><strong>Limites de stock</strong> — o mínimo dispara um alerta quando o saldo descer abaixo; o máximo é opcional.</li>
+        <li><span>7</span>Clique em <strong>Guardar</strong> para criar o produto. O código é gerado automaticamente.</li>
+      </ol>
+
+      <div class="doc-note doc-note--warn">
+        <div class="doc-note-title">Margem negativa</div>
+        Se o preço de venda for igual ou inferior ao de custo, o sistema avisa no momento
+        da gravação. Vender esse produto resultará em prejuízo.
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="entradas" class="doc-section">
+      <h2>4. Entradas de mercadoria</h2>
+      <p class="lead">Registe aqui toda a mercadoria recebida de fornecedores. Incrementa o saldo.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Movimentos → Entrada</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-sidebar">
+            <div class="mockup-brand">{{ app_name }}</div>
+            <div class="mockup-sidebar-item">Produtos</div>
+            <div class="mockup-sidebar-item">Estoque</div>
+            <div class="mockup-sidebar-item active">Movimentos</div>
+            <div class="mockup-sidebar-item">Relatórios</div>
+          </div>
+          <div class="mockup-main">
+            <div class="mockup-toolbar">
+              <div class="mockup-title">Entrada de mercadoria</div>
+            </div>
+            <div class="mockup-form">
+              <div class="mockup-field"><div class="mockup-label">Produto <span class="n">1</span></div><div class="mockup-input"></div></div>
+              <div class="mockup-row">
+                <div class="mockup-field"><div class="mockup-label">Quantidade <span class="n">2</span></div><div class="mockup-input"></div></div>
+                <div class="mockup-field"><div class="mockup-label">Preço unitário <span class="n">3</span></div><div class="mockup-input"></div></div>
+              </div>
+              <div class="mockup-row">
+                <div class="mockup-field"><div class="mockup-label">Fornecedor <span class="n">4</span></div><div class="mockup-input"></div></div>
+                <div class="mockup-field"><div class="mockup-label">Nota fiscal <span class="n">4</span></div><div class="mockup-input"></div></div>
+              </div>
+              <button class="mockup-btn mockup-btn--primary">Registar entrada <span class="n">5</span></button>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Escolha o produto. Comece a escrever para filtrar a lista.</li>
+        <li><span>2</span>Indique a <strong>quantidade recebida</strong>. Aceita decimais com vírgula (<code>10,5</code>).</li>
+        <li><span>3</span>Indique o <strong>preço unitário pago</strong>. Passa a ser o custo de referência do produto.</li>
+        <li><span>4</span>Opcional: <strong>fornecedor</strong> e <strong>nota fiscal</strong> para rastreio.</li>
+        <li><span>5</span>Confirme. O saldo do produto é incrementado automaticamente.</li>
+      </ol>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="vendas" class="doc-section">
+      <h2>5. Registo de vendas</h2>
+      <p class="lead">Aceita vários produtos na mesma operação. Cada venda gera um código de anulação.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Movimentos → Saída</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-sidebar">
+            <div class="mockup-brand">{{ app_name }}</div>
+            <div class="mockup-sidebar-item">Produtos</div>
+            <div class="mockup-sidebar-item">Estoque</div>
+            <div class="mockup-sidebar-item active">Movimentos</div>
+            <div class="mockup-sidebar-item">Relatórios</div>
+          </div>
+          <div class="mockup-main">
+            <div class="mockup-toolbar">
+              <div class="mockup-title">Nova venda</div>
+              <button class="mockup-btn">Validar <span class="n">4</span></button>
+            </div>
+            <table class="mockup-line-table">
+              <thead><tr><th>Produto <span class="n">1</span></th><th>Qtd. <span class="n">2</span></th><th>Preço <span class="n">3</span></th></tr></thead>
+              <tbody>
+                <tr><td><div class="mockup-input"></div></td><td><div class="mockup-input"></div></td><td><div class="mockup-input"></div></td></tr>
+                <tr><td><div class="mockup-input"></div></td><td><div class="mockup-input"></div></td><td><div class="mockup-input"></div></td></tr>
+              </tbody>
+            </table>
+            <div class="mockup-row" style="margin-top:8px">
+              <button class="mockup-btn">+ Adicionar linha <span class="n">5</span></button>
+              <button class="mockup-btn mockup-btn--primary">Guardar venda <span class="n">6</span></button>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Cada linha corresponde a um produto vendido. Comece a escrever o nome para filtrar.</li>
+        <li><span>2</span>Indique a <strong>quantidade vendida</strong>.</li>
+        <li><span>3</span>Confirme o <strong>preço unitário</strong> (pré-preenchido com o preço de venda do cadastro).</li>
+        <li><span>4</span><strong>Validar</strong> verifica tudo sem gravar — útil antes de confirmar.</li>
+        <li><span>5</span>Acrescente mais linhas para vendas com vários produtos.</li>
+        <li><span>6</span><strong>Guardar venda</strong>. O sistema devolve um <strong>código da venda</strong> — anote-o.</li>
+      </ol>
+
+      <div class="doc-note doc-note--warn">
+        <div class="doc-note-title">Código de anulação</div>
+        O código devolvido no final é o único meio de <strong>anular</strong> a venda caso
+        se tenha enganado. Sem ele, será necessário um ajuste manual pelo Administrador.
+      </div>
+
+      <div class="doc-note">
+        <div class="doc-note-title">Avisos possíveis</div>
+        <ul>
+          <li><strong>Stock abaixo do mínimo</strong> — o sistema avisa mas permite continuar.</li>
+          <li><strong>Margem negativa</strong> — alerta que o preço de venda é inferior ao custo. Confirme a unidade (rolo, kg, unidade) antes de prosseguir.</li>
+          <li><strong>Envio duplicado</strong> — se clicar duas vezes em Guardar, a segunda tentativa é ignorada.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="estoque" class="doc-section">
+      <h2>6. Consulta de stock</h2>
+      <p class="lead">Visão consolidada de todos os produtos activos, com classificação automática.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Estoque</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-sidebar">
+            <div class="mockup-brand">{{ app_name }}</div>
+            <div class="mockup-sidebar-item">Produtos</div>
+            <div class="mockup-sidebar-item active">Estoque</div>
+            <div class="mockup-sidebar-item">Movimentos</div>
+            <div class="mockup-sidebar-item">Relatórios</div>
+          </div>
+          <div class="mockup-main">
+            <div class="mockup-toolbar">
+              <div class="mockup-select">Categoria <span class="n">1</span></div>
+              <div class="mockup-select">Situação <span class="n">2</span></div>
+              <button class="mockup-btn">PDF <span class="n">4</span></button>
+              <button class="mockup-btn">Excel <span class="n">4</span></button>
+            </div>
+            <table class="mockup-table">
+              <thead><tr><th>Código</th><th>Produto</th><th>Saldo</th><th>Situação</th></tr></thead>
+              <tbody>
+                <tr><td>P001</td><td>Arroz 5kg</td><td>120</td><td><span class="pill pill--ok">Normal</span></td></tr>
+                <tr><td>P002</td><td>Óleo 1L</td><td>8</td><td><span class="pill pill--warn">Abaixo</span></td></tr>
+                <tr><td>P003</td><td>Açúcar 1kg</td><td>340</td><td><span class="pill pill--info">Excesso</span></td></tr>
+              </tbody>
+            </table>
+            <div class="mockup-total">Valor total em stock — custo: MT 1.240.000 · venda: MT 1.780.000 <span class="n">3</span></div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Filtre por <strong>categoria</strong>.</li>
+        <li><span>2</span>Filtre por <strong>situação</strong> — normal, abaixo do mínimo ou acima do máximo.</li>
+        <li><span>3</span>Os totais de custo e de venda aparecem no rodapé da tabela.</li>
+        <li><span>4</span>Exporte a listagem filtrada em PDF (impressão) ou Excel (análise).</li>
+      </ol>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="inventario" class="doc-section">
+      <h2>7. Inventário físico</h2>
+      <p class="lead">Contagem real na prateleira. O sistema compara automaticamente com o saldo.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Estoque → Inventário</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-main" style="padding:16px">
+            <table class="mockup-table">
+              <thead><tr><th>Produto</th><th>Saldo</th><th>Contagem <span class="n">1</span></th><th>Diferença</th></tr></thead>
+              <tbody>
+                <tr><td>Arroz 5kg</td><td>120</td><td><div class="mockup-input mockup-input--sm"></div></td><td>—</td></tr>
+                <tr><td>Óleo 1L</td><td>8</td><td><div class="mockup-input mockup-input--sm"></div></td><td>—</td></tr>
+                <tr><td>Açúcar 1kg</td><td>340</td><td><div class="mockup-input mockup-input--sm"></div></td><td>—</td></tr>
+              </tbody>
+            </table>
+            <div class="mockup-row" style="margin-top:10px">
+              <button class="mockup-btn mockup-btn--primary">Guardar contagem <span class="n">2</span></button>
+              <button class="mockup-btn">Exportar PDF <span class="n">3</span></button>
+            </div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Preencha apenas os produtos contados. Os restantes ficam em branco e não entram no inventário.</li>
+        <li><span>2</span><strong>Guardar contagem</strong> regista a diferença face ao saldo do sistema.</li>
+        <li><span>3</span>Exporte o relatório em PDF com todas as diferenças detectadas.</li>
+      </ol>
+
+      <div class="doc-note">
+        <div class="doc-note-title">Unidades</div>
+        Produtos medidos em <code>kg</code> aceitam decimais. As restantes unidades exigem números inteiros.
+      </div>
+      <div class="doc-note doc-note--warn">
+        <div class="doc-note-title">Auditoria</div>
+        Diferenças significativas ficam registadas em <em>Auditorias → Divergências</em> e exigem
+        justificação do Gerente antes de regularizar o saldo.
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="credito" class="doc-section">
+      <h2>8. Contas a receber</h2>
+      <p class="lead">Vendas a crédito — mercadoria entregue com pagamento diferido.</p>
+
+      <figure class="mockup">
+        <div class="mockup-window">
+          <span class="mockup-dot"></span><span class="mockup-dot"></span><span class="mockup-dot"></span>
+          <span class="mockup-url">Contas a receber</span>
+        </div>
+        <div class="mockup-body">
+          <div class="mockup-main" style="padding:16px">
+            <div class="mockup-toolbar">
+              <div class="mockup-title">Faturas emitidas</div>
+              <button class="mockup-btn mockup-btn--primary">+ Nova fatura <span class="n">1</span></button>
+            </div>
+            <table class="mockup-table">
+              <thead><tr><th>Nº</th><th>Cliente</th><th>Valor</th><th>Saldo</th><th>Estado</th></tr></thead>
+              <tbody>
+                <tr><td>FT 2024/012</td><td>J. Silva</td><td>8.500</td><td>8.500</td><td><span class="pill pill--warn">Em aberto</span></td></tr>
+                <tr><td>FT 2024/011</td><td>M. Costa</td><td>12.000</td><td>6.000</td><td><span class="pill pill--info">Parcial</span></td></tr>
+                <tr><td>FT 2024/010</td><td>Padaria X</td><td>4.200</td><td>0</td><td><span class="pill pill--ok">Liquidada</span></td></tr>
+              </tbody>
+            </table>
+            <div class="mockup-hint">Clique numa fatura para registar pagamento <span class="n">2</span></div>
+          </div>
+        </div>
+      </figure>
+
+      <ol class="doc-steps">
+        <li><span>1</span><strong>Nova fatura</strong> — identifique o cliente, os produtos e a data de vencimento.</li>
+        <li><span>2</span>Abra a fatura para <strong>registar pagamentos</strong>. São permitidos pagamentos parciais e sucessivos.</li>
+      </ol>
+
+      <table class="doc-table">
+        <thead><tr><th>Estado</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td>Em aberto</td><td>Nenhum pagamento registado.</td></tr>
+          <tr><td>Parcial</td><td>Parte do valor já recebida.</td></tr>
+          <tr><td>Liquidada</td><td>Totalmente paga.</td></tr>
+          <tr><td>Cancelada</td><td>Anulada. Não entra nos totais.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="cotacoes" class="doc-section">
+      <h2>9. Cotações</h2>
+      <p class="lead">Orçamentos enviados ao cliente antes da venda se concretizar.</p>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Crie uma <strong>nova cotação</strong> em <em>Cotações → Nova Cotação</em>.</li>
+        <li><span>2</span>Preencha os dados do cliente e os itens. Desconto por linha permitido (0–100%).</li>
+        <li><span>3</span>Grave e exporte em PDF — o documento está pronto a enviar.</li>
+        <li><span>4</span>Se aprovada pelo cliente: <strong>Aprovar → Converter em Venda</strong> ou <strong>Faturar</strong>.</li>
+      </ol>
+
+      <div class="doc-note">
+        <div class="doc-note-title">Edição</div>
+        Apenas cotações no estado <strong>Aberta</strong> podem ser editadas. Após aprovação
+        ou rejeição, o conteúdo fica bloqueado para preservar o histórico.
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="relatorios" class="doc-section">
+      <h2>10. Relatórios</h2>
+      <p class="lead">Reunidos em <em>Relatórios</em>. Todos partilham a mesma lógica: filtros → visualizar → exportar.</p>
+
+      <table class="doc-table">
+        <thead><tr><th>Relatório</th><th>Utilidade</th></tr></thead>
+        <tbody>
+          <tr><td>Estoque atual</td><td>Listagem completa com valorização a custo e venda.</td></tr>
+          <tr><td>Estoque baixo</td><td>Produtos abaixo do mínimo — lista de reposição.</td></tr>
+          <tr><td>Validade</td><td>Produtos vencidos e próximos do vencimento.</td></tr>
+          <tr><td>Movimentações</td><td>Todas as entradas e saídas no período.</td></tr>
+          <tr><td>Vendas</td><td>Vendas por produto, com receita, custo e margem.</td></tr>
+          <tr><td>Lucratividade</td><td>Lucro bruto por produto.</td></tr>
+          <tr><td>Balancete</td><td>Saldo inicial, movimentos e saldo final por produto.</td></tr>
+          <tr><td>Curva ABC</td><td>Produtos ordenados por importância no valor total do stock.</td></tr>
+          <tr><td>Extratos</td><td>Histórico detalhado de um produto, categoria ou geral.</td></tr>
+        </tbody>
+      </table>
+
+      <ol class="doc-steps">
+        <li><span>1</span>Escolha o relatório e defina os filtros de período, categoria e produto.</li>
+        <li><span>2</span>Clique em <strong>Exportar → PDF</strong> (impressão) ou <strong>Excel</strong> (análise).</li>
+        <li><span>3</span>Os filtros aplicados são registados no subtítulo do ficheiro exportado.</li>
+      </ol>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="perfis" class="doc-section">
+      <h2>11. Perfis e permissões</h2>
+      <p class="lead">O acesso às funcionalidades depende do perfil atribuído pelo Administrador.</p>
+
+      <table class="doc-table">
+        <thead>
+          <tr><th>Operação</th><th>Admin</th><th>Gerente</th><th>Operador</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Consultar dashboard e stock</td><td>Sim</td><td>Sim</td><td>Sim</td></tr>
+          <tr><td>Registar entradas e vendas</td><td>Sim</td><td>Sim</td><td>Sim</td></tr>
+          <tr><td>Criar e editar produtos</td><td>Sim</td><td>Sim</td><td>Não</td></tr>
+          <tr><td>Aprovar cotações</td><td>Sim</td><td>Sim</td><td>Não</td></tr>
+          <tr><td>Emitir faturas a crédito</td><td>Sim</td><td>Sim</td><td>Sim</td></tr>
+          <tr><td>Eliminar produtos</td><td>Sim</td><td>Não</td><td>Não</td></tr>
+          <tr><td>Acessar Balancete e Curva ABC</td><td>Sim</td><td>Sim</td><td>Não</td></tr>
+          <tr><td>Gerir utilizadores</td><td>Sim</td><td>Não</td><td>Não</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ---------------------------------------------------------------- -->
+    <section id="problemas" class="doc-section">
+      <h2>12. Resolução de problemas</h2>
+
+      <dl class="doc-faq">
+        <dt>A conta está bloqueada</dt>
+        <dd>Cinco tentativas de senha inválidas bloqueiam temporariamente o acesso. Aguarde o tempo indicado na mensagem ou peça ao Administrador para desbloquear.</dd>
+
+        <dt>A senha foi esquecida</dt>
+        <dd>Use <em>Esqueci a senha</em> no ecrã de login. É gerado um token de recuperação que deve ser usado imediatamente — expira em poucos minutos.</dd>
+
+        <dt>A venda foi registada por engano</dt>
+        <dd>É necessário o <strong>código devolvido</strong> após a gravação. Sem ele, o Administrador tem de efectuar um ajuste manual. Guarde sempre o código até ao fim do dia.</dd>
+
+        <dt>O saldo do produto não corresponde à realidade</dt>
+        <dd>Execute um Inventário físico (secção 7). A diferença é registada e, se significativa, requer justificação antes de regularizar o saldo.</dd>
+
+        <dt>Um relatório demora a carregar</dt>
+        <dd>Reduza o intervalo de datas ou filtre por categoria. Relatórios sobre todo o histórico tendem a demorar mais.</dd>
+
+        <dt>Não consigo guardar porque a margem é negativa</dt>
+        <dd>O aviso de margem negativa não impede a gravação — é apenas um alerta. Verifique se o preço praticado corresponde à unidade vendida (rolo, kg, unidade) antes de confirmar.</dd>
+      </dl>
+    </section>
+
+    <footer class="manual-footer">
+      <p>{{ app_name }} · Documentação interna</p>
+      <p>Em caso de dúvida persistente, contacte o Administrador do sistema.</p>
+    </footer>
+
+  </main>
+</div>
+
+<!-- ===================================================================== -->
+<!-- CSS — escopo .manual                                                  -->
+<!-- ===================================================================== -->
+<style>
+.manual {
+  --fg:       #111827;
+  --fg-2:     #4b5563;
+  --fg-3:     #9ca3af;
+  --bd:       #e5e7eb;
+  --bd-2:     #d1d5db;
+  --bg:       #ffffff;
+  --bg-soft:  #f9fafb;
+  --bg-mute:  #f3f4f6;
+  --accent:   #1e3a8a;
+  --ok:       #047857;
+  --warn:     #b45309;
+  --info:     #0369a1;
+
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 1.5rem auto 4rem;
+  padding: 0 1.5rem;
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+@media (max-width: 900px) {
+  .manual { grid-template-columns: 1fr; }
+}
+
+/* ------------------------ Nav lateral ------------------------ */
+.manual-nav {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  border-right: 1px solid var(--bd);
+  padding-right: 1.25rem;
+}
+@media (max-width: 900px) {
+  .manual-nav { position: static; border-right: none; padding-right: 0; border-bottom: 1px solid var(--bd); padding-bottom: 1rem; }
+  .manual-nav nav { display: flex; flex-wrap: wrap; gap: .25rem; }
+}
+.manual-nav-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--fg-3);
+  font-weight: 600;
+  margin-bottom: .75rem;
+}
+.manual-nav nav a {
+  display: block;
+  padding: .3rem .5rem;
+  margin: 0 -.5rem;
+  font-size: .875rem;
+  color: var(--fg-2);
+  text-decoration: none;
+  border-radius: 4px;
+}
+.manual-nav nav a:hover {
+  background: var(--bg-mute);
+  color: var(--accent);
+}
+@media (max-width: 900px) {
+  .manual-nav nav a { margin: 0; font-size: .8rem; padding: .2rem .4rem; }
+}
+.manual-nav-foot {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bd);
+  font-size: .75rem;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
+/* ------------------------ Conteúdo ------------------------ */
+.manual-content {
+  min-width: 0;
+  max-width: 780px;
+}
+.doc-section {
+  padding: 0 0 2.5rem;
+  margin: 0 0 2.5rem;
+  border-bottom: 1px solid var(--bd);
+  scroll-margin-top: 1rem;
+}
+.doc-section:last-of-type { border-bottom: none; }
+
+.manual-content h1 {
+  font-size: 1.85rem;
+  font-weight: 700;
+  margin: .5rem 0 .75rem;
+  letter-spacing: -.015em;
+  color: var(--fg);
+}
+.manual-content h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 .6rem;
+  letter-spacing: -.01em;
+  color: var(--fg);
+}
+.doc-section .lead {
+  color: var(--fg-2);
+  margin: 0 0 1.25rem;
+  font-size: .95rem;
+}
+
+/* ------------------------ Tabelas ------------------------ */
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .875rem;
+  margin: .75rem 0 1.25rem;
+}
+.doc-table th {
+  text-align: left;
+  font-weight: 600;
+  padding: .55rem .75rem;
+  border-bottom: 2px solid var(--bd);
+  color: var(--fg);
+  background: var(--bg-soft);
+  font-size: .8rem;
+}
+.doc-table td {
+  padding: .55rem .75rem;
+  border-bottom: 1px solid var(--bd);
+  color: var(--fg-2);
+  vertical-align: top;
+}
+.doc-table td:first-child { color: var(--fg); font-weight: 500; }
+
+/* ------------------------ Passos ------------------------ */
+.doc-steps {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 1.25rem;
+  counter-reset: step;
+}
+.doc-steps li {
+  position: relative;
+  padding: .5rem 0 .5rem 2.5rem;
+  font-size: .9rem;
+  color: var(--fg-2);
+  border-bottom: 1px solid var(--bg-mute);
+}
+.doc-steps li:last-child { border-bottom: none; }
+.doc-steps li > span:first-child {
+  position: absolute;
+  left: 0;
+  top: .55rem;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: var(--bg);
+  border: 1px solid var(--bd-2);
+  border-radius: 50%;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.doc-steps li strong { color: var(--fg); }
+.doc-steps code,
+.doc-section code {
+  background: var(--bg-mute);
+  border-radius: 3px;
+  padding: .05rem .3rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .85em;
+  color: var(--fg);
+}
+
+/* ------------------------ Notas ------------------------ */
+.doc-note {
+  border-left: 3px solid var(--bd-2);
+  padding: .65rem 0 .65rem 1rem;
+  margin: .75rem 0;
+  font-size: .875rem;
+  color: var(--fg-2);
+}
+.doc-note-title {
+  font-weight: 600;
+  color: var(--fg);
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: .25rem;
+}
+.doc-note ul { margin: .3rem 0 0 1.1rem; padding: 0; }
+.doc-note li { margin-bottom: .2rem; }
+.doc-note--warn { border-left-color: var(--warn); }
+.doc-note--warn .doc-note-title { color: var(--warn); }
+
+/* ------------------------ FAQ ------------------------ */
+.doc-faq dt {
+  font-weight: 600;
+  color: var(--fg);
+  margin-top: 1rem;
+  font-size: .9rem;
+}
+.doc-faq dt:first-child { margin-top: 0; }
+.doc-faq dd {
+  margin: .25rem 0 .75rem;
+  color: var(--fg-2);
+  font-size: .875rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--bd);
+}
+
+/* ------------------------ Footer ------------------------ */
+.manual-footer {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--bd);
+  text-align: center;
+  font-size: .8rem;
+  color: var(--fg-3);
+}
+.manual-footer p { margin: .25rem 0; }
+
+/* ===================================================================== */
+/* WIREFRAMES — representação gráfica das telas                          */
+/* ===================================================================== */
+.mockup {
+  border: 1px solid var(--bd-2);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 1rem 0 1.5rem;
+  background: var(--bg);
+  font-size: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.mockup-window {
+  background: var(--bg-mute);
+  border-bottom: 1px solid var(--bd);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--fg-3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mockup-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #d4d4d8;
+  flex-shrink: 0;
+}
+.mockup-url {
+  margin-left: 8px;
+  color: var(--fg-2);
+  font-size: 11px;
+}
+.mockup-body {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  min-height: 180px;
+}
+.mockup-body--login {
+  grid-template-columns: 1fr;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+
+/* Sidebar */
+.mockup-sidebar {
+  background: var(--bg-soft);
+  border-right: 1px solid var(--bd);
+  padding: 8px 0;
+}
+.mockup-brand {
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 6px;
+}
+.mockup-sidebar-item {
+  padding: 5px 12px;
+  font-size: 11px;
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mockup-sidebar-item.active {
+  background: #eef2ff;
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+  margin-left: -1px;
+  padding-left: 11px;
+  font-weight: 600;
+}
+
+/* Main */
+.mockup-main {
+  padding: 12px;
+  min-width: 0;
+}
+.mockup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.mockup-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fg);
+  flex: 1;
+}
+
+/* Form elements */
+.mockup-field { margin-bottom: 8px; flex: 1; min-width: 0; }
+.mockup-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.mockup-label {
+  font-size: 10px;
+  color: var(--fg-2);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.mockup-input {
+  height: 22px;
+  border: 1px solid var(--bd-2);
+  border-radius: 3px;
+  background: #fff;
+}
+.mockup-input--sm { width: 60px; }
+.mockup-select {
+  height: 22px;
+  border: 1px solid var(--bd-2);
+  border-radius: 3px;
+  background: #fff;
+  padding: 0 8px;
+  font-size: 10px;
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mockup-btn {
+  height: 24px;
+  border: 1px solid var(--bd-2);
+  background: #fff;
+  border-radius: 3px;
+  padding: 0 10px;
+  font-size: 10px;
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  font-family: inherit;
+}
+.mockup-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.mockup-link {
+  font-size: 10px;
+  color: var(--accent);
+  text-decoration: underline;
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Login box */
+.mockup-login {
+  width: 260px;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+}
+
+/* Table */
+.mockup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin: 4px 0;
+}
+.mockup-table th {
+  text-align: left;
+  padding: 5px 6px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--bd);
+  color: var(--fg-2);
+  font-weight: 600;
+  font-size: 10px;
+}
+.mockup-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--bg-mute);
+  color: var(--fg-2);
+}
+.mockup-line-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.mockup-line-table th {
+  text-align: left;
+  padding: 4px 6px;
+  font-weight: 600;
+  color: var(--fg-2);
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--bd);
+}
+.mockup-line-table td { padding: 4px 6px; }
+
+/* Dashboard mockup */
+.mockup-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mockup-card {
+  padding: 6px 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--bd);
+  border-radius: 3px;
+}
+.mockup-card small { display: block; font-size: 9px; color: var(--fg-3); }
+.mockup-card b { font-size: 11px; color: var(--fg); font-weight: 700; }
+.mockup-chart {
+  background: var(--bg-soft);
+  border: 1px solid var(--bd);
+  border-radius: 3px;
+  padding: 8px;
+}
+.mockup-chart-label {
+  font-size: 10px;
+  color: var(--fg-2);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mockup-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 50px;
+}
+.mockup-chart-bars i {
+  flex: 1;
+  background: #c7d2fe;
+  border-radius: 2px 2px 0 0;
+}
+.mockup-total {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mockup-hint {
+  font-size: 10px;
+  color: var(--fg-2);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--bd);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Status pills */
+.pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+}
+.pill--ok   { background: #d1fae5; color: var(--ok); }
+.pill--warn { background: #fef3c7; color: var(--warn); }
+.pill--info { background: #dbeafe; color: var(--info); }
+
+/* Callout number */
+.n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+</style>
+{% endblock %}

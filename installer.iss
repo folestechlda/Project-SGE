@@ -4,7 +4,7 @@
 
 #define MyAppName        "SGE"
 #define MyAppFullName    "SGE — SERIES"
-#define MyAppVersion     "1.0.5"
+#define MyAppVersion     "1.3.4"
 #define MyAppPublisher   "Folestech, lda"
 #define MyAppURL         "http://localhost"
 #define MyAppExeName     "SGE.exe"

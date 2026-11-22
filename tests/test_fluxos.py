@@ -100,6 +100,8 @@ class TestRotasEHandler(Base):
         c2 = A.app.test_client()
         r = c2.post("/login?next=//evil.example", data={"login": "admin", "senha": "admin123"})
         self.assertNotIn("evil.example", r.headers["Location"])
+        # sessão única: estes logins terminaram a sessão do cliente partilhado -> volta a entrar
+        self.c.post("/login", data={"login": "admin", "senha": "admin123"})
 
 
 class TestVendaCredito(Base):

@@ -98,19 +98,19 @@ body .top-header .top-header-left { flex: 0 1 auto !important; text-align: left 
 .painel-filtros select:focus-visible { outline: 2px solid #7fb0ea; outline-offset: 1px; }
 
 /* Faixa de indicadores: um único cartão dividido em células */
-.painel .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: #fff; border: 1px solid var(--linha); border-radius: 10px; margin-bottom: 18px; overflow: hidden; }
-.painel .kpi { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px 15px; min-width: 0; border-left: 1px solid var(--linha); }
-.painel .kpi:first-child { border-left: 0; }
-.painel .kpi-label { font-size: 12px; font-weight: 500; color: var(--tinta-2); }
-.painel .kpi-valor { font-size: 24px; font-weight: 700; line-height: 1.15; color: var(--tinta); font-variant-numeric: tabular-nums; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.painel .kpi-nota { font-size: 12px; color: #8a97ab; }
-.painel .kpi-pos .kpi-valor { color: var(--pos); }
-.painel .kpi-neg .kpi-valor { color: var(--neg); }
-.painel .kpi-alerta { text-decoration: none; transition: background .15s ease; }
-.painel .kpi-alerta:hover { background: #f8fafd; }
-.painel .kpi-alerta.tem-alertas { background: #fff8eb; }
-.painel .kpi-alerta.tem-alertas:hover { background: #fff3da; }
-.painel .kpi-alerta.tem-alertas .kpi-valor { color: #b45309; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: #fff; border: 1px solid var(--linha); border-radius: 10px; margin-bottom: 18px; overflow: hidden; }
+.kpi { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px 15px; min-width: 0; border-left: 1px solid var(--linha); }
+.kpi:first-child { border-left: 0; }
+.kpi-label { font-size: 12px; font-weight: 500; color: var(--tinta-2); }
+.kpi-valor { font-size: 24px; font-weight: 700; line-height: 1.15; color: var(--tinta); font-variant-numeric: tabular-nums; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.kpi-nota { font-size: 12px; color: #8a97ab; }
+.kpi-pos .kpi-valor { color: var(--pos); }
+.kpi-neg .kpi-valor { color: var(--neg); }
+.kpi-alerta { text-decoration: none; transition: background .15s ease; }
+.kpi-alerta:hover { background: #f8fafd; }
+.kpi-alerta.tem-alertas { background: #fff8eb; }
+.kpi-alerta.tem-alertas:hover { background: #fff3da; }
+.kpi-alerta.tem-alertas .kpi-valor { color: #b45309; }
 
 /* Grade de gráficos */
 .grade-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
@@ -137,20 +137,20 @@ body .top-header .top-header-left { flex: 0 1 auto !important; text-align: left 
 .painel .alerts-grid .panel:nth-child(3) h3::before { background: #3b78c2; }
 
 @media (max-width: 1180px) {
-  .painel .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .painel .kpi:nth-child(4) { border-left: 0; }
-  .painel .kpi:nth-child(n+4) { border-top: 1px solid var(--linha); }
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpi:nth-child(4) { border-left: 0; }
+  .kpi:nth-child(n+4) { border-top: 1px solid var(--linha); }
   .span-8, .span-7 { grid-column: span 12; } .span-4, .span-5 { grid-column: span 6; }
 }
 @media (max-width: 700px) {
-  .painel .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .painel .kpi { border-left: 0; border-top: 1px solid var(--linha); }
-  .painel .kpi:nth-child(-n+2) { border-top: 0; }
-  .painel .kpi:nth-child(even) { border-left: 1px solid var(--linha); }
-  .painel .kpi:nth-child(5) { grid-column: span 2; border-left: 0; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi { border-left: 0; border-top: 1px solid var(--linha); }
+  .kpi:nth-child(-n+2) { border-top: 0; }
+  .kpi:nth-child(even) { border-left: 1px solid var(--linha); }
+  .kpi:nth-child(5) { grid-column: span 2; border-left: 0; }
   .span-4, .span-5 { grid-column: span 12; }
 }
-@media (prefers-reduced-motion: reduce) { .painel .kpi-alerta, .nav-grupo > summary::after { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .kpi-alerta, .nav-grupo > summary::after { transition: none; } }
 
 /* ==========================================================================
    Pesquisa de produto nas vendas
