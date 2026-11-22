@@ -34,6 +34,19 @@
   var tdSaldos    = data.tdSaldos    || [];
   var urls        = data.urls        || {};
 
+  // Aspecto comum a todos os gráficos
+  if (window.Chart) {
+    Chart.defaults.font.family = '"Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif';
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = "#5b6b82";
+    Chart.defaults.borderColor = "#edf0f5";
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.boxWidth = 8;
+    Chart.defaults.plugins.legend.labels.padding = 14;
+    Chart.defaults.elements.bar.borderSkipped = false;
+    Chart.defaults.datasets.bar.maxBarThickness = 44;
+  }
+
   var totalLucro = (lucroSerie || []).reduce(function (a, b) {
     return a + (b || 0);
   }, 0);
@@ -58,7 +71,7 @@
         labels: sem ? ["Sem dados"] : ["Lucro", "Prejuízo"],
         datasets: [{
           data: sem ? [1] : [lp, pj],
-          backgroundColor: sem ? ["#cfd8dc"] : ["#2F5233", "#C1440E"],
+          backgroundColor: sem ? ["#cfd8dc"] : ["#1f8a5b", "#c2410c"],
           borderWidth: 2,
           borderColor: "#fff"
         }]
@@ -96,7 +109,7 @@
           label: "Lucro (MZN)",
           data: lucroSerie,
           backgroundColor: lucroSerie.map(function (v) {
-            return v >= 0 ? "#2F5233" : "#C1440E";
+            return v >= 0 ? "#1f8a5b" : "#c2410c";
           }),
           borderRadius: 4
         }]
@@ -124,8 +137,8 @@
       data: {
         labels: dias,
         datasets: [
-          { label: "Vendas",  data: vendas,  backgroundColor: "#2F5233", borderRadius: 4 },
-          { label: "Compras", data: compras, backgroundColor: "#C1440E", borderRadius: 4 }
+          { label: "Vendas",  data: vendas,  backgroundColor: "#1e4e8c", borderRadius: 4 },
+          { label: "Compras", data: compras, backgroundColor: "#e3a23b", borderRadius: 4 }
         ]
       },
       options: {
@@ -148,8 +161,7 @@
   // ---- 4. Top vendidos (doughnut) ----
   var elC = document.getElementById("chartCatVendas");
   if (elC) {
-    var pal = ["#2F5233", "#3F7A45", "#C1440E", "#E08A50", "#6D8F73",
-               "#A6BFA9", "#8B5A2B", "#D4A373", "#5A8CA8", "#9C6F8E"];
+    var pal = ["#1e4e8c", "#3b78c2", "#7fb0ea", "#b9d3f3", "#e3a23b", "#f0c778", "#5b6b82", "#9aa8bd", "#1f8a5b", "#c2410c"];
     var tem = catData.length > 0;
 
     new Chart(elC, {
@@ -188,7 +200,7 @@
           {
             label: "Entradas",
             data: entradasQtd,
-            borderColor: "#2F5233",
+            borderColor: "#1e4e8c",
             backgroundColor: "rgba(47,82,51,0.10)",
             tension: 0.3,
             fill: true,
@@ -197,7 +209,7 @@
           {
             label: "Saídas",
             data: saidasQtd,
-            borderColor: "#C1440E",
+            borderColor: "#e3a23b",
             backgroundColor: "rgba(193,68,14,0.10)",
             tension: 0.3,
             fill: true,
@@ -218,9 +230,9 @@
   var elFE = document.getElementById("chartFaturasEstado");
   if (elFE) {
     var coresPorLabel = {
-      "Em aberto":          "#C1440E",
-      "Parcialmente pagas": "#C79100",
-      "Pagas":              "#2F5233"
+      "Em aberto":          "#c2410c",
+      "Parcialmente pagas": "#e3a23b",
+      "Pagas":              "#1f8a5b"
     };
     var coresFat = fatLabels.map(function (l) {
       return coresPorLabel[l] || "#999";
@@ -286,7 +298,7 @@
         datasets: [{
           label: "Saldo em dívida (MZN)",
           data: temTD ? tdSaldos : [0],
-          backgroundColor: "#C1440E",
+          backgroundColor: "#c2410c",
           borderRadius: 4
         }]
       },

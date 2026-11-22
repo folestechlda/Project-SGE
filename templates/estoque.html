@@ -64,11 +64,11 @@
         <td class="mono">{{ p.codigo }}</td>
         <td>{{ p.nome }}</td>
         <td class="muted">{{ p.categoria_nome or '—' }}</td>
-        <td class="num-right"><strong>{{ p.saldo_atual }}</strong></td> {# inteiro #}
+        <td class="num-right"><strong>{{ p.saldo_atual|sq(p.unidade) }}</strong></td>
         <td class="num-right">{{ "%.2f"|format(p.saldo_atual * (p.preco_custo or 0)) }}</td>
         <td class="num-right">{{ "%.2f"|format(p.saldo_atual * (p.preco_venda or 0)) }}</td>
-        <td class="num-right muted">{{ p.estoque_minimo or 0 }}</td>
-        <td class="num-right muted">{{ p.estoque_maximo or '—' }}</td>
+        <td class="num-right muted">{{ (p.estoque_minimo or 0)|sq(p.unidade) }}</td>
+        <td class="num-right muted">{{ (p.estoque_maximo|sq(p.unidade)) if p.estoque_maximo else '—' }}</td>
         <td>
           {% if p.situacao == 'abaixo_minimo' %}<span class="tag tag-danger">Abaixo do mínimo</span>
           {% elif p.situacao == 'acima_maximo' %}<span class="tag tag-warn">Acima do máximo</span>

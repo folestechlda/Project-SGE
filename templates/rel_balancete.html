@@ -1,0 +1,71 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Balancete de Estoque · {{ app_name }}{% endblock %}
+{% block page_title %}Balancete de Estoque{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  {{ m.filtros_periodo(args, d.ini, d.fim) }}
+  {{ m.filtro_categoria(categorias, id_cat) }}
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+
+<article class="rel">
+  {% call m.cabecalho("Balancete de Estoque",
+        (emp_nome or "[defina o nome da empresa em Configurações]") ~ ((" · NUIT " ~ emp_nuit) if emp_nuit else "") ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy),
+        [("Método de custeio", d.metodo), ("Valorização", d.valorizacao),
+         ("Estado do período", m.estado_chip(d.estado)), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  {% set t = d.tot %}
+  {% set rec = d.reconciliacao %}
+  {% set fechou = (rec.estado != 'atencao') and t.identidade_ok %}
+  <div class="kpis">
+    {{ m.kpi("Estoque inicial", t.inicial|mt) }}{{ m.op("+") }}
+    {{ m.kpi("Compras", t.compras|mt) }}{{ m.op("−") }}
+    {{ m.kpi("Custo das vendas", t.custo_vendas|mt) }}
+    {% if t.perdas_aj|abs > 0.004 %}{{ m.op("−") }}{{ m.kpi("Perdas e ajustes", t.perdas_aj|mt) }}{% endif %}
+    {{ m.op("=") }}
+    {{ m.kpi("Estoque final", t.final|mt) }}
+  </div>
+  {% if not fechou %}<p class="rel-aviso">⚠ {{ rec.texto if rec.estado == 'atencao' else 'A conta não fecha: confira os movimentos do período.' }}</p>{% endif %}
+  <p class="rel-linha-estado">Vendas <strong>{{ t.vendas|mt }}</strong> · Lucro bruto <strong>{{ t.lucro|mt }}</strong> · Margem <strong>{{ (t.margem|pct ~ " %") if t.margem is not none else "—" }}</strong></p>
+
+  <h2>Estoque por categoria e produto <small>(valores em MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Un.</th><th class="num">Qtd inicial</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Qtd final</th><th class="num">Custo unit.</th><th class="num">Valor final</th><th>Situação</th></tr></thead>
+    <tbody>
+    {% for g in d.grupos %}
+      <tr class="grupo"><td colspan="9">{{ g.nome }}</td></tr>
+      {% for l in g.linhas %}
+      <tr class="{{ 'sem-mov' if not l.movimentou }}">
+        <td class="col-nome"><a href="{{ url_for('rel_extrato_produto', id_produto=l.id_produto, ini=d.ini, fim=d.fim) }}">{{ l.produto }}</a></td>
+        <td>{{ l.un }}</td>
+        <td class="num">{{ l.q_ini|qt(l.un) }}</td><td class="num">{{ l.ent|qt(l.un) }}</td><td class="num">{{ l.sai|qt(l.un) }}</td><td class="num">{{ l.q_fim|qt(l.un) }}</td>
+        <td class="num">{{ l.custo_unit|mt }}</td><td class="num">{{ l.valor_final|mt }}</td>
+        <td>{% if l.situacao.classe not in ['chip-ok','chip-neutro'] %}{{ m.chip(l.situacao.texto, l.situacao.classe) }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      <tr class="sub"><td colspan="7">Subtotal da categoria (só valor)</td><td class="num">{{ g.sub.valor_final|mt }}</td><td></td></tr>
+    {% else %}
+      <tr><td colspan="9" class="rel-nota">Sem produtos para mostrar neste período.</td></tr>
+    {% endfor %}
+      <tr class="total"><td colspan="7">Total do estoque final</td><td class="num">{{ t.final|mt }}</td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+  {% if d.anuladas %}
+  <h2>Vendas anuladas no período</h2>
+  <table class="rel-table"><tbody>
+    {% for x in d.anuladas %}<tr><td class="nw">{{ x.numero }}</td><td>{{ x.cliente }}</td><td class="nw">{{ x.data|dmy }}</td><td>{{ x.motivo }}</td><td class="num">{{ x.valor|mt }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral', ini=d.ini, fim=d.fim) }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_vendas', ini=d.ini, fim=d.fim) }}">Vendas</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade', ini=d.ini, fim=d.fim) }}">Perdas</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_extrato_produto', modo='geral', ini=d.ini, fim=d.fim) }}">Extrato geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('movimento_entrada') }}">+ Nova entrada</a>
+{% endcall %}
+{% endblock %}

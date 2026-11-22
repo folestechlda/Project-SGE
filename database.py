@@ -336,6 +336,35 @@ CREATE TABLE IF NOT EXISTS fechos_mensais_itens (
     FOREIGN KEY (id_produto) REFERENCES produtos(id_produto)
 );
 
+CREATE TABLE IF NOT EXISTS vendas_anuladas (
+    id_anulacao INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_venda TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'Vista',
+    id_conta INTEGER,
+    cliente TEXT,
+    forma_pagamento TEXT,
+    data_venda TEXT,
+    valor_total REAL NOT NULL DEFAULT 0,
+    custo_total REAL NOT NULL DEFAULT 0,
+    itens_json TEXT,
+    motivo TEXT NOT NULL,
+    id_usuario_venda INTEGER,
+    id_usuario_anulou INTEGER,
+    data_anulacao TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conferencias_recebimento (
+    id_conferencia INTEGER PRIMARY KEY AUTOINCREMENT,
+    data_ini TEXT NOT NULL,
+    data_fim TEXT NOT NULL,
+    canal TEXT NOT NULL,
+    valor_conferido REAL NOT NULL DEFAULT 0,
+    observacao TEXT,
+    id_usuario INTEGER,
+    data_registo TEXT NOT NULL,
+    UNIQUE (data_ini, data_fim, canal)
+);
+
 CREATE INDEX IF NOT EXISTS idx_fecho_ano_mes ON fechos_mensais(ano, mes);
 CREATE INDEX IF NOT EXISTS idx_fechoitens_fecho ON fechos_mensais_itens(id_fecho);
 CREATE INDEX IF NOT EXISTS idxs_aud_estado ON auditorias(estado);
@@ -399,6 +428,34 @@ DEFAULT_CATEGORIAS = [
     ("Limpeza", "Produtos de limpeza e higiene"),
     ("Diversos", "Outros produtos"),
 ]
+
+def _preencher_codigos_venda(conn):
+    """Dá código às vendas antigas: faturas usam o nº da fatura; vendas à vista são
+    agrupadas por (data/hora, utilizador, cliente, forma de pagamento)."""
+    if not conn.execute("SELECT 1 FROM movimentos WHERE tipo='Saida' AND codigo_venda IS NULL LIMIT 1").fetchone():
+        return
+    for r in conn.execute("""SELECT i.id_movimento, c.numero_fatura FROM contas_receber_itens i
+                             JOIN contas_receber c ON c.id_conta=i.id_conta
+                             WHERE c.numero_fatura IS NOT NULL""").fetchall():
+        conn.execute("UPDATE movimentos SET codigo_venda=? WHERE id_movimento=? AND codigo_venda IS NULL",
+                     (r["numero_fatura"], r["id_movimento"]))
+    prox = 1
+    row = conn.execute("SELECT MAX(CAST(SUBSTR(codigo_venda,3) AS INTEGER)) m FROM movimentos "
+                       "WHERE codigo_venda LIKE 'V-%'").fetchone()
+    if row and row["m"]:
+        prox = int(row["m"]) + 1
+    grupos = {}
+    for r in conn.execute("""SELECT id_movimento, data_hora, id_usuario, cliente, forma_pagamento
+                             FROM movimentos WHERE tipo='Saida' AND codigo_venda IS NULL
+                             ORDER BY data_hora, id_movimento""").fetchall():
+        k = (r["data_hora"], r["id_usuario"], r["cliente"], r["forma_pagamento"])
+        if k not in grupos:
+            grupos[k] = f"V-{prox:06d}"
+            prox += 1
+        conn.execute("UPDATE movimentos SET codigo_venda=? WHERE id_movimento=?",
+                     (grupos[k], r["id_movimento"]))
+    conn.commit()
+
 
 def init_db():
     conn = get_conn()
@@ -525,6 +582,13 @@ def init_db():
     for col, tipo in novas_cr:
         if col not in cols_cr:
             cur.execute(f"ALTER TABLE contas_receber ADD COLUMN {col} {tipo}")
+
+    # Migração: código de venda (agrupa os itens de uma mesma venda)
+    cur.execute("PRAGMA table_info(movimentos)")
+    if "codigo_venda" not in [c[1] for c in cur.fetchall()]:
+        cur.execute("ALTER TABLE movimentos ADD COLUMN codigo_venda TEXT")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_mov_codigo_venda ON movimentos(codigo_venda)")
+    _preencher_codigos_venda(conn)
 
     # Cria utilizador admin se não existir
     cur.execute("SELECT COUNT(*) AS c FROM usuarios")

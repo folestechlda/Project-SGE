@@ -4,7 +4,7 @@
 
 #define MyAppName        "SGE"
 #define MyAppFullName    "SGE — SERIES"
-#define MyAppVersion     "1.3.4"
+#define MyAppVersion     "1.0.5"
 #define MyAppPublisher   "Folestech, lda"
 #define MyAppURL         "http://localhost"
 #define MyAppExeName     "SGE.exe"
@@ -79,6 +79,8 @@ Source: "services.py";      DestDir: "{app}\_codigo"; Flags: ignoreversion
 Source: "database.py";      DestDir: "{app}\_codigo"; Flags: ignoreversion
 Source: "reports.py";       DestDir: "{app}\_codigo"; Flags: ignoreversion
 Source: "diagnostico.py";   DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "atualizador.py";   DestDir: "{app}\_codigo"; Flags: ignoreversion
+Source: "comparador_estoque.py";   DestDir: "{app}\_codigo"; Flags: ignoreversion
 Source: "requirements.txt"; DestDir: "{app}\_codigo"; Flags: ignoreversion
 Source: "templates\*"; DestDir: "{app}\_codigo\templates"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "static\*";    DestDir: "{app}\_codigo\static";    Flags: ignoreversion recursesubdirs createallsubdirs
@@ -89,6 +91,8 @@ Source: "services.py";      DestDir: "{app}"; Flags: ignoreversion
 Source: "database.py";      DestDir: "{app}"; Flags: ignoreversion
 Source: "reports.py";       DestDir: "{app}"; Flags: ignoreversion
 Source: "diagnostico.py";   DestDir: "{app}"; Flags: ignoreversion
+Source: "atualizador.py";   DestDir: "{app}"; Flags: ignoreversion
+Source: "comparador_estoque.py";   DestDir: "{app}"; Flags: ignoreversion
 Source: "requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "templates\*"; DestDir: "{app}\templates"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "static\*";    DestDir: "{app}\static";    Flags: ignoreversion recursesubdirs createallsubdirs

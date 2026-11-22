@@ -41,7 +41,7 @@
         <td>{{ p.nome }}</td>
         <td class="muted">{{ p.categoria_nome or '—' }}</td>
         <td>{{ p.unidade }}{% if p.unidade != 'Unidade' %} ({{ p.qtd_por_unidade }}){% endif %}</td>
-        <td>{{ p.saldo_atual }}</td>
+        <td>{{ p.saldo_atual|sq(p.unidade) }}</td>
         <td>{{ "%.2f"|format(p.preco_custo) }}</td>
         <td>{{ "%.2f"|format(p.preco_venda) }}</td>
         <td>

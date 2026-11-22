@@ -129,6 +129,9 @@
 
   /* ---------------- API pública ---------------- */
   window.AppModal = {
+    abrir: _abrir,
+    fechar: _fechar,
+    escape: _escape,
     erro: function (msg, detalhes) {
       return _abrir({ tipo: 'erro', mensagem: msg, detalhes: detalhes });
     },

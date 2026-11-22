@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Relatórios · {{ app_name }}{% endblock %}
+{% block page_title %}Relatórios{% endblock %}
+{% block content %}
+{% set gestor = current_user.perfil in ['Admin','Gerente'] %}
+<div class="page-header no-print">
+  <div><h1>Relatórios</h1>
+  <p class="page-sub">Quantidades na unidade de cada produto; valores em MT. Todos imprimem em PDF e exportam para Excel.</p></div>
+</div>
+<div class="hub-grid">
+  {% if gestor %}<a class="hub-item" href="{{ url_for('rel_gestao') }}"><strong>Relatório de Gestão</strong><span>Auditoria do mês ou semestre: vendas, compras, caixa/banco/M-Pesa/e-Mola vs. sistema, perdas, anulações e diferenças.</span></a>{% endif %}
+  {% if gestor %}<a class="hub-item" href="{{ url_for('rel_balancete') }}"><strong>Balancete de Estoque</strong><span>Documento formal do período: inicial + compras − custo das vendas = final, com alertas.</span></a>{% endif %}
+  <a class="hub-item" href="{{ url_for('rel_estoque_geral') }}"><strong>Estoque Geral</strong><span>Todo o estoque numa página, por categoria, com a conta de cada produto.</span></a>
+  <a class="hub-item" href="{{ url_for('rel_posicao') }}"><strong>Posição de Estoque</strong><span>O que repor primeiro, com cobertura em dias.</span></a>
+  {% if gestor %}<a class="hub-item" href="{{ url_for('rel_vendas') }}"><strong>Relatório de Vendas</strong><span>Receita, custo, lucro e margem por produto e forma de pagamento.</span></a>{% endif %}
+  <a class="hub-item" href="{{ url_for('rel_extrato_produto') }}"><strong>Extrato de Produto</strong><span>Movimento a movimento, com saldo em quantidade e em valor. Também por categoria e geral.</span></a>
+  {% if gestor %}<a class="hub-item" href="{{ url_for('contas_receber_extrato_clientes') }}"><strong>Extrato de Cliente</strong><span>Faturas, pagamentos, atraso e idade da dívida (escolha o cliente).</span></a>{% endif %}
+  <a class="hub-item" href="{{ url_for('auditorias_list') }}"><strong>Inventário Físico: Divergências</strong><span>Abra uma auditoria e use "Divergências (modelo)".</span></a>
+  <a class="hub-item" href="{{ url_for('rel_perdas_validade') }}"><strong>Perdas e Validade</strong><span>Perdas por motivo e produtos a expirar.</span></a>
+  {% if gestor %}<a class="hub-item" href="{{ url_for('rel_curva_abc') }}"><strong>Curva ABC</strong><span>Onde está o valor do estoque.</span></a>{% endif %}
+</div>
+<h3 style="margin-top:26px" class="no-print">Listagens simples (formato anterior)</h3>
+<p class="page-sub no-print">
+  <a href="{{ url_for('relatorios', tipo='estoque_atual') }}">Estoque atual</a> ·
+  <a href="{{ url_for('relatorios', tipo='movimentacoes') }}">Movimentações</a> ·
+  <a href="{{ url_for('relatorios', tipo='precos_venda') }}">Preços de venda</a> ·
+  <a href="{{ url_for('relatorios', tipo='lucratividade') }}">Lucratividade</a> ·
+  <a href="{{ url_for('balancetes') }}">Balancetes &amp; extratos (anterior)</a>
+</p>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Extrato de Cliente · {{ app_name }}{% endblock %}
+{% block page_title %}Extrato de Cliente{% endblock %}
+{% block content %}
+<div class="no-print" style="display:flex;gap:8px;justify-content:space-between;max-width:1180px;margin:0 auto 10px">
+  <a class="btn btn-secondary" href="{{ url_for('contas_receber_extrato_clientes') }}">← Todos os clientes</a>
+  <span style="display:flex;gap:8px">
+    <a class="btn btn-secondary" target="_blank" rel="noopener" href="?imprimir=1">🖨 Imprimir</a>
+    <a class="btn btn-secondary" href="{{ url_for('conta_receber_extrato_cliente', nome_cliente=d.cliente, exportar='pdf') }}">⬇ PDF</a>
+    <a class="btn btn-secondary" href="{{ url_for('conta_receber_extrato_cliente', nome_cliente=d.cliente, exportar='excel') }}">⬇ Excel</a>
+  </span>
+</div>
+<article class="rel">
+  {% call m.cabecalho("Extrato de Cliente",
+      d.cliente ~ ((" · NUIT " ~ d.nif) if d.nif else "") ~ " · Posição a " ~ (d.hoje|dmy),
+      [("Empresa", emp_nome or "—"), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  {% set t = d.tot %}
+    <div class="kpis">
+    {{ m.kpi("Total faturado", t.total|mt) }}{{ m.op("−") }}
+    {{ m.kpi("Total pago", t.pago|mt) }}{{ m.op("=") }}
+    {{ m.kpi("Em aberto", t.aberto|mt) }}
+    {% if t.atraso > 0 %}{{ m.kpi("Em atraso", t.atraso|mt) }}{% endif %}
+  </div>
+
+  <h2>Faturas <small>(MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th>Fatura</th><th>Emissão</th><th>Vencimento</th><th class="num">Total</th><th class="num">Pago</th><th class="num">Em aberto</th><th class="num">Dias de atraso</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for l in d.linhas %}
+      <tr class="{{ 'cinza' if l.anulada }}">
+        <td>{{ l.numero }}</td><td>{{ l.emissao }}</td><td>{{ l.venc }}</td>
+        <td class="num">{{ l.total|mt }}</td><td class="num">{{ l.pago|mt }}</td><td class="num">{{ l.aberto|mt }}</td>
+        <td class="num">{{ l.dias }}</td><td>{{ l.estado }}</td>
+      </tr>
+    {% endfor %}
+      <tr class="total"><td colspan="3">Totais</td><td class="num">{{ t.total|mt }}</td><td class="num">{{ t.pago|mt }}</td><td class="num">{{ t.aberto|mt }}</td><td></td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  {% if d.idade.d1_30 or d.idade.d31_60 or d.idade.d60_mais %}
+  <p class="rel-linha-estado">Em atraso: 1–30 dias <strong>{{ d.idade.d1_30|mt }}</strong> · 31–60 dias <strong>{{ d.idade.d31_60|mt }}</strong> · mais de 60 dias <strong>{{ d.idade.d60_mais|mt }}</strong></p>
+  {% endif %}
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-secondary" href="{{ url_for('contas_receber_list') }}">Contas a receber</a>
+  <a class="btn btn-secondary" href="{{ url_for('contas_receber_extrato_clientes') }}">Todos os clientes</a>
+  <a class="btn btn-primary" href="{{ url_for('venda_credito') }}">+ Venda a crédito</a>
+{% endcall %}
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Curva ABC · {{ app_name }}{% endblock %}
+{% block page_title %}Curva ABC{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  <label>Posição a<input type="date" name="data" value="{{ d.data }}"></label>
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+<article class="rel">
+  {% call m.cabecalho("Curva ABC",
+      (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Posição a " ~ (d.data|dmy) ~ " · por valor de estoque",
+      [("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+  <h2>Produtos por valor <small>(MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th>Classe</th><th class="col-nome">Produto</th><th>Un.</th><th class="num">Qtd</th><th class="num">Custo unit.</th><th class="num">Valor</th><th class="num">%</th><th class="num">% acumulada</th></tr></thead>
+    <tbody>
+    {% for i in d.itens %}
+      <tr><td>{{ m.chip(i.classe, 'chip-ok' if i.classe == 'A' else ('chip-aviso' if i.classe == 'B' else 'chip-neutro')) }}</td>
+        <td class="col-nome">{{ i.produto }}</td><td>{{ i.un }}</td>
+        <td class="num">{{ i.qtd|qt(i.un) }}</td><td class="num">{{ i.custo_unit|mt }}</td><td class="num">{{ i.valor|mt }}</td>
+        <td class="num">{{ i.pct|pct }}</td><td class="num">{{ i.pct_acum|pct }}</td></tr>
+    {% else %}<tr><td colspan="8" class="rel-nota">Sem estoque valorizado.</td></tr>{% endfor %}
+      <tr class="total"><td colspan="5">Total do estoque</td><td class="num">{{ d.total|mt }}</td><td colspan="2"></td></tr>
+    </tbody>
+  </table>
+  </div>
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral') }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_vendas') }}">Vendas</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_posicao') }}">Posição de estoque</a>
+{% endcall %}
+{% endblock %}

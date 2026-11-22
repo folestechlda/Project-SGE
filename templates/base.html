@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ app_name }}{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/relatorios.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tema.css') }}">
 <style>
 .page-header {
   display: flex !important;
@@ -32,6 +34,8 @@
 <body class="{{ 'no-auth' if not current_user.nome }}">
 {% if current_user.nome %}
 <div class="app-shell">
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-hidden="true">
+  <label for="nav-toggle" class="nav-fundo" aria-hidden="true"></label>
   <aside class="sidebar">
     <div class="brand">
       {% if empresa.logo_url %}
@@ -45,47 +49,110 @@
         <small>{{ 'Gestão de Estoque' if empresa.nome else 'Sistema de Gestão de Estoque' }}</small>
       </div>
     </div>
-    <nav class="nav">
-      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint=='dashboard' }}">Painel</a>
-      <a href="{{ url_for('produtos_list') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('produtos') }}">Produtos</a>
-      <a href="{{ url_for('categorias_list') }}" class="{{ 'active' if request.endpoint=='categorias_list' }}">Categorias</a>
-      <a href="{{ url_for('movimento_entrada') }}" class="{{ 'active' if request.endpoint=='movimento_entrada' }}">Nova Entrada</a>
-      <a href="{{ url_for('movimento_saida') }}" class="{{ 'active' if request.endpoint=='movimento_saida' }}">Nova Saída</a>
-      <a href="{{ url_for('movimentos_list') }}" class="{{ 'active' if request.endpoint=='movimentos_list' }}">Movimentações</a>
-      <a href="{{ url_for('estoque_list') }}" class="{{ 'active' if request.endpoint=='estoque_list' }}">Estoque Atual</a>
-      <a href="{{ url_for('estoque_inventario') }}" class="{{ 'active' if request.endpoint=='estoque_inventario' }}">Inventário Físico</a>
-      <a href="{{ url_for('comparar_estoque') }}" class="{{ 'active' if request.endpoint=='comparar_estoque' }}">Comparar Estoque</a>
-      <a href="{{ url_for('relatorios') }}" class="{{ 'active' if request.endpoint=='relatorios' }}">Relatórios</a>
-      <a href="{{ url_for('balancetes') }}" class="{{ 'active' if request.endpoint=='balancetes' }}">Balancetes &amp; Extratos</a>
-      <a href="{{ url_for('cotacoes_list') }}" class="{{ 'active' if request.endpoint=='cotacoes_list' }}">Cotações</a>
-      <a href="{{ url_for('contas_receber_list') }}" class="{{ 'active' if request.endpoint and 'conta_receber' in request.endpoint }}">Contas a Receber</a>
-      <a href="{{ url_for('venda_credito') }}" class="{{ 'active' if request.endpoint=='venda_credito' }}">Venda a Crédito</a>
-      <a href="{{ url_for('auditorias_list') }}" class="{{ 'active' if request.endpoint and 'auditoria' in request.endpoint }}">Auditorias</a>
-      <a href="{{ url_for('fechos_mensais_list') }}" class="{{ 'active' if request.endpoint and 'fecho' in request.endpoint }}">Fechos Mensais</a>
-      <a href="{{ url_for('perdas_list') }}" class="{{ 'active' if request.endpoint=='perdas_list' }}">Perdas</a>
-      <a href="{{ url_for('trocar_senha') }}" class="{{ 'active' if request.endpoint=='trocar_senha' }}">Trocar Senha</a>
-      {% if current_user.perfil == 'Admin' %}
-      <div class="nav-divider">Administração</div>
-      <a href="{{ url_for('usuarios_list') }}" class="{{ 'active' if request.endpoint=='usuarios_list' }}">Usuários</a>
-      <a href="{{ url_for('configuracoes') }}" class="{{ 'active' if request.endpoint=='configuracoes' }}">Configurações</a>
-      <a href="{{ url_for('diagnostico_view') }}" class="{{ 'active' if request.endpoint=='diagnostico_view' }}">Diagnóstico</a>
-      <a href="{{ url_for('atualizacoes_view') }}" class="{{ 'active' if request.endpoint=='atualizacoes_view' }}">Actualizações</a>
+    {% set ep = request.endpoint or '' %}
+    {% set perfil = current_user.perfil %}
+    {% set eh_gestor = perfil in ['Admin','Gerente'] %}
+    {% set g_oper = ep in ['movimento_entrada','movimento_saida','venda_credito','perdas_list','venda_anular'] or ep.startswith('cotacao') %}
+    {% set g_est = ep in ['rel_estoque_geral','rel_posicao','movimentos_list','estoque_inventario','rel_divergencias'] or ep.startswith('auditoria') or ep.startswith('comparar') %}
+    {% set g_fin = ep in ['contas_receber_list','conta_receber_detalhe','contas_receber_extrato_clientes','conta_receber_extrato_cliente'] or ep.startswith('fecho') %}
+    {% set g_rel = ep in ['rel_gestao','rel_balancete','rel_vendas','rel_extrato_produto','rel_perdas_validade','rel_curva_abc'] %}
+    {% set g_cad = ep.startswith('produto') or ep.startswith('categoria') %}
+    {% set g_sis = ep.startswith('usuario') or ep in ['configuracoes','diagnostico_view','atualizacoes_view'] %}
+    <nav class="nav" id="menuLateral">
+      <a href="{{ url_for('dashboard') }}" class="nav-topo {{ 'active' if ep=='dashboard' }}">Painel</a>
+
+      <details class="nav-grupo" data-grupo="operacoes" {{ 'open' if g_oper }}>
+        <summary>Operações</summary>
+        <div class="nav-sub">
+          <a href="{{ url_for('movimento_entrada') }}" class="{{ 'active' if ep=='movimento_entrada' }}">Nova entrada (compra)</a>
+          <a href="{{ url_for('movimento_saida') }}" class="{{ 'active' if ep=='movimento_saida' }}">Nova venda</a>
+          <a href="{{ url_for('venda_credito') }}" class="{{ 'active' if ep=='venda_credito' }}">Venda a crédito</a>
+          <a href="{{ url_for('cotacoes_list') }}" class="{{ 'active' if ep.startswith('cotacao') }}">Cotações</a>
+          <a href="{{ url_for('perdas_list') }}" class="{{ 'active' if ep=='perdas_list' }}">Perdas</a>
+          <a href="{{ url_for('venda_anular') }}" class="{{ 'active' if ep=='venda_anular' }}">Anular venda</a>
+        </div>
+      </details>
+
+      <details class="nav-grupo" data-grupo="estoque" {{ 'open' if g_est }}>
+        <summary>Estoque{% if eh_gestor and nav_pendentes %}<span class="nav-badge nav-badge-grupo">{{ nav_pendentes }}</span>{% endif %}</summary>
+        <div class="nav-sub">
+          <a href="{{ url_for('rel_estoque_geral') }}" class="{{ 'active' if ep=='rel_estoque_geral' }}">Estoque geral</a>
+          <a href="{{ url_for('rel_posicao') }}" class="{{ 'active' if ep=='rel_posicao' }}">Posição de estoque</a>
+          <a href="{{ url_for('movimentos_list') }}" class="{{ 'active' if ep=='movimentos_list' }}">Movimentações</a>
+          <a href="{{ url_for('estoque_inventario') }}" class="{{ 'active' if ep=='estoque_inventario' }}">Inventário físico</a>
+          <a href="{{ url_for('auditorias_list') }}" class="{{ 'active' if ep.startswith('auditoria') or ep=='rel_divergencias' }}">Auditorias{% if eh_gestor and nav_pendentes %}<span class="nav-badge">{{ nav_pendentes }}</span>{% endif %}</a>
+          <a href="{{ url_for('comparar_estoque') }}" class="{{ 'active' if ep.startswith('comparar') }}">Comparar estoque</a>
+        </div>
+      </details>
+
+      {% if eh_gestor %}
+      <details class="nav-grupo" data-grupo="financeiro" {{ 'open' if g_fin }}>
+        <summary>Financeiro</summary>
+        <div class="nav-sub">
+          <a href="{{ url_for('contas_receber_list') }}" class="{{ 'active' if ep in ['contas_receber_list','conta_receber_detalhe'] }}">Contas a receber</a>
+          <a href="{{ url_for('contas_receber_extrato_clientes') }}" class="{{ 'active' if ep in ['contas_receber_extrato_clientes','conta_receber_extrato_cliente'] }}">Clientes</a>
+          <a href="{{ url_for('fechos_mensais_list') }}" class="{{ 'active' if ep.startswith('fecho') }}">Fechos mensais</a>
+        </div>
+      </details>
+      {% endif %}
+
+      <details class="nav-grupo" data-grupo="relatorios" {{ 'open' if g_rel }}>
+        <summary>Relatórios</summary>
+        <div class="nav-sub">
+          {% if eh_gestor %}
+          <a href="{{ url_for('rel_gestao') }}" class="{{ 'active' if ep=='rel_gestao' }}">Relatório de gestão</a>
+          <a href="{{ url_for('rel_balancete') }}" class="{{ 'active' if ep=='rel_balancete' }}">Balancete</a>
+          <a href="{{ url_for('rel_vendas') }}" class="{{ 'active' if ep=='rel_vendas' }}">Vendas</a>
+          {% endif %}
+          <a href="{{ url_for('rel_extrato_produto') }}" class="{{ 'active' if ep=='rel_extrato_produto' }}">Extratos</a>
+          <a href="{{ url_for('rel_perdas_validade') }}" class="{{ 'active' if ep=='rel_perdas_validade' }}">Perdas e validade</a>
+          {% if eh_gestor %}<a href="{{ url_for('rel_curva_abc') }}" class="{{ 'active' if ep=='rel_curva_abc' }}">Curva ABC</a>{% endif %}
+        </div>
+      </details>
+
+      <details class="nav-grupo" data-grupo="cadastros" {{ 'open' if g_cad }}>
+        <summary>Cadastros</summary>
+        <div class="nav-sub">
+          <a href="{{ url_for('produtos_list') }}" class="{{ 'active' if ep.startswith('produto') }}">Produtos</a>
+          <a href="{{ url_for('categorias_list') }}" class="{{ 'active' if ep.startswith('categoria') }}">Categorias</a>
+        </div>
+      </details>
+
+      {% if perfil == 'Admin' %}
+      <details class="nav-grupo" data-grupo="sistema" {{ 'open' if g_sis }}>
+        <summary>Sistema</summary>
+        <div class="nav-sub">
+          <a href="{{ url_for('usuarios_list') }}" class="{{ 'active' if ep.startswith('usuario') }}">Utilizadores</a>
+          <a href="{{ url_for('configuracoes') }}" class="{{ 'active' if ep=='configuracoes' }}">Configurações</a>
+          <a href="{{ url_for('diagnostico_view') }}" class="{{ 'active' if ep=='diagnostico_view' }}">Diagnóstico</a>
+          <a href="{{ url_for('atualizacoes_view') }}" class="{{ 'active' if ep=='atualizacoes_view' }}">Atualizações</a>
+        </div>
+      </details>
       {% endif %}
     </nav>
     <div class="sidebar-footer">
-      <div class="user-chip">
-        <span class="user-avatar">{{ current_user.nome[0] }}</span>
-        <div>
-          <strong>{{ current_user.nome }}</strong>
-          <small>{{ current_user.perfil }}</small>
+      <details class="user-menu">
+        <summary>
+          <span class="user-chip">
+            <span class="user-avatar">{{ current_user.nome[0] }}</span>
+            <span>
+              <strong>{{ current_user.nome }}</strong>
+              <small>{{ current_user.perfil }}</small>
+            </span>
+          </span>
+          <span class="user-caret">▴</span>
+        </summary>
+        <div class="user-pop">
+          <a href="{{ url_for('trocar_senha') }}">Trocar senha</a>
+          <a href="{{ url_for('logout') }}" class="sair" data-confirmar="Tem a certeza que deseja sair do sistema?">Sair</a>
         </div>
-      </div>
-      <a href="{{ url_for('logout') }}" class="logout-link" data-confirmar="Tem a certeza que deseja sair do sistema?">Sair</a>
+      </details>
     </div>
   </aside>
 
   <div class="top-header no-print">
     <div class="top-header-left">
+      <label for="nav-toggle" class="nav-toggle-label" title="Menu">☰</label>
       {% if empresa.nome %}
         <span class="empresa-tag">{{ empresa.nome }}</span>
       {% else %}
@@ -107,7 +174,7 @@
 
   <main class="content">
     {% if diagnostico and diagnostico.tem_alertas %}
-    <div class="flash flash-aviso" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <div class="flash flash-aviso no-print" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
       <span>⚠️ O diagnóstico automático detectou <strong>{{ diagnostico.contagens.values()|sum }}</strong> alerta(s) no sistema.</span>
       {% if current_user.perfil in ['Admin','Gerente'] %}
       <a href="{{ url_for('diagnostico_view') }}" class="btn btn-secondary" style="white-space:nowrap;padding:4px 10px;font-size:12px">Ver diagnóstico →</a>

@@ -14,19 +14,19 @@
 
 {% if tipo == 'Saida' %}
 <div class="panel form-panel">
-    <form method="POST" id="form-venda-multipla"
-        data-confirmar="Registar a venda? O stock será deduzido imediatamente."
-        data-confirmar-ok="Registar">
+    <form method="POST" id="form-venda-multipla">
+    <input type="hidden" name="token_envio" value="{{ token_envio }}">
     <h3>Dados do Cliente</h3>
     <div class="grid-form">
       <label>Cliente <span class="hint">(opcional)</span>
         <input type="text" name="cliente" maxlength="100">
       </label>
       <label>Forma de pagamento
-        <select name="forma_pagamento">
-          <option value="">—</option>
-          <option value="Dinheiro">Dinheiro</option>
+        <select name="forma_pagamento" required>
+          <option value="">Selecione…</option>
+          <option value="Dinheiro">Dinheiro (caixa)</option>
           <option value="M-Pesa">M-Pesa</option>
+          <option value="e-Mola">e-Mola</option>
           <option value="Cartão">Cartão</option>
           <option value="Transferência">Transferência</option>
         </select>
@@ -42,6 +42,11 @@
     <hr style="margin: 20px 0; border-color: var(--borda);">
 
     <h3>Produtos da Venda</h3>
+    <div class="pesq-produto">
+      <input type="search" id="pesqInput" placeholder="Pesquisar produto por nome ou código e carregar Enter para adicionar" autocomplete="off" aria-label="Pesquisar produto">
+      <div class="pesq-lista" id="pesqLista" role="listbox" hidden></div>
+    </div>
+    <p class="hint pesq-dica">Também pode escolher o produto na lista de cada linha.</p>
     <div id="itens-venda">
       <div class="venda-item-row" style="display:grid; grid-template-columns: 3fr 1fr 1.2fr 1.2fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px; padding:10px; background: var(--fundo-2, #f9f9f9); border-radius:6px;">
         <label>Produto *
@@ -327,6 +332,18 @@ document.getElementById('form-movimento').addEventListener('submit', function(e)
   });
   calcularTotal();
 })();
+</script>
+<script src="{{ url_for('static', filename='js/pesquisa_produto.js') }}"></script>
+<script>
+PesquisaProduto.iniciar({ input: '#pesqInput', lista: '#pesqLista', linha: '.venda-item-row', adicionar: '#adicionar-linha' });
+</script>
+<script src="{{ url_for('static', filename='js/venda_validacao.js') }}"></script>
+<script>
+VendaValidacao.iniciar(document.getElementById('form-venda-multipla'), {
+  linha: '.venda-item-row',
+  confirmar: 'Registar a venda? O stock será deduzido imediatamente.',
+  ok: 'Registar'
+});
 </script>
 {% endif %}
 {% endblock %}

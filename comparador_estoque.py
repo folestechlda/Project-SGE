@@ -50,6 +50,12 @@ def melhor_match(nome, produtos_bd, limiar=0.65):
 def _tentar_float(valor):
     if valor is None:
         return None
+    try:
+        from services import parse_numero_pt
+    except ImportError:          # uso isolado, fora da aplicação
+        parse_numero_pt = None
+    if parse_numero_pt is not None:
+        return parse_numero_pt(valor, milhares=True)
     s = str(valor).strip().replace(" ", "")
     s = s.replace(".", "").replace(",", ".") if ("," in s and "." in s) else s.replace(",", ".")
     try:

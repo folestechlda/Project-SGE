@@ -1,8 +1,8 @@
-﻿# FIX 1.3.3 - teste final
+# FIX 1.3.3 - teste final
 # FIX 1.3.3 - versao de teste
 # FIX 1.3.3 - versao de teste
 # -*- coding: utf-8 -*-
-"""MÃ³dulo services: regras de negÃ³cio e utilitÃ¡rios do SGE."""
+"""Módulo services: regras de negócio e utilitários do SGE."""
 import re
 import secrets
 import math
@@ -18,7 +18,7 @@ UNIDADES_DECIMAIS = ("kg",)
 
  
 # ---------------------------------------------------------------------------
-# UtilitÃ¡rios de arredondamento
+# Utilitários de arredondamento
 # ---------------------------------------------------------------------------
 def round5(valor, casas=2):
     try:
@@ -62,7 +62,7 @@ def arredondar_moeda(valor):
 
 
 # ---------------------------------------------------------------------------
-# ValidaÃ§Ãµes
+# Validações
 # ---------------------------------------------------------------------------
 def validar_senha(senha):
     if not senha or len(senha) < 8:
@@ -176,10 +176,10 @@ def consumir_token_recuperacao(conn, id_usuario):
 
 
 # ---------------------------------------------------------------------------
-# CÃ³digo de produto â€” SEQUENCIAL
+# Código de produto — SEQUENCIAL
 # ---------------------------------------------------------------------------
 def _proximo_numero_codigo(conn):
-    """Devolve o prÃ³ximo nÃºmero inteiro disponÃ­vel para um cÃ³digo PRD#####."""
+    """Devolve o próximo número inteiro disponível para um código PRD#####."""
     try:
         m1 = conn.execute(
             "SELECT COALESCE(MAX(CAST(SUBSTR(codigo, 4) AS INTEGER)), 0) AS m "
@@ -199,7 +199,7 @@ def _proximo_numero_codigo(conn):
     return max(int(m1), int(m2)) + 1
 
 def gerar_codigo_produto(conn):
-    """Gera o prÃ³ximo cÃ³digo PRD##### sequencial (nunca aleatÃ³rio)."""
+    """Gera o próximo código PRD##### sequencial (nunca aleatório)."""
     proximo = _proximo_numero_codigo(conn)
     while True:
         codigo = f"PRD{proximo:05d}"
@@ -214,9 +214,9 @@ def gerar_codigo_produto(conn):
         proximo += 1
 
 def reservar_codigo_provisorio(conn, sessao_id):
-    """Reserva um cÃ³digo provisÃ³rio para a sessÃ£o."""
-    # Limpa Ã³rfÃ£os antigos (>24h) â€” antes eram sÃ³ 1 min, causando troca
-    # de cÃ³digo inesperada entre abas abertas.
+    """Reserva um código provisório para a sessão."""
+    # Limpa órfãos antigos (>24h) — antes eram só 1 min, causando troca
+    # de código inesperada entre abas abertas.
     limite_limpeza = (datetime.now() - timedelta(hours=24)).isoformat(timespec="seconds")
     try:
         conn.execute(
@@ -268,17 +268,17 @@ def usar_codigo_provisorio(conn, sessao_id, codigo):
 
 
 # ---------------------------------------------------------------------------
-# ConversÃ£o de unidades
+# Conversão de unidades
 # ---------------------------------------------------------------------------
 def converter_para_unidade_base(quantidade_original, qtd_por_unidade, unidade_original="Unidade"):
     """Converte para unidade base. Aceita decimais apenas para kg."""
     if unidade_original not in UNIDADES_VALIDAS:
-        raise RegraNegocioError("Unidade invÃ¡lida.")
+        raise RegraNegocioError("Unidade inválida.")
 
     try:
         qtd_float = float(quantidade_original)
     except (TypeError, ValueError):
-        raise RegraNegocioError("Quantidade invÃ¡lida.")
+        raise RegraNegocioError("Quantidade inválida.")
     if not math.isfinite(qtd_float) or qtd_float <= 0:
         raise RegraNegocioError("Quantidade deve ser maior que zero.")
 
@@ -287,7 +287,7 @@ def converter_para_unidade_base(quantidade_original, qtd_por_unidade, unidade_or
 
     if not qtd_float.is_integer():
         raise RegraNegocioError(
-            f"Quantidade invÃ¡lida para '{unidade_original}': deve ser um nÃºmero inteiro."
+            f"Quantidade inválida para '{unidade_original}': deve ser um número inteiro."
         )
     qtd = int(qtd_float)
 
@@ -297,14 +297,14 @@ def converter_para_unidade_base(quantidade_original, qtd_por_unidade, unidade_or
     try:
         fator = int(qtd_por_unidade)
     except (TypeError, ValueError):
-        raise RegraNegocioError("Quantidade por unidade invÃ¡lida.")
+        raise RegraNegocioError("Quantidade por unidade inválida.")
     if fator <= 0:
         raise RegraNegocioError("Quantidade por unidade deve ser positiva.")
     return qtd * fator
 
 
 def saldo_atual(conn, id_produto):
-    """Devolve o saldo actual (sempre float â€” suporta kg)."""
+    """Devolve o saldo actual (sempre float — suporta kg)."""
     row = conn.execute("SELECT saldo_atual FROM estoque WHERE id_produto=?", (id_produto,)).fetchone()
     if not row:
         return 0.0
@@ -324,7 +324,7 @@ def _garantir_linha_estoque(conn, id_produto):
 
 
 # ---------------------------------------------------------------------------
-# AtualizaÃ§Ã£o de produto â†’ refletir no estoque
+# Atualização de produto → refletir no estoque
 # ---------------------------------------------------------------------------
 def atualizar_produto_refletir_estoque(conn, id_produto, dados_antigos, dados_novos):
     _garantir_linha_estoque(conn, id_produto)
@@ -352,7 +352,7 @@ def atualizar_produto_refletir_estoque(conn, id_produto, dados_antigos, dados_no
 
 
 # ---------------------------------------------------------------------------
-# CÃ³digo de seguranÃ§a
+# Código de segurança
 # ---------------------------------------------------------------------------
 def validar_codigo_alteracao_produto(codigo_fornecido):
     codigo_cadastrado = get_config("codigo_alteracao_produto", "")
@@ -365,7 +365,7 @@ def validar_codigo_alteracao_produto(codigo_fornecido):
 
 
 # ---------------------------------------------------------------------------
-# Registrar entrada (compra) â€” usa float (kg)
+# Registrar entrada (compra) — usa float (kg)
 # ---------------------------------------------------------------------------
 def registrar_entrada(conn, id_produto, quantidade_original, unidade_original,
                        preco_unitario, id_usuario, nota_fiscal=None,
@@ -374,21 +374,21 @@ def registrar_entrada(conn, id_produto, quantidade_original, unidade_original,
     if not validar_produto_cadastrado(conn, id_produto):
         raise RegraNegocioError("Selecione um produto cadastrado e ativo.")
     if unidade_original not in UNIDADES_VALIDAS:
-        raise RegraNegocioError("Unidade invÃ¡lida.")
+        raise RegraNegocioError("Unidade inválida.")
 
     produto = conn.execute("SELECT * FROM produtos WHERE id_produto=?", (id_produto,)).fetchone()
     if not produto:
-        raise RegraNegocioError("Produto nÃ£o encontrado.")
+        raise RegraNegocioError("Produto não encontrado.")
 
-    # FIX: aceita tambÃ©m o caso em que o produto Ã© 'kg' e a unidade escolhida
-    # Ã© 'kg', mas rejeita produtos NÃƒO-kg a serem movimentados em kg.
+    # FIX: aceita também o caso em que o produto é 'kg' e a unidade escolhida
+    # é 'kg', mas rejeita produtos NÃO-kg a serem movimentados em kg.
     if unidade_original == "kg" and produto["unidade"] != "kg":
         raise RegraNegocioError(
-            f"Produto em '{produto['unidade']}' nÃ£o pode ser movimentado em kg."
+            f"Produto em '{produto['unidade']}' não pode ser movimentado em kg."
         )
     if produto["unidade"] in ("Unidade", "kg") and unidade_original != produto["unidade"]:
         raise RegraNegocioError(
-            f"Este produto sÃ³ pode ser movimentado em '{produto['unidade']}'."
+            f"Este produto só pode ser movimentado em '{produto['unidade']}'."
         )
 
     qtd_base = converter_para_unidade_base(
@@ -399,9 +399,9 @@ def registrar_entrada(conn, id_produto, quantidade_original, unidade_original,
     try:
         preco_float = float(preco_unitario)
     except (TypeError, ValueError):
-        raise RegraNegocioError("PreÃ§o unitÃ¡rio invÃ¡lido.")
+        raise RegraNegocioError("Preço unitário inválido.")
     if preco_float < 0:
-        raise RegraNegocioError("PreÃ§o unitÃ¡rio nÃ£o pode ser negativo.")
+        raise RegraNegocioError("Preço unitário não pode ser negativo.")
 
     qtd_original_num = float(quantidade_original)
     valor_total = arredondar_moeda(qtd_original_num * preco_float)
@@ -467,42 +467,43 @@ def registrar_entrada(conn, id_produto, quantidade_original, unidade_original,
 
 
 # ---------------------------------------------------------------------------
-# Registrar saÃ­da (venda)
+# Registrar saída (venda)
 # ---------------------------------------------------------------------------
 def registrar_saida(conn, id_produto, quantidade_original, unidade_original,
                      preco_unitario, id_usuario, cliente=None, forma_pagamento=None,
-                     observacoes=None, data_hora=None, ip_address=None, commit=True):
-    """Regista uma saÃ­da. Com commit=False a transacÃ§Ã£o fica aberta para o
-    chamador (usado em vendas com vÃ¡rios itens, que tÃªm de ser atÃ³micas)."""
+                     observacoes=None, data_hora=None, ip_address=None, commit=True,
+                     codigo_venda=None):
+    """Regista uma saída. Com commit=False a transacção fica aberta para o
+    chamador (usado em vendas com vários itens, que têm de ser atómicas)."""
     if not validar_produto_cadastrado(conn, id_produto):
         raise RegraNegocioError("Selecione um produto cadastrado e ativo.")
     if unidade_original not in UNIDADES_VALIDAS:
-        raise RegraNegocioError("Unidade invÃ¡lida.")
+        raise RegraNegocioError("Unidade inválida.")
 
     produto = conn.execute("SELECT * FROM produtos WHERE id_produto=?", (id_produto,)).fetchone()
     if not produto:
-        raise RegraNegocioError("Produto nÃ£o encontrado.")
+        raise RegraNegocioError("Produto não encontrado.")
 
     if unidade_original == "kg" and produto["unidade"] != "kg":
         raise RegraNegocioError(
-            f"Produto em '{produto['unidade']}' nÃ£o pode ser movimentado em kg."
+            f"Produto em '{produto['unidade']}' não pode ser movimentado em kg."
         )
     if produto["unidade"] in ("Unidade", "kg") and unidade_original != produto["unidade"]:
         raise RegraNegocioError(
-            f"Este produto sÃ³ pode ser movimentado em '{produto['unidade']}'."
+            f"Este produto só pode ser movimentado em '{produto['unidade']}'."
         )
 
     qtd_base = converter_para_unidade_base(
         quantidade_original, produto["qtd_por_unidade"], unidade_original)
     if qtd_base <= 0:
-        raise RegraNegocioError("Quantidade de saÃ­da deve ser maior que zero.")
+        raise RegraNegocioError("Quantidade de saída deve ser maior que zero.")
 
     try:
         preco_float = float(preco_unitario)
     except (TypeError, ValueError):
-        raise RegraNegocioError("PreÃ§o unitÃ¡rio invÃ¡lido.")
+        raise RegraNegocioError("Preço unitário inválido.")
     if preco_float < 0:
-        raise RegraNegocioError("PreÃ§o unitÃ¡rio nÃ£o pode ser negativo.")
+        raise RegraNegocioError("Preço unitário não pode ser negativo.")
 
     qtd_original_num = float(quantidade_original)
     valor_total = arredondar_moeda(qtd_original_num * preco_float)
@@ -535,16 +536,20 @@ def registrar_saida(conn, id_produto, quantidade_original, unidade_original,
             if commit:
                 conn.rollback()
             raise RegraNegocioError(
-                f"Estoque insuficiente. Saldo atual: {saldo}, solicitado: {qtd_base}."
+                f"Estoque insuficiente para '{produto['nome']}'. "
+                f"Disponível: {_descrever_qtd(produto, unidade_original, saldo)}; "
+                f"pedido: {_descrever_qtd(produto, unidade_original, qtd_base)}."
             )
 
     cur = conn.execute(
         """INSERT INTO movimentos
            (tipo, id_produto, data_hora, quantidade, quantidade_original, unidade_original,
-            preco_unitario, valor_total, id_usuario, cliente, forma_pagamento, observacoes, lucro)
-           VALUES ('Saida',?,?,?,?,?,?,?,?,?,?,?,?)""",
+            preco_unitario, valor_total, id_usuario, cliente, forma_pagamento, observacoes, lucro,
+            codigo_venda)
+           VALUES ('Saida',?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (id_produto, data_hora, qtd_base, qtd_original_num, unidade_original,
-         preco_unitario_base, valor_total, id_usuario, cliente, forma_pagamento, observacoes, lucro),
+         preco_unitario_base, valor_total, id_usuario, cliente, forma_pagamento, observacoes, lucro,
+         codigo_venda),
     )
     movimento_id = cur.lastrowid
 
@@ -559,11 +564,179 @@ def registrar_saida(conn, id_produto, quantidade_original, unidade_original,
     novo_saldo = saldo - qtd_base
     alerta_minimo = novo_saldo < produto["estoque_minimo"]
     return {"qtd_base": qtd_base, "novo_saldo": novo_saldo, "alerta_minimo": alerta_minimo,
-            "id_movimento": movimento_id}
+            "id_movimento": movimento_id, "codigo_venda": codigo_venda}
 
 
 # ---------------------------------------------------------------------------
-# SituaÃ§Ã£o do estoque / alertas
+# Validação prévia de vendas (sem gravar) e gravação atómica
+# ---------------------------------------------------------------------------
+_ROTULO_UNIDADE = {"Unidade": "un", "kg": "kg", "Caixa": "cx", "Embalagem": "emb"}
+
+
+def _descrever_qtd(produto, unidade, qtd_base):
+    """'2 cx (48 un)', '2,5 kg', '45 un': a quantidade na unidade que o utilizador usou."""
+    rotulo = _ROTULO_UNIDADE.get(unidade, unidade)
+    qpu = float(produto["qtd_por_unidade"] or 1)
+    base = round(float(qtd_base), 3)
+    if unidade in ("Caixa", "Embalagem") and qpu > 1:
+        return f"{round(base / qpu, 3):g} {rotulo} ({base:g} un)"
+    return f"{base:g} {rotulo}"
+
+
+def validar_itens_venda(conn, itens):
+    """Valida TODAS as linhas de uma venda sem gravar nada.
+
+    itens: lista de dicts {linha, id_produto, quantidade, unidade, preco_unitario}.
+    Devolve (erros, avisos). Cada entrada tem linha, produto, codigo, campo e
+    mensagem. Erros bloqueiam a venda; avisos pedem confirmação (margem negativa,
+    preço zero). As linhas do mesmo produto somam-se ao verificar o estoque.
+    """
+    erros, avisos = [], []
+    consumo = {}
+    permitir_negativo = get_config("permitir_estoque_negativo", "0") == "1"
+
+    for it in itens:
+        linha = it.get("linha")
+        produto = None
+
+        def erro(campo, mensagem):
+            erros.append({
+                "linha": linha, "campo": campo, "mensagem": mensagem,
+                "id_produto": it.get("id_produto"),
+                "produto": produto["nome"] if produto else None,
+                "codigo": produto["codigo"] if produto else None,
+            })
+
+        if not validar_produto_cadastrado(conn, it.get("id_produto")):
+            erro("produto", "Produto inválido ou inativo.")
+            continue
+        produto = conn.execute("SELECT * FROM produtos WHERE id_produto=?",
+                               (int(it["id_produto"]),)).fetchone()
+        unidade = it.get("unidade")
+        if unidade not in UNIDADES_VALIDAS:
+            erro("unidade", "Unidade inválida.")
+            continue
+        if unidade == "kg" and produto["unidade"] != "kg":
+            erro("unidade", f"Produto em '{produto['unidade']}' não pode ser vendido em kg.")
+            continue
+        if produto["unidade"] in ("Unidade", "kg") and unidade != produto["unidade"]:
+            erro("unidade", f"Este produto só pode ser vendido em '{produto['unidade']}'.")
+            continue
+        try:
+            qtd_base = converter_para_unidade_base(
+                it.get("quantidade"), produto["qtd_por_unidade"], unidade)
+        except RegraNegocioError as e:
+            erro("quantidade", str(e))
+            continue
+        if qtd_base <= 0:
+            erro("quantidade", "A quantidade deve ser maior que zero.")
+            continue
+        try:
+            preco = float(it.get("preco_unitario"))
+        except (TypeError, ValueError):
+            erro("preco", "Preço unitário inválido.")
+            continue
+        if preco < 0:
+            erro("preco", "O preço unitário não pode ser negativo.")
+            continue
+
+        if not permitir_negativo:
+            row = conn.execute("SELECT saldo_atual FROM estoque WHERE id_produto=?",
+                               (produto["id_produto"],)).fetchone()
+            saldo = float(row["saldo_atual"] or 0) if row else 0.0
+            ja_pedido = consumo.get(produto["id_produto"], 0.0)
+            if ja_pedido + qtd_base > saldo + 1e-9:
+                msg = (f"Estoque insuficiente. Disponível: {_descrever_qtd(produto, unidade, saldo)}; "
+                       f"pedido nesta linha: {_descrever_qtd(produto, unidade, qtd_base)}")
+                if ja_pedido:
+                    msg += f", mais {_descrever_qtd(produto, unidade, ja_pedido)} noutras linhas do mesmo produto"
+                erro("quantidade", msg + ".")
+                continue
+        consumo[produto["id_produto"]] = consumo.get(produto["id_produto"], 0.0) + qtd_base
+
+        valor_total = arredondar_moeda(float(it["quantidade"]) * preco)
+        custo_real = float(produto["ultimo_preco_entrada"] or produto["preco_custo"] or 0)
+        lucro = arredondar_moeda(valor_total - arredondar_moeda(custo_real * qtd_base))
+        base_aviso = {"linha": linha, "id_produto": produto["id_produto"],
+                      "produto": produto["nome"], "codigo": produto["codigo"], "campo": "preco"}
+        if preco == 0:
+            avisos.append({**base_aviso, "mensagem": "Preço 0,00: a venda fica sem receita."})
+        elif custo_real > 0 and lucro < 0:
+            avisos.append({**base_aviso, "mensagem":
+                           f"Margem negativa: prejuízo de {abs(lucro):.2f}. "
+                           f"Confirme se o preço corresponde à unidade vendida ({unidade})."})
+    return erros, avisos
+
+
+def registrar_tentativa_falhada(conn, id_usuario, tipo, erros, ip_address=None):
+    """Deixa rasto na auditoria de uma venda que não foi registada."""
+    resumo = [{"linha": e.get("linha"), "produto": e.get("produto"), "mensagem": e.get("mensagem")}
+              for e in erros][:20]
+    registrar_auditoria(conn, id_usuario, "venda_falhada", None, "INSERT",
+                        None, {"tipo": tipo, "erros": resumo}, ip_address)
+    conn.commit()
+
+
+def processar_venda_vista(conn, itens, id_usuario, erros_previos=None, cliente=None,
+                          forma_pagamento=None, observacoes=None, data_hora=None,
+                          ip_address=None, confirmar_avisos=False, apenas_validar=False):
+    """Valida e (se tudo estiver certo) regista uma venda à vista, numa só transacção.
+
+    estado: 'erros' (nada gravado), 'confirmacao' (há avisos por confirmar, nada
+    gravado), 'validada' (apenas_validar) ou 'ok'. Se uma linha falhar durante a
+    gravação (ex.: outro utilizador vendeu o mesmo produto entretanto), a transacção
+    é desfeita e a linha é devolvida em 'erros', para o utilizador corrigir.
+    """
+    erros, avisos = validar_itens_venda(conn, itens)
+    erros = list(erros_previos or []) + erros
+    erros.sort(key=lambda e: (e.get("linha") is None, e.get("linha") or 0))
+    if erros:
+        if not apenas_validar:
+            registrar_tentativa_falhada(conn, id_usuario, "venda_vista", erros, ip_address)
+        return {"estado": "erros", "erros": erros, "avisos": avisos}
+    if apenas_validar:
+        return {"estado": "validada", "erros": [], "avisos": avisos}
+    if avisos and not confirmar_avisos:
+        return {"estado": "confirmacao", "erros": [], "avisos": avisos}
+
+    alertas_minimo, margens_negativas, linha_atual = [], [], None
+    codigo_venda = proximo_codigo_venda(conn)
+    try:
+        for it in itens:
+            linha_atual = it
+            res = registrar_saida(
+                conn, id_produto=int(it["id_produto"]), quantidade_original=it["quantidade"],
+                unidade_original=it["unidade"], preco_unitario=it["preco_unitario"],
+                id_usuario=id_usuario, cliente=cliente, forma_pagamento=forma_pagamento,
+                observacoes=observacoes, data_hora=data_hora, ip_address=ip_address,
+                commit=False, codigo_venda=codigo_venda)
+            if res["alerta_minimo"]:
+                alertas_minimo.append(int(it["id_produto"]))
+            mov = conn.execute(
+                "SELECT m.lucro, p.nome FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto "
+                "WHERE m.id_movimento=?", (res["id_movimento"],)).fetchone()
+            if mov and float(mov["lucro"] or 0) < 0:
+                margens_negativas.append((mov["nome"], float(mov["lucro"])))
+        conn.commit()
+    except RegraNegocioError as e:
+        conn.rollback()
+        prod = conn.execute("SELECT nome, codigo FROM produtos WHERE id_produto=?",
+                            (linha_atual["id_produto"],)).fetchone() if linha_atual else None
+        erros = [{"linha": linha_atual.get("linha") if linha_atual else None, "campo": "quantidade",
+                  "mensagem": str(e), "id_produto": linha_atual.get("id_produto") if linha_atual else None,
+                  "produto": prod["nome"] if prod else None, "codigo": prod["codigo"] if prod else None}]
+        registrar_tentativa_falhada(conn, id_usuario, "venda_vista", erros, ip_address)
+        return {"estado": "erros", "erros": erros, "avisos": avisos}
+    except Exception:
+        conn.rollback()
+        raise
+    return {"estado": "ok", "erros": [], "avisos": avisos, "sucessos": len(itens),
+            "codigo_venda": codigo_venda,
+            "alertas_minimo": alertas_minimo, "margens_negativas": margens_negativas}
+
+
+# ---------------------------------------------------------------------------
+# Situação do estoque / alertas
 # ---------------------------------------------------------------------------
 def situacao_estoque(saldo, minimo, maximo):
     if saldo < (minimo or 0):
@@ -634,7 +807,7 @@ def sugestoes_precos(conn, dias=30):
 
 
 # ---------------------------------------------------------------------------
-# Balancete â€” usa float (kg)
+# Balancete — usa float (kg)
 # ---------------------------------------------------------------------------
 def calcular_balancete(conn, periodo, data_inicio, data_fim, id_categoria=None, id_produto=None):
     dt_ini = data_inicio + "T00:00:00"
@@ -729,7 +902,7 @@ def calcular_balancete(conn, periodo, data_inicio, data_fim, id_categoria=None, 
             "id_produto": idp,
             "codigo": p["codigo"],
             "produto": p["nome"],
-            "categoria": p["categoria_nome"] or "â€”",
+            "categoria": p["categoria_nome"] or "—",
             "unidade": p["unidade"],
             "saldo_inicial": saldo_ini,
             "saldo_inicial_qtd": saldo_ini,
@@ -789,13 +962,26 @@ def calcular_extrato_categoria(conn, id_categoria, data_inicio, data_fim):
     ).fetchall()
 
     linhas = []
-    saldo = 0.0
+    # O saldo é por produto (kg, caixas e unidades não se somam) e parte do saldo
+    # acumulado até ao dia anterior ao período, nunca de zero.
+    saldos = {
+        r["id_produto"]: round(float(r["s"] or 0), 3)
+        for r in conn.execute(
+            """SELECT m.id_produto,
+                      SUM(CASE WHEN m.tipo='Entrada' THEN m.quantidade ELSE -m.quantidade END) AS s
+               FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
+               WHERE p.id_categoria=? AND m.data_hora < ?
+               GROUP BY m.id_produto""",
+            (id_categoria, dt_ini),
+        ).fetchall()
+    }
     entradas_acum = 0.0
     saidas_acum = 0.0
     for m in movs:
         sinal = 1 if m["tipo"] == "Entrada" else -1
         qtd = round(float(m["quantidade"] or 0), 3)
-        saldo = round(saldo + sinal * qtd, 3)
+        saldo_prod = round(saldos.get(m["id_produto"], 0.0) + sinal * qtd, 3)
+        saldos[m["id_produto"]] = saldo_prod
         if m["tipo"] == "Entrada":
             entradas_acum += float(m["valor_total"] or 0)
         else:
@@ -809,18 +995,20 @@ def calcular_extrato_categoria(conn, id_categoria, data_inicio, data_fim):
             "unidade": m["unidade_original"],
             "preco_unitario": arredondar_moeda(m["preco_unitario"]),
             "valor_total": arredondar_moeda(m["valor_total"]),
-            "saldo_acumulado": saldo,
+            "saldo_acumulado": saldo_prod,
             "entradas_acum_valor": arredondar_moeda(entradas_acum),
             "saidas_acum_valor": arredondar_moeda(saidas_acum),
         })
-    return linhas, saldo, arredondar_moeda(entradas_acum), arredondar_moeda(saidas_acum)
+    # O 2.º valor (saldo em quantidade da categoria) deixou de existir: seria uma
+    # soma de unidades diferentes. Mantém-se None para não partir os chamadores.
+    return linhas, None, arredondar_moeda(entradas_acum), arredondar_moeda(saidas_acum)
 
 
 # ---------------------------------------------------------------------------
-# Extrato por produto (cronolÃ³gico)
+# Extrato por produto (cronológico)
 # ---------------------------------------------------------------------------
 def calcular_extrato_produto(conn, id_produto, data_inicio, data_fim):
-    """Extrato cronolÃ³gico de um produto."""
+    """Extrato cronológico de um produto."""
     produto = conn.execute(
         "SELECT * FROM produtos WHERE id_produto=?", (id_produto,)
     ).fetchone()
@@ -873,7 +1061,7 @@ def calcular_extrato_produto(conn, id_produto, data_inicio, data_fim):
         linhas.append({
             "data_hora": m["data_hora"],
             "tipo": m["tipo"],
-            "documento": m["nota_fiscal"] or "â€”",
+            "documento": m["nota_fiscal"] or "—",
             "quantidade_original": qtd_orig,
             "unidade_original": m["unidade_original"],
             "quantidade_base": qtd_base,
@@ -881,8 +1069,8 @@ def calcular_extrato_produto(conn, id_produto, data_inicio, data_fim):
             "valor_total": arredondar_moeda(valor),
             "lucro": arredondar_moeda(m["lucro"] or 0),
             "saldo_acumulado": saldo,
-            "terceiro": m["fornecedor"] or m["cliente"] or "â€”",
-            "usuario": m["usuario_nome"] or "â€”",
+            "terceiro": m["fornecedor"] or m["cliente"] or "—",
+            "usuario": m["usuario_nome"] or "—",
         })
 
     resumo = {
@@ -900,17 +1088,63 @@ def calcular_extrato_produto(conn, id_produto, data_inicio, data_fim):
 
 
 # ---------------------------------------------------------------------------
-# CotaÃ§Ãµes
+# Cotações
 # ---------------------------------------------------------------------------
+def parse_numero_pt(valor, milhares=True):
+    """Converte texto em número aceitando o formato português ('1.500,50').
+
+    milhares=True  (dinheiro): '1.500' = 1500  (1 a 3 dígitos, ponto, exactamente 3 dígitos).
+    milhares=False (quantidades, taxas): um único ponto é decimal, '2.500' = 2,5 (balança).
+    A vírgula é sempre decimal. Devolve None se não for um número.
+    """
+    if valor is None or isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        return float(valor)
+    s = str(valor).strip().replace(" ", "").replace("\u00a0", "")
+    if not s:
+        return None
+    tem_v, tem_p = "," in s, "." in s
+    if tem_v and tem_p:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")      # 1.500,50
+        else:
+            s = s.replace(",", "")                        # 1,500.50
+    elif tem_v:
+        s = s.replace(",", "") if s.count(",") > 1 else s.replace(",", ".")
+    elif tem_p:
+        inteiro, _, frac = s.rpartition(".")
+        so_milhares = s.count(".") > 1 or (
+            len(frac) == 3 and inteiro.lstrip("+-").isdigit()
+            and 1 <= len(inteiro.lstrip("+-")) <= 3 and inteiro.lstrip("+-").lstrip("0") != ""
+        )
+        if milhares and so_milhares:
+            s = s.replace(".", "")
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def qtd_relatorio(valor):
+    """Quantidade para relatórios e exports: inteira quando possível, sem truncar
+    produtos vendidos ao peso (2,5 kg não pode aparecer como 2)."""
+    try:
+        q = float(valor or 0)
+    except (TypeError, ValueError):
+        return 0
+    return int(q) if q.is_integer() else round(q, 3)
+
+
 def _qtd_cotacao(valor):
-    """Quantidade de um item de cotaÃ§Ã£o: inteira quando possÃ­vel, mas sem
-    truncar produtos vendidos ao peso (2,5 kg nÃ£o pode virar 2)."""
+    """Quantidade de um item de cotação: inteira quando possível, mas sem
+    truncar produtos vendidos ao peso (2,5 kg não pode virar 2)."""
     qtd = float(valor)
     return int(qtd) if qtd.is_integer() else qtd
 
 
 def _maior_sufixo_numerico(conn, tabela, coluna):
-    """Maior nÃºmero no fim de cÃ³digos como 'COT-0007' (0 se nÃ£o houver)."""
+    """Maior número no fim de códigos como 'COT-0007' (0 se não houver)."""
     maior = 0
     for (valor,) in conn.execute(f"SELECT {coluna} FROM {tabela}").fetchall():
         m = re.search(r"(\d+)\s*$", str(valor or ""))
@@ -937,7 +1171,7 @@ def _calcular_total_itens(itens):
 def criar_cotacao(conn, id_usuario, cliente_nome, cliente_email=None, cliente_telefone=None,
                   data_validade=None, observacoes=None, itens=None):
     if not itens:
-        raise RegraNegocioError("A cotaÃ§Ã£o deve ter pelo menos um item.")
+        raise RegraNegocioError("A cotação deve ter pelo menos um item.")
 
     numero = gerar_numero_cotacao(conn)
     data_emissao = datetime.now().isoformat(timespec="seconds")
@@ -995,11 +1229,11 @@ def atualizar_cotacao(conn, id_cotacao, id_usuario, cliente_nome,
                       data_validade=None, observacoes=None, itens=None):
     cotacao = conn.execute("SELECT * FROM cotacoes WHERE id_cotacao=?", (id_cotacao,)).fetchone()
     if not cotacao:
-        raise RegraNegocioError("CotaÃ§Ã£o nÃ£o encontrada.")
+        raise RegraNegocioError("Cotação não encontrada.")
     if cotacao["status"] != "Aberta":
-        raise RegraNegocioError("Apenas cotaÃ§Ãµes abertas podem ser editadas.")
+        raise RegraNegocioError("Apenas cotações abertas podem ser editadas.")
     if not itens:
-        raise RegraNegocioError("A cotaÃ§Ã£o deve ter pelo menos um item.")
+        raise RegraNegocioError("A cotação deve ter pelo menos um item.")
 
     if not data_validade:
         data_validade = cotacao["data_validade"]
@@ -1040,9 +1274,9 @@ def atualizar_cotacao(conn, id_cotacao, id_usuario, cliente_nome,
 def atualizar_status_cotacao(conn, id_cotacao, novo_status, id_usuario):
     cotacao = conn.execute("SELECT * FROM cotacoes WHERE id_cotacao=?", (id_cotacao,)).fetchone()
     if not cotacao:
-        raise RegraNegocioError("CotaÃ§Ã£o nÃ£o encontrada.")
+        raise RegraNegocioError("Cotação não encontrada.")
     if cotacao["status"] in ("Aprovada", "Rejeitada", "Convertida"):
-        raise RegraNegocioError("CotaÃ§Ã£o jÃ¡ estÃ¡ finalizada.")
+        raise RegraNegocioError("Cotação já está finalizada.")
     conn.execute("UPDATE cotacoes SET status=? WHERE id_cotacao=?", (novo_status, id_cotacao))
     registrar_auditoria(conn, id_usuario, "cotacoes", id_cotacao, "UPDATE",
                         {"status": cotacao["status"]}, {"status": novo_status}, None)
@@ -1050,15 +1284,16 @@ def atualizar_status_cotacao(conn, id_cotacao, novo_status, id_usuario):
 
 
 def converter_cotacao_em_venda(conn, id_cotacao, id_usuario):
-    """Converte uma cotaÃ§Ã£o APROVADA em vendas (saÃ­das), de forma atÃ³mica."""
+    """Converte uma cotação APROVADA em vendas (saídas), de forma atómica."""
     res = obter_cotacao(conn, id_cotacao)
     if not res:
-        raise RegraNegocioError("CotaÃ§Ã£o nÃ£o encontrada.")
+        raise RegraNegocioError("Cotação não encontrada.")
     cotacao, itens = res
     if cotacao["status"] != "Aprovada":
-        raise RegraNegocioError("Apenas cotaÃ§Ãµes aprovadas podem ser convertidas em venda.")
+        raise RegraNegocioError("Apenas cotações aprovadas podem ser convertidas em venda.")
 
     vendas = _itens_cotacao_para_venda(conn, itens)
+    codigo_venda = proximo_codigo_venda(conn)
     try:
         for item in vendas:
             registrar_saida(
@@ -1069,9 +1304,10 @@ def converter_cotacao_em_venda(conn, id_cotacao, id_usuario):
                 preco_unitario=item["preco_unitario"],
                 id_usuario=id_usuario,
                 cliente=cotacao["nome_cliente"],
-                observacoes=f"Venda gerada da cotaÃ§Ã£o {cotacao['numero']}",
+                observacoes=f"Venda gerada da cotação {cotacao['numero']}",
                 ip_address=None,
                 commit=False,
+                codigo_venda=codigo_venda,
             )
         conn.execute("UPDATE cotacoes SET status='Convertida' WHERE id_cotacao=?",
                      (id_cotacao,))
@@ -1084,12 +1320,12 @@ def converter_cotacao_em_venda(conn, id_cotacao, id_usuario):
 
 
 # ---------------------------------------------------------------------------
-# Reset / formataÃ§Ã£o da base de dados
+# Reset / formatação da base de dados
 # ---------------------------------------------------------------------------
 NIVEIS_RESET = {
-    "movimentos": "Apagar apenas movimentos (mantÃ©m catÃ¡logo e usuÃ¡rios)",
-    "catalogo":   "Apagar movimentos + catÃ¡logo (mantÃ©m usuÃ¡rios e configuraÃ§Ãµes)",
-    "total":      "Reset total â€” volta ao estado de fÃ¡brica",
+    "movimentos": "Apagar apenas movimentos (mantém catálogo e usuários)",
+    "catalogo":   "Apagar movimentos + catálogo (mantém usuários e configurações)",
+    "total":      "Reset total — volta ao estado de fábrica",
 }
 
 
@@ -1101,7 +1337,7 @@ def _checkpoint_wal(conn):
 
 
 def fazer_backup_automatico(motivo="pre_reset"):
-    """CÃ³pia consistente da base de dados (API de backup do SQLite)."""
+    """Cópia consistente da base de dados (API de backup do SQLite)."""
     import os
     from database import get_base_dir, copiar_base_dados
     try:
@@ -1175,12 +1411,12 @@ def _reset_total(conn):
 
 def formatar_base_dados(conn, nivel, id_usuario_admin, ip_address=None):
     if nivel not in NIVEIS_RESET:
-        raise RegraNegocioError("NÃ­vel de reset invÃ¡lido.")
+        raise RegraNegocioError("Nível de reset inválido.")
 
     backup_path = fazer_backup_automatico(motivo=f"pre_reset_{nivel}")
     if not backup_path:
         raise RegraNegocioError(
-            "NÃ£o foi possÃ­vel criar o backup de seguranÃ§a. Reset cancelado â€” "
+            "Não foi possível criar o backup de segurança. Reset cancelado — "
             "nada foi apagado.")
 
     try:
@@ -1202,11 +1438,104 @@ def formatar_base_dados(conn, nivel, id_usuario_admin, ip_address=None):
 
 
 # ---------------------------------------------------------------------------
-# Vendas a CrÃ©dito / Contas a Receber / Recibos
+# Vendas a Crédito / Contas a Receber / Recibos
 # ---------------------------------------------------------------------------
 def gerar_numero_recibo(conn):
     prox = _maior_sufixo_numerico(conn, "recibos", "numero") + 1
     return f"REC-{prox:05d}"
+
+
+def proximo_codigo_venda(conn):
+    """Código curto e sequencial de uma venda à vista: V-000123."""
+    n = 0
+    for sql in ("SELECT MAX(CAST(SUBSTR(codigo_venda,3) AS INTEGER)) m FROM movimentos WHERE codigo_venda LIKE 'V-%'",
+                "SELECT MAX(CAST(SUBSTR(codigo_venda,3) AS INTEGER)) m FROM vendas_anuladas WHERE codigo_venda LIKE 'V-%'"):
+        r = conn.execute(sql).fetchone()
+        n = max(n, int(r["m"] or 0))
+    return f"V-{n + 1:06d}"
+
+
+def obter_venda_por_codigo(conn, codigo):
+    """Itens de uma venda (à vista ou fatura) a partir do código. None se não existir."""
+    codigo = (codigo or "").strip()
+    if not codigo:
+        return None
+    rows = conn.execute(
+        """SELECT m.*, p.nome AS produto_nome, p.codigo AS produto_codigo, p.preco_custo,
+                  u.nome AS usuario_nome
+           FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
+           LEFT JOIN usuarios u ON u.id_usuario=m.id_usuario
+           WHERE m.tipo='Saida' AND UPPER(m.codigo_venda)=UPPER(?) ORDER BY m.id_movimento""",
+        (codigo,)).fetchall()
+    if not rows:
+        return None
+    conta = conn.execute(
+        """SELECT * FROM contas_receber WHERE UPPER(numero_fatura)=UPPER(?)""", (codigo,)).fetchone()
+    return {"codigo": rows[0]["codigo_venda"], "itens": [dict(r) for r in rows],
+            "total": round(sum(float(r["valor_total"] or 0) for r in rows), 2),
+            "data": rows[0]["data_hora"], "cliente": rows[0]["cliente"],
+            "forma": rows[0]["forma_pagamento"], "id_usuario": rows[0]["id_usuario"],
+            "usuario": rows[0]["usuario_nome"], "conta": dict(conta) if conta else None}
+
+
+def anular_venda(conn, codigo, motivo, id_usuario, perfil, ip_address=None):
+    """Anula uma venda pelo código: repõe o estoque e guarda o registo da anulação.
+
+    Operador: só vendas próprias e do próprio dia. Gerente/Admin: qualquer venda.
+    Faturas a crédito com recibos não podem ser anuladas."""
+    from database import registrar_auditoria
+    motivo = (motivo or "").strip()
+    if len(motivo) < 5:
+        raise RegraNegocioError("Indique o motivo da anulação (mínimo 5 caracteres).")
+    venda = obter_venda_por_codigo(conn, codigo)
+    if not venda:
+        raise RegraNegocioError(f"Não existe nenhuma venda com o código '{(codigo or '').strip()}'.")
+    if perfil not in ("Admin", "Gerente"):
+        if venda["id_usuario"] != id_usuario:
+            raise RegraNegocioError("Só pode anular vendas registadas por si. Peça a um Gerente.")
+        if (venda["data"] or "")[:10] != datetime.now().date().isoformat():
+            raise RegraNegocioError("Só pode anular vendas do próprio dia. Peça a um Gerente.")
+
+    conta = venda["conta"]
+    if conta:
+        n_rec = conn.execute("SELECT COUNT(*) c FROM recibos WHERE id_conta=?",
+                             (conta["id_conta"],)).fetchone()["c"]
+        if n_rec or float(conta["valor_pago"] or 0) > 0.001:
+            raise RegraNegocioError("Esta fatura já tem pagamentos registados e não pode ser anulada.")
+
+    agora = datetime.now().isoformat(timespec="seconds")
+    itens_snap = [{"produto": i["produto_nome"], "codigo": i["produto_codigo"],
+                   "quantidade": i["quantidade_original"], "unidade": i["unidade_original"],
+                   "preco": i["preco_unitario"], "valor": i["valor_total"], "lucro": i["lucro"]}
+                  for i in venda["itens"]]
+    custo_total = round(sum(float(i["valor_total"] or 0) - float(i["lucro"] or 0) for i in venda["itens"]), 2)
+    try:
+        for i in venda["itens"]:
+            _garantir_linha_estoque(conn, i["id_produto"])
+            conn.execute("UPDATE estoque SET saldo_atual = saldo_atual + ?, ultima_atualizacao=? WHERE id_produto=?",
+                         (i["quantidade"], agora, i["id_produto"]))
+        ids = [i["id_movimento"] for i in venda["itens"]]
+        marcas = ",".join("?" * len(ids))
+        if conta:
+            conn.execute("DELETE FROM contas_receber_itens WHERE id_conta=?", (conta["id_conta"],))
+            conn.execute("DELETE FROM contas_receber WHERE id_conta=?", (conta["id_conta"],))
+        conn.execute(f"DELETE FROM movimentos WHERE id_movimento IN ({marcas})", ids)
+        cur = conn.execute(
+            """INSERT INTO vendas_anuladas (codigo_venda, tipo, id_conta, cliente, forma_pagamento, data_venda,
+                   valor_total, custo_total, itens_json, motivo, id_usuario_venda, id_usuario_anulou, data_anulacao)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (venda["codigo"], "Credito" if conta else "Vista", conta["id_conta"] if conta else None,
+             venda["cliente"], venda["forma"], venda["data"], venda["total"], custo_total,
+             __import__("json").dumps(itens_snap, ensure_ascii=False), motivo,
+             venda["id_usuario"], id_usuario, agora))
+        registrar_auditoria(conn, id_usuario, "vendas_anuladas", cur.lastrowid, "INSERT", None,
+                            {"codigo": venda["codigo"], "valor": venda["total"], "motivo": motivo,
+                             "itens": itens_snap}, ip_address)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"codigo": venda["codigo"], "valor": venda["total"], "itens": len(venda["itens"])}
 
 
 def gerar_numero_fatura(conn):
@@ -1222,16 +1551,16 @@ def registrar_venda_credito(conn, itens, id_usuario, nome_cliente,
                              isento_iva=False, taxa_iva=None,
                              observacoes=None, data_venda=None,
                              ip_address=None, commit=True):
-    """Cria UMA fatura (conta_receber) com vÃ¡rios itens e devolve o resumo.
+    """Cria UMA fatura (conta_receber) com vários itens e devolve o resumo.
 
-    Ã‰ atÃ³mica: ou grava tudo (saÃ­das de stock, fatura, itens, nÃºmero e
-    auditoria) ou nÃ£o grava nada."""
+    É atómica: ou grava tudo (saídas de stock, fatura, itens, número e
+    auditoria) ou não grava nada."""
     from database import registrar_auditoria, get_config
 
     if not itens:
         raise RegraNegocioError("A fatura deve ter pelo menos um item.")
     if not nome_cliente or not nome_cliente.strip():
-        raise RegraNegocioError("Nome do cliente Ã© obrigatÃ³rio.")
+        raise RegraNegocioError("Nome do cliente é obrigatório.")
 
     if isento_iva:
         taxa_iva_efetiva = 0.0
@@ -1245,7 +1574,7 @@ def registrar_venda_credito(conn, itens, id_usuario, nome_cliente,
             try:
                 taxa_iva_efetiva = float(taxa_iva)
             except (TypeError, ValueError):
-                raise RegraNegocioError("Taxa de IVA invÃ¡lida.")
+                raise RegraNegocioError("Taxa de IVA inválida.")
         if not 0 <= taxa_iva_efetiva <= 100:
             raise RegraNegocioError("Taxa de IVA deve estar entre 0 e 100.")
 
@@ -1297,6 +1626,9 @@ def registrar_venda_credito(conn, itens, id_usuario, nome_cliente,
              1 if isento_iva else 0, taxa_iva_efetiva, condicao_pagamento),
         )
         id_conta = cur.lastrowid
+        for m in movs_criados:
+            conn.execute("UPDATE movimentos SET codigo_venda=? WHERE id_movimento=?",
+                         (numero_fatura, m["id_movimento"]))
 
         for m in movs_criados:
             conn.execute(
@@ -1355,11 +1687,11 @@ def liquidar_conta(conn, id_conta, valor, forma_pagamento, id_usuario,
         "SELECT * FROM contas_receber WHERE id_conta=?", (id_conta,)
     ).fetchone()
     if not conta:
-        raise RegraNegocioError("Conta a receber nÃ£o encontrada.")
+        raise RegraNegocioError("Conta a receber não encontrada.")
     if conta["status"] == "Cancelada":
-        raise RegraNegocioError("Conta cancelada nÃ£o pode ser liquidada.")
+        raise RegraNegocioError("Conta cancelada não pode ser liquidada.")
     if conta["status"] == "Liquidada":
-        raise RegraNegocioError("Conta jÃ¡ estÃ¡ liquidada.")
+        raise RegraNegocioError("Conta já está liquidada.")
 
     valor = round(float(valor or 0), 2)
     if valor <= 0:
@@ -1452,16 +1784,16 @@ def cancelar_conta_receber(conn, id_conta, id_usuario, ip_address=None):
         "SELECT * FROM contas_receber WHERE id_conta=?", (id_conta,)
     ).fetchone()
     if not conta:
-        raise RegraNegocioError("Fatura nÃ£o encontrada.")
+        raise RegraNegocioError("Fatura não encontrada.")
     if conta["status"] == "Cancelada":
-        raise RegraNegocioError("Fatura jÃ¡ estÃ¡ cancelada.")
+        raise RegraNegocioError("Fatura já está cancelada.")
 
     n_recibos = conn.execute(
         "SELECT COUNT(*) c FROM recibos WHERE id_conta=?", (id_conta,)
     ).fetchone()["c"]
     if n_recibos or float(conta["valor_pago"] or 0) > 0.001:
         raise RegraNegocioError(
-            "Esta fatura jÃ¡ tem pagamentos (recibos) registados e nÃ£o pode ser "
+            "Esta fatura já tem pagamentos (recibos) registados e não pode ser "
             "eliminada."
         )
 
@@ -1518,7 +1850,7 @@ def obter_recibo(conn, id_recibo):
     return dict(r), (dict(conta) if conta else None)
 
 def _itens_cotacao_para_venda(conn, itens_cot):
-    """Converte itens de cotaÃ§Ã£o em itens de venda, na unidade do prÃ³prio produto."""
+    """Converte itens de cotação em itens de venda, na unidade do próprio produto."""
     itens = []
     for ic in itens_cot:
         prod = conn.execute(
@@ -1526,7 +1858,7 @@ def _itens_cotacao_para_venda(conn, itens_cot):
         ).fetchone()
         if not prod:
             raise RegraNegocioError(
-                f"Produto {ic.get('codigo', ic['id_produto'])} jÃ¡ nÃ£o existe.")
+                f"Produto {ic.get('codigo', ic['id_produto'])} já não existe.")
         desconto = float(ic.get("desconto_percentual") or 0)
         itens.append({
             "id_produto": ic["id_produto"],
@@ -1539,19 +1871,19 @@ def _itens_cotacao_para_venda(conn, itens_cot):
 
 def faturar_cotacao(conn, id_cotacao, id_usuario, ip_address=None,
                     data_vencimento=None, isento_iva=False, taxa_iva=None):
-    """Converte uma cotaÃ§Ã£o em fatura a crÃ©dito (conta_receber), de forma atÃ³mica."""
+    """Converte uma cotação em fatura a crédito (conta_receber), de forma atómica."""
     from database import registrar_auditoria
 
     res = obter_cotacao(conn, id_cotacao)
     if not res:
-        raise RegraNegocioError("CotaÃ§Ã£o nÃ£o encontrada.")
+        raise RegraNegocioError("Cotação não encontrada.")
     cotacao, itens_cot = res
     if cotacao["status"] == "Convertida":
-        raise RegraNegocioError("CotaÃ§Ã£o jÃ¡ convertida em venda.")
+        raise RegraNegocioError("Cotação já convertida em venda.")
     if cotacao["status"] in ("Rejeitada",):
-        raise RegraNegocioError("CotaÃ§Ã£o rejeitada nÃ£o pode ser faturada.")
+        raise RegraNegocioError("Cotação rejeitada não pode ser faturada.")
     if not itens_cot:
-        raise RegraNegocioError("CotaÃ§Ã£o sem itens.")
+        raise RegraNegocioError("Cotação sem itens.")
 
     itens = _itens_cotacao_para_venda(conn, itens_cot)
     try:
@@ -1566,7 +1898,7 @@ def faturar_cotacao(conn, id_cotacao, id_usuario, ip_address=None,
             data_vencimento=data_vencimento,
             isento_iva=isento_iva,
             taxa_iva=taxa_iva,
-            observacoes=f"Gerada da cotaÃ§Ã£o {cotacao['numero']}",
+            observacoes=f"Gerada da cotação {cotacao['numero']}",
             ip_address=ip_address,
             commit=False,
         )
@@ -1586,7 +1918,7 @@ def faturar_cotacao(conn, id_cotacao, id_usuario, ip_address=None,
 # AUDITORIA DE ESTOQUE
 # ===========================================================================
 def estoque_teorico(conn, id_produto, data_limite):
-    """Estoque teÃ³rico atÃ© Ã  data â€” usa fecho mensal quando disponÃ­vel."""
+    """Estoque teórico até à data — usa fecho mensal quando disponível."""
     data_iso = (data_limite or "9999-12-31") + "T23:59:59"
 
     fecho = conn.execute(
@@ -1627,9 +1959,9 @@ def justificar_divergencia(conn, id_divergencia, motivo, id_usuario,
         (id_divergencia,),
     ).fetchone()
     if not div:
-        raise RegraNegocioError("DivergÃªncia nÃ£o encontrada.")
+        raise RegraNegocioError("Divergência não encontrada.")
     if div["estado"] == "ajustada":
-        raise RegraNegocioError("DivergÃªncia jÃ¡ ajustada â€” nÃ£o pode ser justificada.")
+        raise RegraNegocioError("Divergência já ajustada — não pode ser justificada.")
 
     conn.execute(
         """UPDATE auditoria_divergencias
@@ -1653,7 +1985,7 @@ def solicitar_recontagem(conn, id_divergencia, id_usuario, ip_address=None):
         (id_divergencia,),
     ).fetchone()
     if not div:
-        raise RegraNegocioError("DivergÃªncia nÃ£o encontrada.")
+        raise RegraNegocioError("Divergência não encontrada.")
     agora = datetime.now().isoformat(timespec="seconds")
     conn.execute(
         """UPDATE auditoria_divergencias
@@ -1701,18 +2033,20 @@ def registrar_perda(conn, id_produto, quantidade, motivo, id_usuario,
 
     motivos_validos = ("Vencimento", "Quebra", "Furto", "Consumo Interno", "Outro")
     if motivo not in motivos_validos:
-        raise RegraNegocioError(f"Motivo invÃ¡lido. Use: {', '.join(motivos_validos)}")
+        raise RegraNegocioError(f"Motivo inválido. Use: {', '.join(motivos_validos)}")
+    if motivo == "Outro" and not (observacao or "").strip():
+        raise RegraNegocioError("Para o motivo 'Outro' é obrigatório justificar.")
 
     produto = conn.execute(
         "SELECT * FROM produtos WHERE id_produto=?", (id_produto,)
     ).fetchone()
     if not produto:
-        raise RegraNegocioError("Produto nÃ£o encontrado.")
+        raise RegraNegocioError("Produto não encontrado.")
 
     qtd = float(quantidade or 0)
     if qtd <= 0:
         raise RegraNegocioError("Quantidade deve ser positiva.")
-    # FIX: validaÃ§Ã£o de unidade (kg aceita decimais; restantes exigem inteiro).
+    # FIX: validação de unidade (kg aceita decimais; restantes exigem inteiro).
     if produto["unidade"] not in UNIDADES_DECIMAIS and not qtd.is_integer():
         raise RegraNegocioError(
             f"Quantidade para '{produto['unidade']}' deve ser inteira."
@@ -1741,7 +2075,7 @@ def registrar_perda(conn, id_produto, quantidade, motivo, id_usuario,
            VALUES ('Saida',?,?,?,?,?,?,?,?,?,0,?)""",
         (id_produto, data_hora, qtd, qtd,
          produto["unidade"], custo, valor_total, id_usuario,
-         f"Perda â€” {motivo}. {observacao or ''}".strip(),
+         f"Perda — {motivo}. {observacao or ''}".strip(),
          f"Perda_{motivo.replace(' ', '_')}"),
     )
     id_mov = cur.lastrowid
@@ -1758,14 +2092,14 @@ def abrir_auditoria(conn, data_inicio, data_fim, tipo, id_categoria,
                     tolerancia_valor_minimo=0.0, observacoes=None,
                     ip_address=None):
     from database import registrar_auditoria
-    # FIX: validar datas (inÃ­cio <= fim)
+    # FIX: validar datas (início <= fim)
     try:
         d_ini = datetime.strptime(str(data_inicio), "%Y-%m-%d")
         d_fim = datetime.strptime(str(data_fim), "%Y-%m-%d")
     except (TypeError, ValueError):
-        raise RegraNegocioError("Datas invÃ¡lidas.")
+        raise RegraNegocioError("Datas inválidas.")
     if d_ini > d_fim:
-        raise RegraNegocioError("Data de inÃ­cio deve ser anterior ou igual Ã  data de fim.")
+        raise RegraNegocioError("Data de início deve ser anterior ou igual à data de fim.")
 
     agora = datetime.now().isoformat(timespec="seconds")
     cur = conn.execute(
@@ -1810,13 +2144,13 @@ def produtos_da_auditoria(conn, id_auditoria):
 
 
 def congelar_estoque_teorico(conn, id_auditoria, ip_address=None):
-    """Cria linhas de divergÃªncia com o teÃ³rico congelado (contado=0)."""
+    """Cria linhas de divergência com o teórico congelado (contado=0)."""
     from database import registrar_auditoria
     aud = conn.execute(
         "SELECT * FROM auditorias WHERE id_auditoria=?", (id_auditoria,)
     ).fetchone()
     if not aud:
-        raise RegraNegocioError("Auditoria nÃ£o encontrada.")
+        raise RegraNegocioError("Auditoria não encontrada.")
     if aud["congelado_em"]:
         return
 
@@ -1909,7 +2243,7 @@ def divergencias_da_auditoria(conn, id_auditoria):
     ).fetchall()
 
 # ---------------------------------------------------------------------------
-# RELATÃ“RIOS DE AUDITORIA
+# RELATÓRIOS DE AUDITORIA
 # ---------------------------------------------------------------------------
 def resumo_executivo(conn, id_auditoria):
     aud = obter_auditoria(conn, id_auditoria)
@@ -1960,9 +2294,9 @@ def reconciliacao_periodo(conn, data_inicio, data_fim, id_categoria=None):
     dt_ini = data_inicio + "T00:00:00"
     dt_fim = data_fim + "T23:59:59"
 
-    # FIX: o saldo inicial deve ser calculado ANTES do primeiro dia do perÃ­odo.
+    # FIX: o saldo inicial deve ser calculado ANTES do primeiro dia do período.
     # Antes usava data_inicio, o que fazia com que os movimentos do dia 1 fossem
-    # contados duas vezes (no inicial e nas entradas/saÃ­das do perÃ­odo).
+    # contados duas vezes (no inicial e nas entradas/saídas do período).
     try:
         dt_ini_obj = datetime.strptime(data_inicio, "%Y-%m-%d")
         dia_antes = (dt_ini_obj - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -2004,7 +2338,7 @@ def reconciliacao_periodo(conn, data_inicio, data_fim, id_categoria=None):
 
         linhas.append({
             "codigo": p["codigo"], "nome": p["nome"],
-            "categoria": p["categoria_nome"] or "â€”",
+            "categoria": p["categoria_nome"] or "—",
             "unidade": p["unidade"],
             "inicial": ini, "entradas": ent, "saidas": sai,
             "perdas": per, "ajustes": aj, "teorico": teo,
@@ -2033,7 +2367,7 @@ def curva_abc(conn, id_auditoria=None):
         valor_total += valor
         itens.append({
             "codigo": p["codigo"], "nome": p["nome"],
-            "categoria": p["categoria_nome"] or "â€”",
+            "categoria": p["categoria_nome"] or "—",
             "qtd": qtd, "custo_unit": float(p["preco_custo"] or 0),
             "preco_venda": float(p["preco_venda"] or 0),
             "valor": valor,
@@ -2114,7 +2448,7 @@ def perdas_e_validade(conn, dias_alerta=(30, 60, 90)):
 
 
 def excecoes(conn):
-    """Deteta anomalias: estoque negativo, custo zero, ajustes sem justificaÃ§Ã£o."""
+    """Deteta anomalias: estoque negativo, custo zero, ajustes sem justificação."""
     ex = []
 
     negativos = conn.execute(
@@ -2156,7 +2490,7 @@ def excecoes(conn):
            WHERE (a.motivo IS NULL OR a.motivo='')"""
     ).fetchall()
     for r in aj_sem_just:
-        ex.append({"tipo": "Ajuste sem justificaÃ§Ã£o", "produto": r["nome"],
+        ex.append({"tipo": "Ajuste sem justificação", "produto": r["nome"],
                    "codigo": r["codigo"],
                    "detalhe": f"{float(r['quantidade_ajuste']):.2f} em {r['data_aprovacao'][:10]}"})
 
@@ -2177,12 +2511,12 @@ def obter_fecho_anterior(conn, data_limite):
 
 def gerar_fecho_mensal(conn, ano, mes, id_usuario, ip_address=None,
                         sobrescrever=False):
-    """Gera um snapshot do estoque no Ãºltimo instante do mÃªs indicado."""
+    """Gera um snapshot do estoque no último instante do mês indicado."""
     from database import registrar_auditoria
     from calendar import monthrange
 
     if mes < 1 or mes > 12:
-        raise RegraNegocioError("MÃªs invÃ¡lido (1-12).")
+        raise RegraNegocioError("Mês inválido (1-12).")
 
     existente = conn.execute(
         "SELECT * FROM fechos_mensais WHERE ano=? AND mes=?",
@@ -2190,7 +2524,7 @@ def gerar_fecho_mensal(conn, ano, mes, id_usuario, ip_address=None,
     ).fetchone()
     if existente and not sobrescrever:
         raise RegraNegocioError(
-            f"JÃ¡ existe fecho para {mes:02d}/{ano}. Marque 'sobrescrever' se quiser refazer."
+            f"Já existe fecho para {mes:02d}/{ano}. Marque 'sobrescrever' se quiser refazer."
         )
 
     ultimo_dia = monthrange(ano, mes)[1]
@@ -2268,15 +2602,15 @@ def listar_fechos(conn):
 
 
 def fechar_auditoria(conn, id_auditoria, id_usuario, ip_address=None):
-    """Gera ajustes acima da tolerÃ¢ncia, aplica no estoque e fecha."""
+    """Gera ajustes acima da tolerância, aplica no estoque e fecha."""
     from database import registrar_auditoria
     aud = conn.execute(
         "SELECT * FROM auditorias WHERE id_auditoria=?", (id_auditoria,)
     ).fetchone()
     if not aud:
-        raise RegraNegocioError("Auditoria nÃ£o encontrada.")
+        raise RegraNegocioError("Auditoria não encontrada.")
     if aud["estado"] == "fechada":
-        raise RegraNegocioError("Auditoria jÃ¡ fechada.")
+        raise RegraNegocioError("Auditoria já fechada.")
 
     agora = datetime.now().isoformat(timespec="seconds")
     tol_pct = float(aud["tolerancia_percentual"] or 1.0)
@@ -2288,7 +2622,8 @@ def fechar_auditoria(conn, id_auditoria, id_usuario, ip_address=None):
     ajustes_gerados = 0
 
     for d in divergencias:
-        if d["estado"] in ("aceita", "justificada"):
+        # Produto não contado: não mexe no estoque.
+        if d["estoque_contado"] is None or d["estado"] == "ajustada":
             continue
         teorico = float(d["estoque_teorico"] or 0)
         contado = float(d["estoque_contado"] or 0)
@@ -2297,10 +2632,10 @@ def fechar_auditoria(conn, id_auditoria, id_usuario, ip_address=None):
         total_qtd += abs(dif_qtd)
         total_valor += abs(dif_val)
 
-        limite_qtd = abs(teorico) * (tol_pct / 100.0) if teorico else 0
-        dentro_tol = (abs(dif_qtd) <= limite_qtd) and (abs(dif_val) <= tol_val)
-
-        if dentro_tol or abs(dif_qtd) < 1e-9:
+        # O estoque passa SEMPRE a refletir a contagem física, mesmo que a
+        # divergência tenha sido justificada ou aceite (a justificação explica
+        # a diferença, não a elimina).
+        if abs(dif_qtd) < 1e-9:
             conn.execute(
                 "UPDATE auditoria_divergencias SET estado='aceita' WHERE id_divergencia=?",
                 (d["id_divergencia"],),
@@ -2309,6 +2644,10 @@ def fechar_auditoria(conn, id_auditoria, id_usuario, ip_address=None):
 
         ajuste_qtd = round(contado - teorico, 3)
         custo = float(d["custo_unitario"] or 0)
+        if custo <= 0:
+            pc = conn.execute("SELECT preco_custo FROM produtos WHERE id_produto=?",
+                              (d["id_produto"],)).fetchone()
+            custo = float(pc["preco_custo"] or 0) if pc else 0.0
 
         cur = conn.execute(
             """INSERT INTO auditoria_ajustes
@@ -2325,7 +2664,7 @@ def fechar_auditoria(conn, id_auditoria, id_usuario, ip_address=None):
         qtd_mov = abs(ajuste_qtd)
         preco_ref = custo if custo > 0 else 0
 
-        # FIX: usar a unidade do PRODUTO (antes forÃ§ava "Unidade").
+        # FIX: usar a unidade do PRODUTO (antes forçava "Unidade").
         prod_unit = conn.execute(
             "SELECT unidade FROM produtos WHERE id_produto=?", (d["id_produto"],)
         ).fetchone()

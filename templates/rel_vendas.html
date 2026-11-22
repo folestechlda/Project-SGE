@@ -1,0 +1,70 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Relatório de Vendas · {{ app_name }}{% endblock %}
+{% block page_title %}Relatório de Vendas{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  {{ m.filtros_periodo(args, d.ini, d.fim) }}
+  {{ m.filtro_categoria(categorias, id_cat) }}
+  <label>Produto
+    <select name="id_produto"><option value="">Todos</option>
+      {% for p in produtos %}<option value="{{ p.id_produto }}" {{ 'selected' if id_prod == p.id_produto }}>{{ p.nome }}</option>{% endfor %}
+    </select></label>
+  <label>Forma de pagamento
+    <select name="forma"><option value="">Todas</option>
+      <option value="__vista__" {{ 'selected' if forma == '__vista__' }}>Só à vista</option>
+      <option value="__credito__" {{ 'selected' if forma == '__credito__' }}>Só a crédito</option>
+      {% for f in formas %}<option value="{{ f }}" {{ 'selected' if forma == f }}>{{ f }}</option>{% endfor %}
+    </select></label>
+  <label>Operador
+    <select name="id_usuario"><option value="">Todos</option>
+      {% for u in usuarios %}<option value="{{ u.id_usuario }}" {{ 'selected' if id_user == u.id_usuario }}>{{ u.nome }}</option>{% endfor %}
+    </select></label>
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+
+<article class="rel">
+  {% call m.cabecalho("Relatório de Vendas",
+        (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy) ~ " · líquido de faturas anuladas",
+        [("Custeio", d.metodo), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  {% set t = d.tot %}
+  <div class="kpis">
+    {{ m.kpi("Vendas", t.vendas|mt) }}{{ m.op("−") }}
+    {{ m.kpi("Custo", t.custo|mt) }}{{ m.op("=") }}
+    {{ m.kpi("Lucro bruto", t.lucro|mt) }}
+    {{ m.kpi("Margem", ((t.margem|pct ~ " %") if t.margem is not none else "—")) }}
+  </div>
+  <p class="rel-linha-estado">À vista <strong>{{ d.a_vista_total|mt }}</strong> · A crédito <strong>{{ d.a_credito|mt }}</strong>{% if d.anuladas %} · {{ d.anuladas|length }} fatura{{ 's' if d.anuladas|length != 1 }} anulada{{ 's' if d.anuladas|length != 1 }} (já descontada{{ 's' if d.anuladas|length != 1 }}){% endif %}</p>
+
+  <h2>Por produto <small>(MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Un.</th><th class="num">Qtd vendida</th><th class="num">Preço médio</th><th class="num">Receita</th><th class="num">Custo</th><th class="num">Lucro</th><th class="num">Margem</th><th class="num">%</th></tr></thead>
+    <tbody>
+    {% for l in d.linhas %}
+      <tr>
+        <td class="col-nome"><a href="{{ url_for('rel_extrato_produto', id_produto=l.id_produto, ini=d.ini, fim=d.fim) }}">{{ l.produto }}</a></td>
+        <td>{{ l.un }}</td><td class="num">{{ l.qtd|qt(l.un) }}</td><td class="num">{{ l.preco_medio|mt }}</td>
+        <td class="num">{{ l.receita|mt }}</td><td class="num">{{ l.custo|mt }}</td><td class="num">{{ l.lucro|mt }}</td>
+        <td class="num">{{ (l.margem|pct ~ ' %') if l.margem is not none else '—' }}</td>
+        <td class="num">{{ l.pct|pct }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="rel-nota">Sem vendas para os filtros escolhidos.</td></tr>
+    {% endfor %}
+      <tr class="total"><td colspan="4">Total (quantidades não somadas)</td><td class="num">{{ t.vendas|mt }}</td><td class="num">{{ t.custo|mt }}</td><td class="num">{{ t.lucro|mt }}</td><td class="num">{{ (t.margem|pct ~ ' %') if t.margem is not none else '—' }}</td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-primary" href="{{ url_for('movimento_saida') }}">+ Nova venda</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_balancete', ini=d.ini, fim=d.fim) }}">Balancete</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_curva_abc') }}">Curva ABC</a>
+  <a class="btn btn-secondary" href="{{ url_for('contas_receber_list') }}">Contas a receber</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_extrato_produto', ini=d.ini, fim=d.fim) }}">Extrato de produto</a>
+{% endcall %}
+{% endblock %}

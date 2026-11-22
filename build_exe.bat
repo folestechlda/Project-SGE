@@ -164,6 +164,8 @@ copy /Y "services.py"      "dist\SGE\_codigo\services.py"      >nul
 copy /Y "database.py"      "dist\SGE\_codigo\database.py"      >nul
 copy /Y "reports.py"       "dist\SGE\_codigo\reports.py"       >nul
 copy /Y "diagnostico.py"   "dist\SGE\_codigo\diagnostico.py"   >nul
+copy /Y "atualizador.py" "dist\SGE\_codigo\atualizador.py" >nul
+copy /Y "comparador_estoque.py" "dist\SGE\_codigo\comparador_estoque.py" >nul
 copy /Y "requirements.txt" "dist\SGE\_codigo\requirements.txt" >nul
 
 xcopy /E /I /Y "templates\*" "dist\SGE\_codigo\templates\" >nul
@@ -174,6 +176,8 @@ copy /Y "services.py"      "dist\SGE\services.py"      >nul
 copy /Y "database.py"      "dist\SGE\database.py"      >nul
 copy /Y "reports.py"       "dist\SGE\reports.py"       >nul
 copy /Y "diagnostico.py"   "dist\SGE\diagnostico.py"   >nul
+copy /Y "atualizador.py" "dist\SGE\atualizador.py" >nul
+copy /Y "comparador_estoque.py" "dist\SGE\comparador_estoque.py" >nul
 copy /Y "requirements.txt" "dist\SGE\requirements.txt" >nul
 
 if not exist "dist\SGE\templates" mkdir "dist\SGE\templates"

@@ -34,6 +34,8 @@ from database import (
 )
 import services
 import reports as reportmod
+import relatorios_dados as rd
+import re
 import diagnostico as diagmod
 import json
 import tempfile
@@ -154,18 +156,13 @@ def _client_ip():
         return "127.0.0.1"
 
 
-def safe_parse_float(value, default: "float | None" = 0.0):
+def safe_parse_float(value, default: "float | None" = 0.0, milhares: bool = True):
+    """Aceita '1.500,50' (pt) e '1500.50'. Em dinheiro '1.500' = 1500; em quantidades
+    (milhares=False) '2.500' = 2,5. Ver services.parse_numero_pt."""
     if value is None or value == "":
         return default
-    try:
-        v_str = str(value).strip()
-        if "," in v_str and "." in v_str:
-            v_str = v_str.replace(".", "").replace(",", ".")
-        elif "," in v_str and "." not in v_str:
-            v_str = v_str.replace(",", ".")
-        return float(v_str)
-    except (TypeError, ValueError):
-        return default
+    v = services.parse_numero_pt(value, milhares=milhares)
+    return default if v is None else v
 
 
 def safe_parse_float_required(value, default: float) -> float:
@@ -267,6 +264,22 @@ def perfil_required(*perfis):
 # ---------------------------------------------------------------------------
 # Context processor + filtros de formatação
 # ---------------------------------------------------------------------------
+def _contar_pendentes_menu():
+    """Divergências de inventário à espera de decisão (só para Gerente/Admin)."""
+    if session.get("perfil") not in ("Admin", "Gerente"):
+        return 0
+    try:
+        c = get_conn()
+        try:
+            return c.execute(
+                "SELECT COUNT(*) FROM auditoria_divergencias d JOIN auditorias a ON a.id_auditoria=d.id_auditoria "
+                "WHERE d.estado='pendente' AND a.estado!='fechada'").fetchone()[0]
+        finally:
+            c.close()
+    except Exception:
+        return 0
+
+
 @app.context_processor
 def inject_globals():
     emp = get_company_info()
@@ -288,6 +301,7 @@ def inject_globals():
         "app_name": APP_NAME,
         "hoje": datetime.now().date().isoformat(),
         "diagnostico": diag,
+        "nav_pendentes": _contar_pendentes_menu(),
     }
 
 def _formatar_numero_pt(value, decimals=2):
@@ -336,6 +350,59 @@ def format_qtd(value, unidade=None):
         return _formatar_numero_pt(round(float(value or 0)), 0)
     except (TypeError, ValueError):
         return "0"
+
+
+@app.template_filter("mt")
+def _filtro_mt(value, casas=2):
+    """Valor em MT no formato dos relatórios: 10 780,00 (espaço fino nos milhares)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if not math.isfinite(v):
+        return "—"
+    txt = _formatar_numero_pt(abs(v), casas).replace(".", "\u202f")
+    return ("\u2212" + txt) if v < -0.005 else txt
+
+
+@app.template_filter("mts")
+def _filtro_mts(value, casas=2):
+    """Valor com sinal explícito (+12 000,00 / −4 800,00)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    return ("+" if v > 0.005 else "") + _filtro_mt(v, casas)
+
+
+@app.template_filter("qt")
+def _filtro_qt(value, un=None):
+    return rd.fmt_qtd(value, un)
+
+
+@app.template_filter("sq")
+def _filtro_sq(value, unidade=None):
+    """Saldo/quantidade para ecrã: inteiro quando possível (4 em vez de 4.0);
+    só o kg mostra decimais (vírgula, até 3 casas)."""
+    try:
+        v = float(value or 0)
+    except (TypeError, ValueError):
+        return "—"
+    if unidade != "kg" or abs(v - round(v)) < 0.0005:
+        return str(int(round(v)))
+    return f"{v:.3f}".rstrip("0").replace(".", ",")
+
+
+@app.template_filter("pct")
+def _filtro_pct(value, casas=1):
+    if value is None:
+        return "—"
+    return f"{float(value):.{casas}f}".replace(".", ",")
+
+
+@app.template_filter("dmy")
+def _filtro_dmy(value):
+    return rd.dmy(value)
 
 
 # ---------------------------------------------------------------------------
@@ -880,15 +947,8 @@ def produtos_salvar():
                 return redirect(url_for("produtos_list"))
 
         def parse_ceil(v):
-            if v is None or v == "":
-                return 0.0
             try:
-                v_str = str(v).strip()
-                if "," in v_str and "." in v_str:
-                    v_str = v_str.replace(".", "").replace(",", ".")
-                elif "," in v_str and "." not in v_str:
-                    v_str = v_str.replace(",", ".")
-                return services.ceil5(float(v_str))
+                return services.ceil5(safe_parse_float(v, 0.0))
             except Exception:
                 return 0.0
 
@@ -1092,7 +1152,7 @@ def estoque_inventario():
             if texto == "":
                 contagem = 0.0
             else:
-                contagem = safe_parse_float(texto, None)
+                contagem = safe_parse_float(texto, None, milhares=False)
                 if contagem is None:
                     continue
             prod = conn.execute(
@@ -1153,15 +1213,15 @@ def estoque_inventario():
             colunas = ["Código", "Produto", "Saldo Regist.", "Contagem Fís.", "Diferença", "Alterado"]
             linhas = []
             for r in linhas_inventario:
-                dif = int(r["diferenca"] or 0)
+                dif = services.qtd_relatorio(r["diferenca"])
                 alt = "" 
                 if r["valor_anterior"] is not None:
-                    delta = int(r["contagem_fisica"] or 0) - int(r["valor_anterior"] or 0)
-                    alt = f"(antes: {r['valor_anterior']} -> Δ {delta:+d})"
+                    delta = services.qtd_relatorio(float(r["contagem_fisica"] or 0) - float(r["valor_anterior"] or 0))
+                    alt = f"(antes: {r['valor_anterior']} -> Δ {delta:+g})"
                 linhas.append([
                     r["codigo"], r["nome"],
-                    int(r["saldo_registrado"] or 0),
-                    int(r["contagem_fisica"] or 0),
+                    services.qtd_relatorio(r["saldo_registrado"]),
+                    services.qtd_relatorio(r["contagem_fisica"]),
                     dif, alt,
                 ])
             sub = f"Total de {len(linhas)} produtos contados em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
@@ -1303,7 +1363,7 @@ def movimento_entrada():
             return redirect(url_for("movimento_entrada"))
 
         # FIX: aceita vírgula decimal (pt-PT) e valida antes de chamar o serviço.
-        quantidade_val = safe_parse_float(request.form.get("quantidade"), None)
+        quantidade_val = safe_parse_float(request.form.get("quantidade"), None, milhares=False)
         if quantidade_val is None or quantidade_val <= 0:
             flash("Quantidade inválida (use números, ex.: 10 ou 10,5).", "erro")
             conn.close()
@@ -1349,11 +1409,59 @@ def movimento_entrada():
     return render_template("movimento_form.html", tipo="Entrada", produtos=produtos)
 
 
+# ---------------------------------------------------------------------------
+# Vendas: envio único (anti duplo clique) e respostas JSON
+# ---------------------------------------------------------------------------
+_TOKENS_ENVIO = {}
+_TOKENS_LOCK = threading.Lock()
+
+
+def _emitir_token_envio():
+    tok = secrets.token_urlsafe(16)
+    agora = time.time()
+    with _TOKENS_LOCK:
+        for k in [k for k, t in _TOKENS_ENVIO.items() if agora - t > 43200]:
+            del _TOKENS_ENVIO[k]
+        _TOKENS_ENVIO[tok] = agora
+    return tok
+
+
+def _reservar_token_envio(tok):
+    """True se o token ainda não foi usado; fica reservado (um único registo por token)."""
+    with _TOKENS_LOCK:
+        return _TOKENS_ENVIO.pop(tok, None) is not None
+
+
+def _devolver_token_envio(tok):
+    if tok:
+        with _TOKENS_LOCK:
+            _TOKENS_ENVIO[tok] = time.time()
+
+
+def _pedido_json():
+    return request.headers.get("X-Requested-With") == "fetch"
+
+
+def _texto_erro(e):
+    if e.get("linha") is None:
+        return e["mensagem"]
+    nome = f" · {e['produto']}" if e.get("produto") else ""
+    return f"Linha {e['linha']}{nome}: {e['mensagem']}"
+
+
+def _erro_linha(linha, campo, mensagem):
+    return {"linha": linha, "campo": campo, "mensagem": mensagem,
+            "id_produto": None, "produto": None, "codigo": None}
+
+
 @app.route("/movimentos/saida", methods=["GET", "POST"])
 @perfil_required("Admin", "Gerente", "Operador")
 def movimento_saida():
     conn = get_conn()
     if request.method == "POST":
+        json_mode = _pedido_json()
+        acao = request.form.get("acao", "gravar")
+        token = request.form.get("token_envio") or None
         cliente = request.form.get("cliente") or None
         forma_pagamento = request.form.get("forma_pagamento") or None
         observacoes = request.form.get("observacoes") or None
@@ -1365,106 +1473,97 @@ def movimento_saida():
         unidades = request.form.getlist("unidade_original[]")
         precos = request.form.getlist("preco_unitario[]")
 
-        if not ids_produto or not any(ids_produto):
-            flash("Adicione pelo menos um produto à venda.", "erro")
+        itens, erros_parse = [], []
+        for i, id_prod_str in enumerate(ids_produto):
+            if not id_prod_str:
+                continue
+            linha = i + 1
+            try:
+                id_produto = int(id_prod_str)
+            except (TypeError, ValueError):
+                erros_parse.append(_erro_linha(linha, "produto", "Produto inválido."))
+                continue
+            quantidade = safe_parse_float(quantidades[i] if i < len(quantidades) else None, None, milhares=False)
+            preco = safe_parse_float(precos[i] if i < len(precos) else None, None)
+            if quantidade is None or quantidade <= 0:
+                erros_parse.append(_erro_linha(linha, "quantidade", "A quantidade deve ser maior que zero (use vírgula só para decimais)."))
+                continue
+            if preco is None or preco < 0:
+                erros_parse.append(_erro_linha(linha, "preco", "Preço inválido (ex.: 12,50 ou 12.50)."))
+                continue
+            itens.append({"linha": linha, "id_produto": id_produto, "quantidade": quantidade,
+                          "unidade": unidades[i] if i < len(unidades) else "Unidade",
+                          "preco_unitario": preco})
+
+        if not itens and not erros_parse:
+            erros_parse.append(_erro_linha(None, "itens", "Adicione pelo menos um produto à venda."))
+
+        def _responder_erros(res):
+            if json_mode:
+                conn.close()
+                return jsonify({"ok": False, "estado": "erros", "erros": res["erros"], "avisos": res["avisos"]})
+            for e in res["erros"]:
+                flash(_texto_erro(e), "erro")
+            flash("Nenhuma saída foi registada (transacção cancelada).", "aviso")
             conn.close()
             return redirect(url_for("movimento_saida"))
 
-        erros = []
-        sucessos = 0
-        alertas_minimo = []
-        margens_negativas = []  # lista de (nome_produto, lucro)
-
         try:
-            for i, id_prod_str in enumerate(ids_produto):
-                if not id_prod_str:
-                    continue
-                try:
-                    id_produto = int(id_prod_str)
-                except (TypeError, ValueError):
-                    erros.append(f"Item {i+1}: produto inválido.")
-                    continue
+            if acao == "validar" and json_mode:
+                res = services.processar_venda_vista(
+                    conn, itens, session["user_id"], erros_previos=erros_parse, apenas_validar=True)
+                conn.close()
+                return jsonify({"ok": not res["erros"], "estado": res["estado"],
+                                "erros": res["erros"], "avisos": res["avisos"]})
 
-                quantidade = safe_parse_float(
-                    quantidades[i] if i < len(quantidades) else None, None)
-                unidade = unidades[i] if i < len(unidades) else "Unidade"
-                preco = safe_parse_float(
-                    precos[i] if i < len(precos) else None, None)
+            if token and not _reservar_token_envio(token):
+                msg = "Esta venda já foi registada (envio repetido ignorado)."
+                if json_mode:
+                    conn.close()
+                    return jsonify({"ok": False, "estado": "duplicado", "mensagem": msg,
+                                    "redirect": url_for("movimento_saida")})
+                flash(msg, "aviso")
+                conn.close()
+                return redirect(url_for("movimento_saida"))
 
-                if quantidade is None or quantidade <= 0:
-                    erros.append(f"Item {i+1}: quantidade deve ser > 0 (use vírgula só para decimais).")
-                    continue
-                if preco is None or preco < 0:
-                    erros.append(f"Item {i+1}: preço inválido (ex.: 12,50 ou 12.50).")
-                    continue
-                if not services.validar_produto_cadastrado(conn, id_produto):
-                    erros.append(f"Item {i+1}: produto inválido ou inativo.")
-                    continue
-                if unidade == "Unidade" and not quantidade.is_integer():
-                    erros.append(f"Item {i+1}: unidade 'Unidade' requer inteiro.")
-                    continue
+            res = services.processar_venda_vista(
+                conn, itens, session["user_id"], erros_previos=erros_parse,
+                cliente=cliente, forma_pagamento=forma_pagamento, observacoes=observacoes,
+                data_hora=data_hora_venda, ip_address=_client_ip(),
+                # sem JavaScript não há passo de confirmação: os avisos não bloqueiam
+                confirmar_avisos=(request.form.get("confirmar_avisos") == "1") or not json_mode)
+        except Exception:
+            _devolver_token_envio(token)
+            conn.close()
+            raise
 
-                resultado = services.registrar_saida(
-                    conn,
-                    id_produto=id_produto,
-                    quantidade_original=quantidade,
-                    unidade_original=unidade,
-                    preco_unitario=preco,
-                    id_usuario=session["user_id"],
-                    cliente=cliente,
-                    forma_pagamento=forma_pagamento,
-                    observacoes=observacoes,
-                    data_hora=data_hora_venda,
-                    ip_address=_client_ip(),
-                    commit=False,
-                )
-                sucessos += 1
-                if resultado["alerta_minimo"]:
-                    alertas_minimo.append(id_produto)
+        if res["estado"] == "erros":
+            _devolver_token_envio(token)
+            return _responder_erros(res)
+        if res["estado"] == "confirmacao":
+            _devolver_token_envio(token)
+            conn.close()
+            return jsonify({"ok": False, "estado": "confirmacao", "avisos": res["avisos"], "erros": []})
 
-                # --- 2.4: detectar margem negativa ---
-                mov = conn.execute(
-                    """SELECT m.lucro, p.nome
-                       FROM movimentos m
-                       JOIN produtos p ON p.id_produto = m.id_produto
-                       WHERE m.id_movimento = ?""",
-                    (resultado["id_movimento"],),
-                ).fetchone()
-                if mov and float(mov["lucro"] or 0) < 0:
-                    margens_negativas.append((mov["nome"], float(mov["lucro"])))
-        except services.RegraNegocioError as e:
-            erros.append(str(e))
-        except Exception as e:
-            erros.append(f"Erro inesperado: {e}")
-
-        if erros:
-            conn.rollback()
-            for e in erros:
-                flash(e, "erro")
-            flash("Nenhuma saída foi registada (transacção cancelada).", "aviso")
-        elif sucessos:
-            conn.commit()
-            flash(f"{sucessos} saída(s) registada(s) com sucesso.", "sucesso")
-            if alertas_minimo:
-                flash("Atenção: alguns produtos ficaram abaixo do estoque mínimo.", "aviso")
-            if margens_negativas:
-                nomes = ", ".join(
-                    f"{nome} ({lucro:+.2f})"
-                    for nome, lucro in margens_negativas[:3]
-                )
-                flash(
-                    f"⚠️ {len(margens_negativas)} venda(s) com MARGEM NEGATIVA: {nomes}. "
-                    f"Verifique se o preço praticado corresponde à unidade vendida "
-                    f"(rolo, kg, unidade) ou se o produto está cadastrado com o "
-                    f"preço da embalagem em vez do preço unitário.",
-                    "aviso",
-                )
+        flash(f"Venda {res['codigo_venda']} registada com sucesso ({res['sucessos']} item(ns)). "
+              f"Guarde este código: é com ele que se anula a venda, se foi registada por engano.", "sucesso")
+        if res["alertas_minimo"]:
+            flash("Atenção: alguns produtos ficaram abaixo do estoque mínimo.", "aviso")
+        if res["margens_negativas"]:
+            nomes = ", ".join(f"{nome} ({lucro:+.2f})" for nome, lucro in res["margens_negativas"][:3])
+            flash(f"⚠️ {len(res['margens_negativas'])} venda(s) com MARGEM NEGATIVA: {nomes}. "
+                  f"Verifique se o preço praticado corresponde à unidade vendida "
+                  f"(rolo, kg, unidade) ou se o produto está cadastrado com o "
+                  f"preço da embalagem em vez do preço unitário.", "aviso")
         conn.close()
+        if json_mode:
+            return jsonify({"ok": True, "estado": "ok", "redirect": url_for("movimento_saida")})
         return redirect(url_for("movimento_saida"))
 
     produtos = conn.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
-    return render_template("movimento_form.html", tipo="Saida", produtos=produtos)
+    return render_template("movimento_form.html", tipo="Saida", produtos=produtos,
+                           token_envio=_emitir_token_envio())
 
 # ---------------------------------------------------------------------------
 # Estoque atual
@@ -1509,9 +1608,9 @@ def estoque_list():
             val_v = float(p["saldo_atual"] or 0) * float(p["preco_venda"] or 0)
             linhas.append([
                 p["codigo"], p["nome"], p["categoria_nome"] or "—", p["unidade"],
-                int(p["saldo_atual"] or 0),
-                int(p["estoque_minimo"] or 0),
-                int(p["estoque_maximo"]) if p["estoque_maximo"] else None,
+                services.qtd_relatorio(p["saldo_atual"]),
+                services.qtd_relatorio(p["estoque_minimo"]),
+                services.qtd_relatorio(p["estoque_maximo"]) if p["estoque_maximo"] else None,
                 float(p["preco_custo"] or 0),
                 float(p["preco_venda"] or 0),
                 val_c, val_v,
@@ -1578,7 +1677,7 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
                          "acima_maximo": "Acima do máximo",
                          "normal": "Normal"}[sit]
             linhas.append([r["codigo"], r["nome"], r["categoria"] or "—",
-                           int(r["saldo"] or 0),
+                           services.qtd_relatorio(r["saldo"]),
                            float(r["preco_custo"] or 0),
                            float(r["preco_venda"] or 0), sit_label])
         return "Relatório de Estoque Atual", colunas, linhas
@@ -1612,7 +1711,7 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
         colunas = ["Data/Hora", "Tipo", "Produto", "Qtd.", "Unid.",
                    "Preço Unit.", "Valor Total", "Fornecedor/Cliente"]
         linhas = [[r["data_hora"], r["tipo"], r["produto"],
-                   int(r["quantidade"] or 0), r["unidade_original"],
+                   services.qtd_relatorio(r["quantidade"]), r["unidade_original"],
                    float(r["preco_unitario"] or 0),
                    float(r["valor_total"] or 0), r["terceiro"]] for r in rows]
         return "Relatório de Movimentações", colunas, linhas
@@ -1644,7 +1743,7 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
             total = float(r["total"] or 0)
             lucro = float(r["lucro"] or 0)
             margem = (lucro / total * 100) if total else 0
-            linhas.append([r["produto"], int(r["qtd"] or 0),
+            linhas.append([r["produto"], services.qtd_relatorio(r["qtd"]),
                            total, lucro, f"{margem:.1f}%"])
         return "Relatório de Vendas", colunas, linhas
 
@@ -1652,16 +1751,16 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
         rows = services.produtos_abaixo_minimo(conn)
         colunas = ["Código", "Produto", "Saldo Atual", "Estoque Mínimo", "Déficit"]
         linhas = [[r["codigo"], r["nome"],
-                   int(r["saldo_atual"] or 0),
-                   int(r["estoque_minimo"] or 0),
-                   int((r["estoque_minimo"] or 0) - (r["saldo_atual"] or 0))] for r in rows]
+                   services.qtd_relatorio(r["saldo_atual"]),
+                   services.qtd_relatorio(r["estoque_minimo"]),
+                   services.qtd_relatorio(float(r["estoque_minimo"] or 0) - float(r["saldo_atual"] or 0))] for r in rows]
         return "Relatório de Produtos com Estoque Baixo", colunas, linhas
 
     if tipo_relatorio == "validade":
         rows = services.produtos_proximos_validade(conn)
         colunas = ["Código", "Produto", "Validade", "Saldo Atual", "Situação"]
         linhas = [[r["codigo"], r["nome"], r["validade"],
-                   int(r["saldo_atual"] or 0),
+                   services.qtd_relatorio(r["saldo_atual"]),
                    "VENCIDO" if r["vencido"] else "Próximo ao vencimento"] for r in rows]
         return "Relatório de Validade", colunas, linhas
 
@@ -1675,7 +1774,7 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
         colunas = ["Código", "Produto", "Categoria", "Preço Venda (mzn)", "Saldo Atual"]
         linhas = [[r["codigo"], r["nome"], r["categoria"] or "—",
                    float(r["preco_venda"] or 0),
-                   int(r["saldo"] or 0)] for r in rows]
+                   services.qtd_relatorio(r["saldo"])] for r in rows]
         return "Relatório de Preços de Venda", colunas, linhas
 
     if tipo_relatorio == "lucratividade":
@@ -1701,7 +1800,7 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
             lucro = float(r["lucro"] or 0)
             custo = float(r["custo_total"] or 0)
             margem = (lucro / receita * 100) if receita else 0
-            linhas.append([r["produto"], int(r["qtd"] or 0),
+            linhas.append([r["produto"], services.qtd_relatorio(r["qtd"]),
                            receita, custo, lucro, f"{margem:.1f}%"])
         return "Relatório de Lucratividade por Produto", colunas, linhas
 
@@ -1711,6 +1810,8 @@ def _consulta_relatorio(conn, tipo_relatorio, args):
 @app.route("/relatorios")
 @login_required
 def relatorios():
+    if not request.args.get("tipo"):
+        return render_template("relatorios_hub.html")
     conn = get_conn()
     tipo_relatorio = request.args.get("tipo", "")
     titulo, colunas, linhas = ("", [], [])
@@ -1743,6 +1844,339 @@ def relatorios_exportar(formato):
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True, download_name=f"{tipo_relatorio}.xlsx")
     abort(404)
+
+
+# ---------------------------------------------------------------------------
+# Relatórios nos modelos (Balancete, Estoque Geral, Posição, Vendas, Extratos,
+# Perdas e Validade, Curva ABC, Divergências). Cálculo em relatorios_dados.py.
+# ---------------------------------------------------------------------------
+def _rel_contexto(**extra):
+    """Dados comuns às folhas: quem emitiu e quando, e empresa/NUIT."""
+    emp = get_company_info()
+    return dict(emitido_por=session.get("nome", ""), emitido_em=datetime.now().strftime("%d/%m/%Y %H:%M"),
+                emp_nome=emp.get("nome") or "", emp_nuit=emp.get("nuit") or "", **extra)
+
+
+def _rel_excel(titulo, colunas, linhas, base):
+    titulo = re.sub(r"[\\/*?:\[\]]", "-", titulo)
+    if request.args.get("exportar") == "pdf":
+        import rel_pdf
+        from database import get_company_info
+        buf = rel_pdf.gerar(titulo, colunas, linhas, get_company_info(), _filtro_mt, rd.fmt_qtd)
+        return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                         download_name=f"{base}_{datetime.now():%Y%m%d_%H%M%S}.pdf")
+    buf = reportmod.gerar_excel(titulo, colunas, linhas)
+    return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     as_attachment=True, download_name=f"{base}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+
+
+def _categorias_ativas(conn):
+    return conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
+
+
+@app.route("/relatorios/balancete")
+@perfil_required("Admin", "Gerente")
+def rel_balancete():
+    ini, fim = rd.periodo(request.args.get("ini"), request.args.get("fim"))
+    id_cat = request.args.get("categoria_id", type=int)
+    conn = get_conn()
+    dados = rd.balancete(conn, ini, fim, id_cat)
+    cats = _categorias_ativas(conn)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[g["nome"], l["produto"], l["un"], l["q_ini"], l["ent"], l["sai"], l["q_fim"],
+                   l["custo_unit"], l["valor_final"], l["situacao"]["texto"]]
+                  for g in dados["grupos"] for l in g["linhas"]]
+        linhas.append(["TOTAL DO ESTOQUE FINAL", "", "", "", "", "", "", "", dados["tot"]["final"], ""])
+        return _rel_excel(f"Balancete de Estoque {dmy_(ini)} a {dmy_(fim)}",
+                          ["Categoria", "Produto", "Un.", "Qtd inicial", "Entradas", "Saídas", "Qtd final",
+                           "Custo unit.", "Valor final", "Situação"], linhas, "balancete")
+    return render_template("rel_balancete.html", d=dados, categorias=cats, args=request.args,
+                           id_cat=id_cat, **_rel_contexto())
+
+
+def dmy_(iso):
+    return rd.dmy(iso)
+
+
+@app.route("/relatorios/estoque-geral")
+@login_required
+def rel_estoque_geral():
+    ini, fim = rd.periodo(request.args.get("ini"), request.args.get("fim"))
+    id_cat = request.args.get("categoria_id", type=int)
+    conn = get_conn()
+    dados = rd.estoque_geral(conn, ini, fim, id_cat)
+    cats = _categorias_ativas(conn)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[g["nome"], l["produto"], l["un"], l["q_fim"], l["v_ini"], l["compras"], l["custo_vendas"],
+                   l["perdas_aj"], l["v_fim"], l["pct"]] for g in dados["grupos"] for l in g["linhas"]]
+        t = dados["tot"]
+        linhas.append(["TOTAL DO ESTOQUE", "", "", "", t["v_ini"], t["compras"], t["custo_vendas"],
+                       t["perdas_aj"], t["v_fim"], 100.0])
+        return _rel_excel(f"Estoque Geral {dmy_(ini)} a {dmy_(fim)}",
+                          ["Categoria", "Produto", "Un.", "Qtd final", "Valor inicial", "Compras",
+                           "Custo das vendas", "Perdas e ajustes", "Valor final", "% do estoque"],
+                          linhas, "estoque_geral")
+    return render_template("rel_estoque_geral.html", d=dados, categorias=cats, args=request.args,
+                           id_cat=id_cat, **_rel_contexto())
+
+
+@app.route("/relatorios/posicao")
+@login_required
+def rel_posicao():
+    data = rd._dia(request.args.get("data"), datetime.now().date().isoformat())
+    id_cat = request.args.get("categoria_id", type=int)
+    so_abaixo = request.args.get("so_abaixo") == "1"
+    so_sem_mov = request.args.get("so_sem_mov") == "1"
+    conn = get_conn()
+    dados = rd.posicao_estoque(conn, data, id_cat, so_abaixo, so_sem_mov)
+    cats = _categorias_ativas(conn)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[l["produto"], l["un"], l["saldo"], l["minimo"],
+                   ("" if l["cobertura"] is None else l["cobertura"]), l["custo_unit"], l["valor"],
+                   l["acao"]["texto"]] for l in dados["linhas"]]
+        linhas.append(["TOTAL DO ESTOQUE", "", "", "", "", "", dados["total_listado"], ""])
+        return _rel_excel(f"Posição de Estoque a {dmy_(data)}",
+                          ["Produto", "Un.", "Saldo", "Mínimo", "Cobertura (dias)", "Custo unit.", "Valor",
+                           "Situação"], linhas, "posicao_estoque")
+    return render_template("rel_posicao.html", d=dados, categorias=cats, args=request.args,
+                           id_cat=id_cat, so_abaixo=so_abaixo, so_sem_mov=so_sem_mov, **_rel_contexto())
+
+
+@app.route("/relatorios/vendas")
+@perfil_required("Admin", "Gerente")
+def rel_vendas():
+    ini, fim = rd.periodo(request.args.get("ini"), request.args.get("fim"))
+    id_cat = request.args.get("categoria_id", type=int)
+    id_prod = request.args.get("id_produto", type=int)
+    id_user = request.args.get("id_usuario", type=int)
+    forma = request.args.get("forma") or None
+    conn = get_conn()
+    dados = rd.vendas(conn, ini, fim, id_cat, id_prod, forma, id_user)
+    cats = _categorias_ativas(conn)
+    produtos = conn.execute("SELECT id_produto, nome FROM produtos ORDER BY nome").fetchall()
+    usuarios = conn.execute("SELECT id_usuario, nome FROM usuarios ORDER BY nome").fetchall()
+    formas = [r[0] for r in conn.execute(
+        "SELECT DISTINCT forma_pagamento FROM movimentos WHERE forma_pagamento IS NOT NULL AND forma_pagamento!='' "
+        "ORDER BY 1").fetchall()]
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[l["produto"], l["un"], l["qtd"], l["preco_medio"], l["receita"], l["custo"], l["lucro"],
+                   ("" if l["margem"] is None else l["margem"]), l["pct"]] for l in dados["linhas"]]
+        t = dados["tot"]
+        linhas.append(["TOTAL", "", "", "", t["vendas"], t["custo"], t["lucro"],
+                       ("" if t["margem"] is None else t["margem"]), 100.0])
+        return _rel_excel(f"Relatório de Vendas {dmy_(ini)} a {dmy_(fim)}",
+                          ["Produto", "Un.", "Qtd vendida", "Preço médio", "Receita", "Custo", "Lucro",
+                           "Margem %", "% da receita"], linhas, "vendas")
+    return render_template("rel_vendas.html", d=dados, categorias=cats, produtos=produtos, usuarios=usuarios,
+                           formas=formas, args=request.args, id_cat=id_cat, id_prod=id_prod, id_user=id_user,
+                           forma=forma, **_rel_contexto())
+
+
+@app.route("/relatorios/extrato-produto")
+@login_required
+def rel_extrato_produto():
+    ini, fim = rd.periodo(request.args.get("ini"), request.args.get("fim"))
+    modo = request.args.get("modo", "produto")
+    if modo not in ("produto", "categoria", "geral"):
+        modo = "produto"
+    id_prod = request.args.get("id_produto", type=int)
+    id_cat = request.args.get("categoria_id", type=int)
+    conn = get_conn()
+    produtos = conn.execute(
+        """SELECT p.id_produto, p.nome, c.nome AS categoria FROM produtos p
+           LEFT JOIN categorias c ON c.id_categoria=p.id_categoria ORDER BY p.nome""").fetchall()
+    cats = _categorias_ativas(conn)
+    d = None
+    if modo == "produto" and id_prod:
+        d = rd.extrato_produto(conn, id_prod, ini, fim)
+    elif modo == "categoria" and id_cat:
+        d = rd.extrato_categoria(conn, id_cat, ini, fim)
+    elif modo == "geral":
+        d = rd.extrato_geral(conn, ini, fim, id_cat)
+    conn.close()
+    if d and request.args.get("exportar") in ("excel", "pdf"):
+        cols = ["Data", "Documento", "Tipo", "Entrada", "Saída", "Saldo", "Custo unit.", "Valor do movimento",
+                "Saldo em valor"]
+        linhas = []
+        secs = [d] if modo == "produto" else (d["secoes"] if modo == "categoria" else [])
+        if modo == "geral":
+            cols = ["Categoria", "Produto", "Valor inicial", "Entradas", "Saídas", "Valor final"]
+            linhas = [[l["categoria"], l["nome"], l["v_ini"], l["ent_v"], l["sai_v"], l["v_fim"]] for l in d["linhas"]]
+        for sec in secs:
+            linhas.append([f"{sec['nome']} ({sec['un']})", "", "Saldo inicial", "", "", sec["q_ini"], "", "", sec["v_ini"]])
+            for l in sec["linhas"]:
+                linhas.append([l["data"], l["doc"], l["tipo"], l["entrada"] or "", l["saida"] or "", l["saldo"],
+                               l["custo_unit"], l["valor"], l["saldo_valor"]])
+        return _rel_excel(f"Extrato {dmy_(ini)} a {dmy_(fim)}", cols, linhas, "extrato")
+    return render_template("rel_extrato_produto.html", d=d, modo=modo, produtos=produtos, categorias=cats,
+                           args=request.args, id_prod=id_prod, id_cat=id_cat, **_rel_contexto())
+
+
+@app.route("/relatorios/perdas-validade")
+@login_required
+def rel_perdas_validade():
+    hoje = datetime.now().date()
+    ini = rd._dia(request.args.get("ini"), (hoje.replace(day=1) - timedelta(days=1)).replace(day=1).isoformat())
+    fim = rd._dia(request.args.get("fim"), (hoje.replace(day=1) - timedelta(days=1)).isoformat())
+    base = rd._dia(request.args.get("base"), hoje.isoformat())
+    if ini > fim:
+        ini, fim = fim, ini
+    conn = get_conn()
+    dados = rd.perdas_validade(conn, ini, fim, base)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        cols = ["Tipo", "Data / Validade", "Produto", "Qtd", "Motivo / Faixa", "Justificação", "Valor"]
+        linhas = [["Perda", o["data"], o["produto"], f"{rd.fmt_qtd(o['qtd'], o['un'])} {o['un']}",
+                   o["motivo"], o["justificacao"], o["valor"]] for o in dados["ocorrencias"]]
+        linhas.append(["TOTAL DAS PERDAS", "", "", "", "", "", dados["tot_valor"]])
+        linhas += [["Validade", i["validade"], i["produto"], f"{rd.fmt_qtd(i['saldo'], i['un'])} {i['un']}",
+                    i["faixa"], "", i["valor"]] for i in dados["itens"]]
+        return _rel_excel("Perdas e Validade", cols, linhas, "perdas_validade")
+    return render_template("rel_perdas_validade.html", d=dados, args=request.args, **_rel_contexto())
+
+
+@app.route("/relatorios/gestao")
+@perfil_required("Admin", "Gerente")
+def rel_gestao():
+    hoje = datetime.now().date()
+    p = request.args.get("periodo", "")
+    if p == "mes_ant":
+        fim_d = hoje.replace(day=1) - timedelta(days=1); ini_d = fim_d.replace(day=1)
+    elif p in ("semestre", "semestre_ant"):
+        s0 = 1 if hoje.month <= 6 else 7
+        ini_d = hoje.replace(month=s0, day=1)
+        fim_d = hoje
+        if p == "semestre_ant":
+            fim_d = ini_d - timedelta(days=1)
+            ini_d = fim_d.replace(month=1 if fim_d.month <= 6 else 7, day=1)
+    elif p == "mes":
+        ini_d, fim_d = hoje.replace(day=1), hoje
+    else:
+        ini_d = hoje.replace(day=1); fim_d = hoje
+    ini = rd._dia(request.args.get("ini"), ini_d.isoformat())
+    fim = rd._dia(request.args.get("fim"), fim_d.isoformat())
+    if ini > fim:
+        ini, fim = fim, ini
+    conn = get_conn()
+    d = rd.gestao(conn, ini, fim)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        v, c, e = d["vendas"], d["compras"], d["estoque"]
+        L = []
+        sec = lambda t: L.append([t.upper(), "", "", "", ""])
+        sec("Conclusão"); L.append([d["veredicto"]["texto"], "", "", "", ""])
+        for pt in d["pontos"]:
+            L.append([pt["area"], "", "", "", pt["texto"]])
+        sec("Vendas")
+        L += [["Total vendido", v["total"], "", "", f"{v['n']} venda(s)"], ["Recebido à vista", v["vista"], "", "", ""],
+              ["Faturado a crédito", v["credito"], "", "", ""], ["Custo das vendas", v["custo"], "", "", ""],
+              ["Lucro bruto", v["lucro"], "", "", f"Margem {v['margem'] if v['margem'] is not None else '—'} %"]]
+        sec("Compras"); L.append(["Total comprado", c["total"], "", "", f"{c['n']} entrada(s)"])
+        for f in c["fornecedores"]:
+            L.append(["  " + f["fornecedor"], f["valor"], "", "", ""])
+        sec("Recebimentos: sistema vs conferido")
+        for x in d["canais"]:
+            L.append([x["canal"], x["esperado"], x["conferido"] if x["conferido"] is not None else "—",
+                      x["diferenca"] if x["diferenca"] is not None else "—", x["texto"] + ((" " + x["obs"]) if x["obs"] else "")])
+        L.append(["TOTAL", d["rec_esperado_total"], d["rec_conferido_total"], "", ""])
+        L.append(["A receber de clientes", d["a_receber"]["valor"], "", "", f"{d['a_receber']['n']} fatura(s); em atraso {_filtro_mt(d['a_receber']['atraso'])}"])
+        sec("Estoque")
+        L += [["Valor inicial", e["inicial"], "", "", ""], ["+ Compras", e["compras"], "", "", ""],
+              ["− Custo das vendas", e["custo_vendas"], "", "", ""], ["− Perdas e ajustes", e["perdas_aj"], "", "", ""],
+              ["= Valor final", e["final"], "", "", "A conta fecha." if e["fecha"] else "A CONTA NÃO FECHA."]]
+        if d["perdas"]:
+            sec("Perdas")
+            for x in d["perdas"]:
+                L.append([f"{x['data']} · {x['produto']}", x["valor"], "", "", f"{x['motivo']}. {x['justificacao']} ({x['usuario']})"])
+        if d["contagens"]:
+            sec("Contagens físicas e diferenças de estoque")
+            for c in d["contagens"]:
+                L.append([f"Contagem de {c['data']} (inventário #{c['id']})", c["perdas"] + c["sobras"], "", "",
+                          f"{c['n_com']} diferença(s) em {c['n_contados']} produto(s)"])
+                for l in c["linhas"]:
+                    just = ((l["motivo"] + (". " if l["motivo"] and l["obs"] else "") + l["obs"]) if l["justificada"] else "SEM JUSTIFICAÇÃO")
+                    L.append([f"  {l['produto']}", f"{rd.fmt_qtd(l['sistema'], l['un'])} {l['un']}",
+                              f"{rd.fmt_qtd(l['contagem'], l['un'])} {l['un']}", l["dif_v"], just])
+        if d["ajustes"]:
+            sec("Ajustes de inventário")
+            for x in d["ajustes"]:
+                L.append([f"{x['data']} · {x['produto']}", x["valor"], "", "", f"{x['usuario']}"])
+        if d["anuladas"]:
+            sec("Vendas anuladas")
+            for x in d["anuladas"]:
+                L.append([f"{x['numero']} · {x['cliente']}", x["valor"], "", "", f"{x['motivo']} ({x['usuario']})"])
+        if len(d["evolucao"]) > 1:
+            sec("Evolução mensal (vendas / compras / lucro / recebido)")
+            for x in d["evolucao"]:
+                L.append([x["mes"], x["vendas"], x["compras"], x["lucro"], f"Recebido {_filtro_mt(x['recebido'])}"])
+        return _rel_excel("Relatório de Gestão", ["Item", "Sistema (MT)", "Conferido (MT)", "Diferença (MT)", "Observação"], L, "relatorio_gestao")
+    return render_template("rel_gestao.html", d=d, args=request.args, canais=rd.CANAIS, **_rel_contexto())
+
+
+@app.route("/relatorios/gestao/conferencia", methods=["POST"])
+@perfil_required("Admin", "Gerente")
+def rel_gestao_conferencia():
+    ini = rd._dia(request.form.get("ini"), None); fim = rd._dia(request.form.get("fim"), None)
+    if not ini or not fim:
+        abort(400)
+    conn = get_conn()
+    n = 0
+    for canal in rd.CANAIS:
+        bruto = (request.form.get("valor_" + canal) or "").strip()
+        if bruto == "":
+            conn.execute("DELETE FROM conferencias_recebimento WHERE data_ini=? AND data_fim=? AND canal=?", (ini, fim, canal))
+            continue
+        valor = safe_parse_float(bruto, None)
+        if valor is None or valor < 0:
+            flash(f"Valor inválido em {canal}.", "erro")
+            continue
+        conn.execute(
+            """INSERT INTO conferencias_recebimento (data_ini,data_fim,canal,valor_conferido,observacao,id_usuario,data_registo)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(data_ini,data_fim,canal) DO UPDATE SET valor_conferido=excluded.valor_conferido,
+                 observacao=excluded.observacao, id_usuario=excluded.id_usuario, data_registo=excluded.data_registo""",
+            (ini, fim, canal, valor, (request.form.get("obs_" + canal) or "").strip(), session["user_id"],
+             datetime.now().isoformat(timespec="seconds")))
+        n += 1
+    conn.commit(); conn.close()
+    flash(f"Conferência guardada ({n} canal/canais).", "sucesso")
+    return redirect(url_for("rel_gestao", ini=ini, fim=fim) + "#recebimentos")
+
+
+@app.route("/relatorios/curva-abc")
+@perfil_required("Admin", "Gerente")
+def rel_curva_abc():
+    data = rd._dia(request.args.get("data"), datetime.now().date().isoformat())
+    conn = get_conn()
+    dados = rd.curva_abc(conn, data)
+    conn.close()
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[i["classe"], i["produto"], i["un"], i["qtd"], i["custo_unit"], i["valor"], i["pct"], i["pct_acum"]]
+                  for i in dados["itens"]]
+        return _rel_excel(f"Curva ABC a {dmy_(data)}", ["Classe", "Produto", "Un.", "Qtd", "Custo unit.", "Valor",
+                                                       "% do estoque", "% acumulada"], linhas, "curva_abc")
+    return render_template("rel_curva_abc.html", d=dados, args=request.args, **_rel_contexto())
+
+
+@app.route("/auditorias/<int:id_auditoria>/divergencias")
+@login_required
+def rel_divergencias(id_auditoria):
+    conn = get_conn()
+    dados = rd.divergencias_inventario(conn, id_auditoria)
+    conn.close()
+    if not dados:
+        abort(404)
+    if request.args.get("exportar") in ("excel", "pdf"):
+        linhas = [[l["produto"], l["un"], l["sistema"], l["contagem"], l["dif"], l["custo_unit"], l["dif_v"],
+                   l["motivo"], l["estado"]] for l in dados["linhas"]]
+        return _rel_excel(f"Inventário físico: divergências #{id_auditoria}",
+                          ["Produto", "Un.", "Sistema", "Contagem", "Diferença", "Custo unit.", "Diferença em MT",
+                           "Motivo", "Estado"], linhas, f"divergencias_{id_auditoria}")
+    return render_template("rel_divergencias.html", d=dados, **_rel_contexto())
 
 
 # ---------------------------------------------------------------------------
@@ -1803,21 +2237,21 @@ def balancetes():
                 f"Período: {data_ini} a {data_fim}  |  "
                 f"Total Entradas: {entradas_acum_final:.2f}  |  "
                 f"Total Saídas: {saidas_acum_final:.2f}  |  "
-                f"Saldo Final: {saldo_acum_final:.2f}"
+                f"Entradas − Saídas: {entradas_acum_final - saidas_acum_final:.2f}"
             )
             totais = {
                 "subtotais": {
-                    "qtd_entradas": services.round5(
-                        sum(r["quantidade"] for r in linhas_ext if r["tipo"] == "Entrada")),
-                    "qtd_saidas": services.round5(
-                        sum(r["quantidade"] for r in linhas_ext if r["tipo"] == "Saida")),
-                    "qtd_saldo": services.round5(saldo_acum_final),
+                    # quantidades de unidades diferentes (kg, cx, un) não se somam
+                    "qtd_entradas": None,
+                    "qtd_saidas": None,
+                    "qtd_saldo": None,
                     "valor_entradas": services.round5(
                         sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Entrada")),
                     "valor_saidas": services.round5(
                         sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Saida")),
                     "valor_saldo": services.round5(
-                        sum(r["valor_total"] for r in linhas_ext)),
+                        sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Entrada")
+                        - sum(r["valor_total"] for r in linhas_ext if r["tipo"] == "Saida")),
                 },
             }
 
@@ -2054,9 +2488,9 @@ def _itens_cotacao_do_form():
             id_produto = int(id_txt)
         except ValueError:
             return None, f"Item {n}: produto inválido."
-        qtd = safe_parse_float(qtd_txt, None)
+        qtd = safe_parse_float(qtd_txt, None, milhares=False)
         preco = safe_parse_float(preco_txt, None)
-        desconto = safe_parse_float(_na(descontos, i), 0.0)
+        desconto = safe_parse_float(_na(descontos, i), 0.0, milhares=False)
         if qtd is None or qtd <= 0:
             return None, f"Item {n}: quantidade inválida."
         if preco is None or preco < 0:
@@ -2199,7 +2633,7 @@ def cotacao_exportar(id_cotacao, formato):
         for item in itens:
             linhas.append([
                 item["codigo"], item["produto_nome"],
-                int(item["quantidade"]),
+                services._qtd_cotacao(item["quantidade"]),
                 services.arredondar_moeda(item["preco_unitario"]),
                 f"{item['desconto_percentual']:.0f}%",
                 services.arredondar_moeda(item["valor_total"]),
@@ -2258,7 +2692,7 @@ def cotacao_faturar(id_cotacao):
         data_venc = request.form.get("data_vencimento") or None
         isento = request.form.get("isento_iva") == "1"
         taxa_txt = (request.form.get("taxa_iva") or "").strip()
-        taxa = safe_parse_float(taxa_txt, None) if taxa_txt else None
+        taxa = safe_parse_float(taxa_txt, None, milhares=False) if taxa_txt else None
         res = services.faturar_cotacao(
             conn, id_cotacao, session["user_id"],
             ip_address=_client_ip(),
@@ -2285,11 +2719,10 @@ def cotacao_faturar(id_cotacao):
 def venda_credito():
     conn = get_conn()
     if request.method == "POST":
+        json_mode = _pedido_json()
+        acao = request.form.get("acao", "gravar")
+        token = request.form.get("token_envio") or None
         nome_cliente = request.form.get("cliente", "").strip()
-        if not nome_cliente:
-            flash("Nome do cliente é obrigatório.", "erro")
-            conn.close()
-            return redirect(url_for("venda_credito"))
 
         ids_produto = request.form.getlist("id_produto[]")
         quantidades = request.form.getlist("quantidade[]")
@@ -2299,55 +2732,85 @@ def venda_credito():
         # Validação item a item: nunca descartar em silêncio.
         erros_parse = []
         itens = []
+        if not nome_cliente:
+            erros_parse.append(_erro_linha(None, "cliente", "Nome do cliente é obrigatório."))
         for i, id_str in enumerate(ids_produto):
             if not id_str:
                 continue
+            linha = i + 1
             try:
                 id_prod = int(id_str)
             except (TypeError, ValueError):
-                erros_parse.append(f"Item {i+1}: produto inválido.")
+                erros_parse.append(_erro_linha(linha, "produto", "Produto inválido."))
                 continue
 
             qtd_txt = quantidades[i] if i < len(quantidades) else None
             preco_txt = precos[i] if i < len(precos) else None
             unidade = unidades[i] if i < len(unidades) else "Unidade"
 
-            quantidade = safe_parse_float(qtd_txt, None)
+            quantidade = safe_parse_float(qtd_txt, None, milhares=False)
             preco = safe_parse_float(preco_txt, None)
 
             if quantidade is None or quantidade <= 0:
-                erros_parse.append(
-                    f"Item {i+1}: quantidade inválida (use 10 ou 10,5).")
+                erros_parse.append(_erro_linha(linha, "quantidade", "Quantidade inválida (use 10 ou 10,5)."))
                 continue
             if preco is None or preco < 0:
-                erros_parse.append(
-                    f"Item {i+1}: preço inválido (use 12,50 ou 12.50).")
+                erros_parse.append(_erro_linha(linha, "preco", "Preço inválido (use 12,50 ou 12.50)."))
                 continue
 
             itens.append({
+                "linha": linha,
                 "id_produto": id_prod,
                 "quantidade": quantidade,
                 "unidade": unidade,
                 "preco_unitario": preco,
             })
 
-        if erros_parse:
-            for e in erros_parse:
-                flash(e, "erro")
+        if not itens and not any(e["campo"] in ("produto", "quantidade", "preco") for e in erros_parse):
+            erros_parse.append(_erro_linha(None, "itens", "Adicione pelo menos um produto à fatura."))
+
+        erros_val, avisos = services.validar_itens_venda(conn, itens)
+        erros = sorted(erros_parse + erros_val,
+                       key=lambda e: (e.get("linha") is None, e.get("linha") or 0))
+
+        def _falhar(lista_erros, tentativa=True):
+            if tentativa:
+                services.registrar_tentativa_falhada(conn, session["user_id"], "venda_credito",
+                                                     lista_erros, _client_ip())
+            if json_mode:
+                conn.close()
+                return jsonify({"ok": False, "estado": "erros", "erros": lista_erros, "avisos": avisos})
+            for e in lista_erros:
+                flash(_texto_erro(e), "erro")
             conn.close()
             return redirect(url_for("venda_credito"))
 
-        if not itens:
-            flash("Adicione pelo menos um produto à fatura.", "erro")
+        if acao == "validar" and json_mode:
             conn.close()
-            return redirect(url_for("venda_credito"))
+            return jsonify({"ok": not erros, "estado": "erros" if erros else "validada",
+                            "erros": erros, "avisos": avisos})
+        if erros:
+            return _falhar(erros)
+        if avisos and json_mode and request.form.get("confirmar_avisos") != "1":
+            conn.close()
+            return jsonify({"ok": False, "estado": "confirmacao", "avisos": avisos, "erros": []})
 
         data_venda = request.form.get("data_venda") or ""
         data_venda_iso = (data_venda + "T" + datetime.now().strftime("%H:%M:%S")) if data_venda else None
         data_venc = request.form.get("data_vencimento") or None
         isento = request.form.get("isento_iva") == "1"
         taxa_txt = (request.form.get("taxa_iva") or "").strip()
-        taxa = safe_parse_float(taxa_txt, None) if taxa_txt else None
+        taxa = safe_parse_float(taxa_txt, None, milhares=False) if taxa_txt else None
+
+        if token and not _reservar_token_envio(token):
+            msg = "Esta fatura já foi registada (envio repetido ignorado)."
+            if json_mode:
+                conn.close()
+                return jsonify({"ok": False, "estado": "duplicado", "mensagem": msg,
+                                "redirect": url_for("contas_receber_list")})
+            flash(msg, "aviso")
+            conn.close()
+            return redirect(url_for("contas_receber_list"))
 
         # --- 1) Criar a fatura ---
         try:
@@ -2371,13 +2834,12 @@ def venda_credito():
                 ip_address=_client_ip(),
             )
         except services.RegraNegocioError as e:
-            flash(str(e), "erro")
-            conn.close()
-            return redirect(url_for("venda_credito"))
+            _devolver_token_envio(token)
+            return _falhar([_erro_linha(None, "itens", str(e))])
         except Exception as e:
-            flash(f"Erro ao criar fatura: {e}", "erro")
-            conn.close()
-            return redirect(url_for("venda_credito"))
+            _devolver_token_envio(token)
+            logging.exception("Erro ao criar fatura")
+            return _falhar([_erro_linha(None, "itens", f"Erro ao criar fatura: {e}")])
 
         # --- 2) Sucesso: fatura já está commitada ---
         flash(
@@ -2417,12 +2879,16 @@ def venda_credito():
             logging.warning(f"Falha ao verificar margens da fatura: {e}")
 
         conn.close()
-        return redirect(url_for("conta_receber_detalhe", id_conta=resultado["id_conta"]))
+        destino = url_for("conta_receber_detalhe", id_conta=resultado["id_conta"])
+        if json_mode:
+            return jsonify({"ok": True, "estado": "ok", "redirect": destino})
+        return redirect(destino)
 
     # GET: mostrar formulário
     produtos = conn.execute("SELECT * FROM produtos WHERE ativo=1 ORDER BY nome").fetchall()
     conn.close()
-    return render_template("venda_credito_form.html", produtos=produtos)
+    return render_template("venda_credito_form.html", produtos=produtos,
+                           token_envio=_emitir_token_envio())
 
 @app.route("/contas-receber")
 @login_required
@@ -2482,6 +2948,39 @@ def conta_receber_liquidar(id_conta):
         flash(f"Erro: {e}", "erro")
     conn.close()
     return redirect(url_for("conta_receber_detalhe", id_conta=id_conta))
+
+
+@app.route("/vendas/anular", methods=["GET", "POST"])
+@login_required
+def venda_anular():
+    """Anula uma venda pelo código (V-000123 ou nº da fatura) e repõe o estoque."""
+    conn = get_conn()
+    codigo = (request.values.get("codigo") or "").strip()
+    if request.method == "POST":
+        try:
+            res = services.anular_venda(conn, codigo, request.form.get("motivo"),
+                                        session["user_id"], session.get("perfil"), _client_ip())
+            flash(f"Venda {res['codigo']} anulada ({_filtro_mt(res['valor'])} MT). "
+                  f"O estoque de {res['itens']} item(ns) foi reposto.", "sucesso")
+            conn.close()
+            return redirect(url_for("venda_anular"))
+        except services.RegraNegocioError as e:
+            flash(str(e), "erro")
+    venda = services.obter_venda_por_codigo(conn, codigo) if codigo else None
+    if codigo and not venda and request.method == "GET":
+        flash(f"Não existe nenhuma venda com o código '{codigo}'.", "erro")
+    recentes = conn.execute(
+        """SELECT codigo_venda, MIN(data_hora) AS data_hora, MAX(cliente) AS cliente,
+                  MAX(forma_pagamento) AS forma, SUM(valor_total) AS total, COUNT(*) AS n
+           FROM movimentos WHERE tipo='Saida' AND codigo_venda IS NOT NULL
+           GROUP BY codigo_venda ORDER BY MIN(data_hora) DESC, codigo_venda DESC LIMIT 15""").fetchall()
+    anuladas = conn.execute(
+        """SELECT v.*, u.nome AS anulou FROM vendas_anuladas v
+           LEFT JOIN usuarios u ON u.id_usuario=v.id_usuario_anulou
+           ORDER BY v.id_anulacao DESC LIMIT 15""").fetchall()
+    conn.close()
+    return render_template("venda_anular.html", codigo=codigo, venda=venda,
+                           recentes=recentes, anuladas=anuladas)
 
 
 @app.route("/contas-receber/<int:id_conta>/eliminar", methods=["POST"])
@@ -2659,13 +3158,9 @@ def conta_receber_extrato_cliente(nome_cliente):
                              as_attachment=True,
                              download_name=f"extrato_{nome_limpo}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
 
+    dados = rd.extrato_cliente(conn, nome_cliente)
     conn.close()
-    return render_template("conta_receber_extrato_cliente.html",
-                           nome_cliente=nome_cliente,
-                           faturas=faturas,
-                           total=total, pago=pago, saldo=saldo,
-                           n_abertas=n_abertas, n_parciais=n_parciais,
-                           n_liquidadas=n_liquidadas)
+    return render_template("rel_extrato_cliente.html", d=dados, **_rel_contexto())
 
 @app.route("/recibos/<int:id_recibo>.pdf")
 @login_required
@@ -2773,7 +3268,7 @@ def auditoria_contar(id_auditoria):
     try:
         id_produto = int(request.form["id_produto"])
         # FIX: aceita vírgula decimal.
-        quantidade = safe_parse_float(request.form.get("quantidade"), None)
+        quantidade = safe_parse_float(request.form.get("quantidade"), None, milhares=False)
         if quantidade is None or quantidade <= 0:
             flash("Quantidade inválida.", "erro")
             conn.close()
@@ -3008,7 +3503,7 @@ def perdas_list():
         try:
             id_produto = int(request.form["id_produto"])
             # FIX: aceita vírgula decimal.
-            quantidade = safe_parse_float(request.form.get("quantidade"), None)
+            quantidade = safe_parse_float(request.form.get("quantidade"), None, milhares=False)
             if quantidade is None or quantidade <= 0:
                 flash("Quantidade inválida.", "erro")
                 conn.close()

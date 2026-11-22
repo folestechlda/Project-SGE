@@ -12,13 +12,9 @@
        href="{{ url_for('conta_receber_fatura_pdf', id_conta=conta.id_conta) }}">⬇ Fatura PDF</a>
 
     {% if conta.status not in ['Liquidada','Cancelada'] %}
-    <form method="POST"
-          action="{{ url_for('conta_receber_eliminar', id_conta=conta.id_conta) }}"
-          style="display:inline"
-          data-confirmar="Eliminar esta fatura? Os produtos serão DEVOLVIDOS ao stock. Esta acção é irreversível."
-          data-confirmar-tipo="erro" data-confirmar-ok="Eliminar">
-      <button type="submit" class="btn btn-danger">🗑 Eliminar Fatura (repõe stock)</button>
-    </form>
+    {% if conta.numero_fatura %}
+    <a class="btn btn-danger" href="{{ url_for('venda_anular', codigo=conta.numero_fatura) }}">Anular fatura (repõe estoque)</a>
+    {% endif %}
     {% endif %}
 
     <a class="btn btn-ghost" href="{{ url_for('contas_receber_list') }}">← Voltar</a>
@@ -98,6 +94,7 @@
       <select name="forma_pagamento">
         <option>Dinheiro</option>
         <option>M-Pesa</option>
+        <option>e-Mola</option>
         <option>Transferência</option>
         <option>Cartão</option>
         <option>Cheque</option>

@@ -1,0 +1,58 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Perdas e Validade · {{ app_name }}{% endblock %}
+{% block page_title %}Perdas e Validade{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  <label>Perdas de<input type="date" name="ini" value="{{ d.ini }}"></label>
+  <label>até<input type="date" name="fim" value="{{ d.fim }}"></label>
+  <label>Validade contada a partir de<input type="date" name="base" value="{{ d.base }}"></label>
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+<article class="rel">
+  {% call m.cabecalho("Perdas e Validade",
+      (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Período das perdas: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy) ~ " · validade contada a partir de " ~ (d.base|dmy),
+      [("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  <h2>Perdas do período <small>(MT, a custo)</small></h2>
+  <table class="rel-table">
+    <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Motivo</th><th>Justificação</th><th class="num">Valor</th></tr></thead>
+    <tbody>
+    {% for o in d.ocorrencias %}
+      <tr><td class="nw">{{ o.data }}</td><td class="col-nome">{{ o.produto }}</td><td class="num nw">{{ o.qtd|qt(o.un) }} {{ o.un }}</td>
+        <td>{{ o.motivo }}</td><td>{{ o.justificacao or '—' }}</td><td class="num">{{ o.valor|mt }}</td></tr>
+    {% else %}<tr><td colspan="6" class="rel-nota">Nenhuma perda registada neste período.</td></tr>{% endfor %}
+      <tr class="total"><td colspan="5">Total ({{ d.tot_n }} ocorrência{{ 's' if d.tot_n != 1 }})</td><td class="num">{{ d.tot_valor|mt }}</td></tr>
+    </tbody>
+  </table>
+
+  {% if d.motivos|length > 1 %}
+  <h2>Resumo por motivo</h2>
+  <table class="rel-table">
+    <thead><tr><th>Motivo</th><th class="num">Ocorrências</th><th class="num">Valor</th></tr></thead>
+    <tbody>{% for x in d.motivos %}<tr><td>{{ x.motivo }}</td><td class="num">{{ x.n }}</td><td class="num">{{ x.valor|mt }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+
+  <h2>Validade a expirar <small>(até 90 dias, e já vencidos)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Validade</th><th class="num">Dias</th><th class="num">Saldo</th><th class="num">Valor em risco</th><th>Faixa</th></tr></thead>
+    <tbody>
+    {% for i in d.itens %}
+      <tr><td class="col-nome">{{ i.produto }}</td><td>{{ i.validade }}</td><td class="num">{{ i.dias }}</td>
+        <td class="num">{{ i.saldo|qt(i.un) }} {{ i.un }}</td><td class="num">{{ i.valor|mt }}</td><td>{{ m.chip(i.faixa, i.classe) }}</td></tr>
+    {% else %}<tr><td colspan="6" class="rel-nota">Nenhum produto com validade nos próximos 90 dias.</td></tr>{% endfor %}
+      <tr class="total"><td colspan="4">Valor total em risco</td><td class="num">{{ d.risco|mt }}</td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-primary" href="{{ url_for('perdas_list') }}">+ Registar perda</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral') }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_balancete', ini=d.ini, fim=d.fim) }}">Balancete</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_extrato_produto', ini=d.ini, fim=d.fim) }}">Extrato de produto</a>
+{% endcall %}
+{% endblock %}

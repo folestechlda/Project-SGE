@@ -55,6 +55,7 @@
       <tr>
         <th>Data/Hora</th>
         <th>Tipo</th>
+        <th>Código</th>
         <th>Produto</th>
         <th>Categoria</th>
         <th class="num-right">Qtd. Origem</th>
@@ -72,6 +73,7 @@
       <tr>
         <td class="mono">{{ m.data_hora }}</td>
         <td>{% if m.tipo == 'Entrada' %}<span class="tag tag-good">Entrada</span>{% else %}<span class="tag tag-warn">Saída</span>{% endif %}</td>
+        <td class="mono nw">{% if m.tipo == 'Saida' and m.codigo_venda %}<a href="{{ url_for('venda_anular', codigo=m.codigo_venda) }}" title="Ver / anular esta venda">{{ m.codigo_venda }}</a>{% else %}—{% endif %}</td>
         <td>{{ m.produto_nome }} <span class="muted">({{ m.produto_codigo }})</span></td>
         <td class="muted">{{ m.categoria_nome or '—' }}</td>
         <td class="num-right">
@@ -86,7 +88,7 @@
         <td class="muted">{{ m.fornecedor or m.cliente or '—' }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="10" class="empty-hint">Nenhuma movimentação registada.</td></tr>
+      <tr><td colspan="11" class="empty-hint">Nenhuma movimentação registada.</td></tr>
     {% endfor %}
     </tbody>
   </table>

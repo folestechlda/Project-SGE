@@ -1,0 +1,58 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Inventário Físico: Divergências · {{ app_name }}{% endblock %}
+{% block page_title %}Inventário Físico: Divergências{% endblock %}
+{% block content %}
+<div class="no-print" style="display:flex;gap:8px;justify-content:space-between;max-width:1180px;margin:0 auto 10px">
+  <a class="btn btn-secondary" href="{{ url_for('auditoria_detalhe', id_auditoria=d.aud.id_auditoria) }}">← Voltar à auditoria</a>
+  <span style="display:flex;gap:8px">
+    <a class="btn btn-secondary" target="_blank" rel="noopener" href="?imprimir=1">🖨 Imprimir</a>
+    <a class="btn btn-secondary" href="{{ url_for('rel_divergencias', id_auditoria=d.aud.id_auditoria, exportar='pdf') }}">⬇ PDF</a>
+    <a class="btn btn-secondary" href="{{ url_for('rel_divergencias', id_auditoria=d.aud.id_auditoria, exportar='excel') }}">⬇ Excel</a>
+  </span>
+</div>
+<article class="rel">
+  {% call m.cabecalho("Inventário Físico: Divergências",
+      (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Contagem #" ~ d.aud.id_auditoria ~ " de " ~ (d.aud.data_fim|dmy) ~ " · contador: " ~ d.contador,
+      [("Estado", m.chip(d.estado.texto, d.estado.classe)), ("Aprovador", "Gerente ou Admin"), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+    <div class="kpis">
+    {{ m.kpi("Produtos contados", d.n_contados) }}
+    {{ m.kpi("Sem divergência", d.n_sem) }}
+    {{ m.kpi("Com divergência", d.n_com) }}
+    {{ m.kpi("Impacto líquido", (d.impacto|mt) ~ " MT") }}
+  </div>
+  <p class="rel-linha-estado">Perdas {{ d.perdas|mt }} · Sobras {{ d.sobras|mts }} (a custo médio)</p>
+
+  <h2>Detalhe por produto</h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Un.</th><th class="num">Sistema</th><th class="num">Contagem</th><th class="num">Diferença</th><th class="num">Custo unit.</th><th class="num">Diferença em MT</th><th>Motivo</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for l in d.linhas %}
+      <tr>
+        <td class="col-nome">{{ l.produto }}</td><td>{{ l.un }}</td>
+        <td class="num">{{ l.sistema|qt(l.un) }}</td><td class="num">{{ l.contagem|qt(l.un) }}</td>
+        <td class="num">{{ ((l.dif|qt(l.un)) if l.dif <= 0 else ('+' ~ (l.dif|qt(l.un)))) }}</td>
+        <td class="num">{{ l.custo_unit|mt }}</td><td class="num">{{ l.dif_v|mts }}</td>
+        <td>{{ l.motivo if l.com_div and l.motivo else '—' }}</td>
+        <td>{% if not l.com_div %}
+            {% elif l.estado in ('pendente','justificada') %}{{ m.chip('Pendente','chip-aviso') }}
+            {% else %}{{ m.chip('Ajustada' if l.estado == 'ajustada' else 'Aceite','chip-neutro') }}{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="rel-nota">Esta auditoria ainda não tem contagens.</td></tr>
+    {% endfor %}
+      <tr class="total"><td colspan="6">Impacto líquido</td><td class="num">{{ d.impacto|mts }}</td><td colspan="2"></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-secondary" href="{{ url_for('auditoria_detalhe', id_auditoria=d.aud.id_auditoria) }}">Voltar à auditoria</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral') }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_posicao') }}">Posição de estoque</a>
+  <a class="btn btn-secondary" href="{{ url_for('auditorias_list') }}">Auditorias</a>
+{% endcall %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Estoque Geral · {{ app_name }}{% endblock %}
+{% block page_title %}Estoque Geral{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  {{ m.filtros_periodo(args, d.ini, d.fim) }}
+  {{ m.filtro_categoria(categorias, id_cat) }}
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+
+<article class="rel">
+  {% call m.cabecalho("Estoque Geral",
+        (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy) ~ " · " ~ ("categoria seleccionada" if id_cat else "todos os produtos e categorias"),
+        [("Valorização", d.metodo), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  {% set t = d.tot %}
+  {% set rec = d.reconciliacao %}
+  <div class="kpis">
+    {{ m.kpi("Valor inicial", t.v_ini|mt) }}{{ m.op("+") }}
+    {{ m.kpi("Compras", t.compras|mt) }}{{ m.op("−") }}
+    {{ m.kpi("Custo das vendas", t.custo_vendas|mt) }}{{ m.op("−") }}
+    {{ m.kpi("Perdas e ajustes", t.perdas_aj|mt) }}{{ m.op("=") }}
+    {{ m.kpi("Valor final", t.v_fim|mt) }}
+  </div>
+  {% if rec.estado == 'atencao' or not d.todas_fecham %}<p class="rel-aviso">⚠ {{ rec.texto if rec.estado == 'atencao' else 'Há produtos em que a conta não fecha.' }}</p>{% endif %}
+
+  <h2>Produtos por categoria <small>(valores em MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Un.</th><th class="num">Qtd final</th><th class="num">Valor inicial</th><th class="num">Compras</th><th class="num">Custo das vendas</th><th class="num">Perdas e ajustes</th><th class="num">Valor final</th><th class="num">%</th></tr></thead>
+    <tbody>
+    {% for g in d.grupos %}
+      <tr class="grupo"><td colspan="9">{{ g.nome }}</td></tr>
+      {% for l in g.linhas %}
+      <tr>
+        <td class="col-nome"><a href="{{ url_for('rel_extrato_produto', id_produto=l.id_produto, ini=d.ini, fim=d.fim) }}">{{ l.produto }}</a></td>
+        <td>{{ l.un }}</td><td class="num">{{ l.q_fim|qt(l.un) }}</td>
+        <td class="num">{{ l.v_ini|mt }}</td><td class="num">{{ l.compras|mt }}</td><td class="num">{{ l.custo_vendas|mt }}</td><td class="num">{{ l.perdas_aj|mt }}</td>
+        <td class="num">{{ l.v_fim|mt }}</td>
+        <td class="num">{{ l.pct|pct }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="sub"><td colspan="3">Subtotal da categoria (só valor)</td>
+        <td class="num">{{ g.sub.v_ini|mt }}</td><td class="num">{{ g.sub.compras|mt }}</td><td class="num">{{ g.sub.custo_vendas|mt }}</td><td class="num">{{ g.sub.perdas_aj|mt }}</td><td class="num">{{ g.sub.v_fim|mt }}</td><td class="num">{{ g.sub.pct|pct }}</td></tr>
+    {% else %}
+      <tr><td colspan="9" class="rel-nota">Sem produtos para mostrar.</td></tr>
+    {% endfor %}
+      <tr class="total"><td colspan="3">Total do estoque</td>
+        <td class="num">{{ t.v_ini|mt }}</td><td class="num">{{ t.compras|mt }}</td><td class="num">{{ t.custo_vendas|mt }}</td><td class="num">{{ t.perdas_aj|mt }}</td><td class="num">{{ t.v_fim|mt }}</td><td class="num">{{ '100,0' if t.v_fim > 0 else '—' }}</td></tr>
+    </tbody>
+  </table>
+  </div>
+  {% if d.pendentes %}
+  <p class="rel-aviso">⚠ Ajustes de inventário ainda não incluídos:
+    {% for p in d.pendentes %}<a href="{{ url_for('rel_divergencias', id_auditoria=p.id_auditoria) }}">inventário #{{ p.id_auditoria }}</a> ({{ p.valor|mt }} MT){{ ', ' if not loop.last }}{% endfor %}.
+  </p>
+  {% endif %}
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-secondary" href="{{ url_for('rel_balancete', ini=d.ini, fim=d.fim) }}">Balancete</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_posicao') }}">Posição de estoque</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_extrato_produto', modo='geral', ini=d.ini, fim=d.fim) }}">Extrato geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('estoque_inventario') }}">Inventário físico</a>
+  <a class="btn btn-primary" href="{{ url_for('movimento_entrada') }}">+ Nova entrada</a>
+{% endcall %}
+{% endblock %}

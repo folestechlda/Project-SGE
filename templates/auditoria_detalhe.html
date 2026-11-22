@@ -30,6 +30,8 @@
        href="{{ url_for('auditoria_relatorio', id_auditoria=aud.id_auditoria, tipo='resumo') }}">
       📊 Relatórios
     </a>
+    <a class="btn btn-secondary"
+       href="{{ url_for('rel_divergencias', id_auditoria=aud.id_auditoria) }}">Divergências (modelo)</a>
     {% if aud.estado == 'fechada' %}
     <a class="btn btn-secondary" target="_blank"
        href="{{ url_for('auditoria_relatorio_pdf', id_auditoria=aud.id_auditoria) }}">⬇ PDF</a>

@@ -8,6 +8,13 @@
   </div>
 </div>
 
+<div class="nav-rel">
+  <span class="nav-rel-t">Ir para</span>
+  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade') }}">Relatório de perdas e validade</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_posicao') }}">Posição de estoque</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_extrato_produto') }}">Extrato de produto</a>
+  <a class="btn btn-secondary" href="{{ url_for('movimento_entrada') }}">+ Nova entrada</a>
+</div>
 <div class="panel form-panel">
   <h3>Registar Perda</h3>
     <form method="POST" class="grid-form"
@@ -25,7 +32,7 @@
       <input type="number" step="0.001" min="0.001" name="quantidade" required>
     </label>
     <label>Motivo *
-      <select name="motivo" required>
+      <select name="motivo" id="motivo" required>
         <option>Vencimento</option>
         <option>Quebra</option>
         <option>Furto</option>
@@ -36,14 +43,24 @@
     <label>Data
       <input type="date" name="data_perda" value="{{ hoje }}">
     </label>
-    <label class="span-2">Observação
-      <textarea name="observacao" rows="2"></textarea>
+    <label class="span-2" id="just-box">
+      <span id="just-rot">Observação (opcional)</span>
+      <textarea name="observacao" id="just" rows="2" placeholder=""></textarea>
     </label>
     <div class="form-actions span-2">
       <button type="submit" class="btn btn-primary">Registar Perda</button>
     </div>
   </form>
 </div>
+<script>
+(function(){
+  var m=document.getElementById('motivo'), t=document.getElementById('just'), r=document.getElementById('just-rot');
+  function a(){ var o=m.value==='Outro'; t.required=o;
+    r.textContent=o?'Justificação * (obrigatória para o motivo "Outro")':'Observação (opcional)';
+    t.placeholder=o?'Explique o que aconteceu com o produto…':''; if(o) t.focus(); }
+  m.addEventListener('change',a); a();
+})();
+</script>
 
 <div class="panel" style="margin-top:16px">
   <h3>Histórico de perdas</h3>
@@ -51,7 +68,7 @@
     <thead>
       <tr>
         <th>Data</th><th>Produto</th><th class="num-right">Qtd</th>
-        <th>Motivo</th><th class="num-right">Valor</th><th>Utilizador</th>
+        <th>Motivo e justificação</th><th class="num-right">Valor</th><th>Utilizador</th>
       </tr>
     </thead>
     <tbody>
@@ -59,9 +76,9 @@
       {% set motivo = (p.subtipo or '').replace('Perda_','').replace('_',' ') %}
       <tr>
         <td class="mono">{{ p.data_hora[:16] }}</td>
-        <td>{{ p.nome }} <span class="muted">({{ p.codigo }})</span></td>
-        <td class="num-right">{{ p.quantidade|format_num(2) }}</td>
-        <td><span class="tag tag-warn">{{ motivo }}</span></td>
+        <td><strong>{{ p.nome }}</strong> <span class="muted">({{ p.codigo }})</span></td>
+        <td class="num-right">{{ p.quantidade|format_num(2) }} {{ p.unidade }}</td>
+        <td><span class="tag tag-warn">{{ motivo }}</span>{% set j = (p.observacoes or '').split('.',1)[1].strip() if (p.observacoes or '').startswith('Perda') and '.' in (p.observacoes or '') else '' %}{% if j %}<div class="muted" style="font-size:12px;margin-top:3px">{{ j }}</div>{% endif %}</td>
         <td class="num-right">{{ p.valor_total|format_currency }}</td>
         <td class="muted">{{ p.usuario_nome or '—' }}</td>
       </tr>

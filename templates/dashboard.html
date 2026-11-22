@@ -2,19 +2,20 @@
 {% block page_title %}Painel{% endblock %}
 {% block title %}Painel · {{ app_name }}{% endblock %}
 {% block content %}
+<div class="painel">
 <div class="page-header">
   <div>
-    <h1>Painel Gerencial</h1>
-    <p class="page-sub">Visão geral do estoque e desempenho do negócio</p>
+    <h1>Painel gerencial</h1>
+    <p class="page-sub">Estoque e desempenho do negócio · {{ periodo_dias }} dias</p>
   </div>
-  <form class="inline-filters" method="GET">
-    <select name="categoria_id" onchange="this.form.submit()">
+  <form class="inline-filters painel-filtros" method="GET">
+    <select name="categoria_id" onchange="this.form.submit()" aria-label="Categoria">
       <option value="">Todas as categorias</option>
       {% for c in categorias %}
       <option value="{{ c.id_categoria }}" {{ 'selected' if categoria_id==c.id_categoria }}>{{ c.nome }}</option>
       {% endfor %}
     </select>
-    <select name="periodo" onchange="this.form.submit()">
+    <select name="periodo" onchange="this.form.submit()" aria-label="Período">
       <option value="7" {{ 'selected' if periodo_dias==7 }}>Últimos 7 dias</option>
       <option value="30" {{ 'selected' if periodo_dias==30 }}>Últimos 30 dias</option>
       <option value="90" {{ 'selected' if periodo_dias==90 }}>Últimos 90 dias</option>
@@ -24,75 +25,81 @@
   </form>
 </div>
 
-<div class="cards-grid">
-  <div class="stat-card"><span class="stat-label">Produtos Activos</span>
-    <span class="stat-value">{{ total_produtos or 0 }}</span>
-    <span class="hint">{{ total_categorias or 0 }} categorias</span></div>
-  <div class="stat-card"><span class="stat-label">Estoque (Custo)</span>
-    <span class="stat-value">{{ (valor_custo or 0)|format_currency }}</span>
-    <span class="hint">{{ config.moeda }}</span></div>
-  <div class="stat-card accent-good"><span class="stat-label">Estoque (Venda)</span>
-    <span class="stat-value">{{ (valor_venda or 0)|format_currency }}</span>
-    <span class="hint">{{ config.moeda }}</span></div>
-  <div class="stat-card accent-amber"><span class="stat-label">Lucro do Mês</span>
-    <span class="stat-value">{{ (lucro_mes or 0)|format_currency }}</span>
-    <span class="hint">{{ config.moeda }}</span></div>
-  <div class="stat-card {{ 'accent-amber' if (num_alertas or 0) > 0 else 'accent-good' }}">
-    <span class="stat-label">Alertas</span>
-    <span class="stat-value">{{ num_alertas or 0 }}</span>
-    <span class="hint">{{ (abaixo_minimo or [])|length }} mín · {{ (proximos_venc or [])|length }} validade</span>
+<section class="kpis" aria-label="Indicadores">
+  <div class="kpi">
+    <span class="kpi-label">Produtos activos</span>
+    <span class="kpi-valor">{{ total_produtos or 0 }}</span>
+    <span class="kpi-nota">{{ total_categorias or 0 }} categorias</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Estoque a custo</span>
+    <span class="kpi-valor">{{ (valor_custo or 0)|format_currency }}</span>
+    <span class="kpi-nota">{{ config.moeda }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Estoque a preço de venda</span>
+    <span class="kpi-valor">{{ (valor_venda or 0)|format_currency }}</span>
+    <span class="kpi-nota">{{ config.moeda }}</span>
+  </div>
+  <div class="kpi {{ 'kpi-pos' if (lucro_mes or 0) > 0 else ('kpi-neg' if (lucro_mes or 0) < 0 else '') }}">
+    <span class="kpi-label">Lucro do mês</span>
+    <span class="kpi-valor">{{ (lucro_mes or 0)|format_currency }}</span>
+    <span class="kpi-nota">{{ config.moeda }}</span>
+  </div>
+  <a class="kpi kpi-alerta {{ 'tem-alertas' if (num_alertas or 0) > 0 }}" href="#alertas">
+    <span class="kpi-label">Alertas</span>
+    <span class="kpi-valor">{{ num_alertas or 0 }}</span>
+    <span class="kpi-nota">{{ (abaixo_minimo or [])|length }} abaixo do mínimo · {{ (proximos_venc or [])|length }} a vencer</span>
+  </a>
+</section>
+
+<div class="grade-12">
+  <div class="panel span-8">
+    <div class="panel-cab"><h3>Vendas e compras</h3><span class="panel-nota">por dia</span></div>
+    <div class="grafico"><canvas id="chartReceitaDespesa"></canvas></div>
+  </div>
+  <div class="panel span-4">
+    <div class="panel-cab"><h3>Lucro ou prejuízo</h3><span class="panel-nota">no período</span></div>
+    <div class="grafico grafico-donut"><canvas id="chartLucroPrejuizo"></canvas></div>
+    <div class="grafico-rotulo" id="lblLucroPrejuizo">—</div>
+  </div>
+
+  <div class="panel span-8">
+    <div class="panel-cab"><h3>Tendência de lucro</h3><span class="panel-nota">por dia</span></div>
+    <div class="grafico"><canvas id="chartTendLucro"></canvas></div>
+  </div>
+  <div class="panel span-4">
+    <div class="panel-cab"><h3>Produtos mais vendidos</h3></div>
+    <div class="grafico grafico-donut"><canvas id="chartCatVendas"></canvas></div>
+  </div>
+
+  <div class="panel span-12">
+    <div class="panel-cab"><h3>Fluxo de quantidades</h3><span class="panel-nota">entradas e saídas</span></div>
+    <div class="grafico grafico-baixo"><canvas id="chartFluxoQtd"></canvas></div>
+  </div>
+
+  <div class="panel span-5">
+    <div class="panel-cab"><h3>Faturas a crédito por estado</h3></div>
+    <div class="grafico grafico-donut"><canvas id="chartFaturasEstado"></canvas></div>
+    <div class="grafico-rotulo" id="lblFaturasEstado">—</div>
+  </div>
+  <div class="panel span-7">
+    <div class="panel-cab"><h3>Top 10 clientes em dívida</h3></div>
+    <div class="grafico"><canvas id="chartTopDivida"></canvas></div>
   </div>
 </div>
 
-<div class="cards-grid" style="grid-template-columns: repeat(2, 1fr); gap:16px">
+<div class="alerts-grid" id="alertas">
   <div class="panel">
-    <h3>Lucro / Prejuízo</h3>
-    <div style="position:relative;height:260px"><canvas id="chartLucroPrejuizo"></canvas></div>
-    <div style="text-align:center;font-weight:600;margin-top:8px" id="lblLucroPrejuizo">—</div>
-  </div>
-  <div class="panel">
-    <h3>Tendência de Lucro</h3>
-    <div style="position:relative;height:260px"><canvas id="chartTendLucro"></canvas></div>
-  </div>
-  <div class="panel">
-    <h3>Receita x Despesa</h3>
-    <div style="position:relative;height:260px"><canvas id="chartReceitaDespesa"></canvas></div>
-  </div>
-  <div class="panel">
-    <h3>Produtos Mais Vendidos</h3>
-    <div style="position:relative;height:260px"><canvas id="chartCatVendas"></canvas></div>
-  </div>
-
-  {# Faturas a crédito por estado #}
-  <div class="panel">
-    <h3>Faturas a Crédito por Estado</h3>
-    <div style="position:relative;height:260px"><canvas id="chartFaturasEstado"></canvas></div>
-    <div style="text-align:center;font-weight:600;margin-top:8px" id="lblFaturasEstado">—</div>
-  </div>
-
-  {# Top clientes em dívida #}
-  <div class="panel">
-    <h3>Top 10 Clientes em Dívida</h3>
-    <div style="position:relative;height:260px"><canvas id="chartTopDivida"></canvas></div>
-  </div>
-</div>
-
-<div class="panel" style="margin-top:20px">
-  <h3>Fluxo de Quantidades</h3>
-  <div style="position:relative;height:260px"><canvas id="chartFluxoQtd"></canvas></div>
-</div>
-
-<div class="alerts-grid" style="margin-top:20px">
-  <div class="panel">
-    <h3>⚠ Estoque Abaixo do Mínimo</h3>
+    <h3>Estoque abaixo do mínimo</h3>
     <table class="mini-table">
       <thead><tr><th>Produto</th><th class="num-right">Saldo</th><th class="num-right">Mín.</th><th></th></tr></thead>
       <tbody>
       {% for p in (abaixo_minimo or []) %}
         <tr>
           <td>{{ p.nome }}</td>
-          <td class="num-right text-danger">{{ p.saldo_atual }}</td>
-          <td class="num-right">{{ p.estoque_minimo }}</td>
+          <td class="num-right text-danger">{{ p.saldo_atual|sq(p.unidade) }}</td>
+          <td class="num-right">{{ p.estoque_minimo|sq(p.unidade) }}</td>
           <td><a href="{{ url_for('movimento_entrada') }}" class="link-action">Repor</a></td>
         </tr>
       {% else %}
@@ -102,7 +109,7 @@
     </table>
   </div>
   <div class="panel">
-    <h3>📅 Validade Próxima</h3>
+    <h3>Validade próxima</h3>
     <table class="mini-table">
       <thead><tr><th>Produto</th><th>Validade</th><th>Situação</th></tr></thead>
       <tbody>
@@ -119,7 +126,7 @@
     </table>
   </div>
   <div class="panel">
-    <h3>💡 Sugestões de Preço</h3>
+    <h3>Sugestões de preço</h3>
     <table class="mini-table">
       <thead><tr><th>Produto</th><th>Sugestão</th><th class="num-right">Novo Preço</th></tr></thead>
       <tbody>
@@ -135,6 +142,8 @@
       </tbody>
     </table>
   </div>
+</div>
+
 </div>
 
 {# Dados para os gráficos, em atributo data-* (HTML puro).

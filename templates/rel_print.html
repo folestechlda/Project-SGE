@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Relatório{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/relatorios.css') }}">
+<style>
+  :root { --papel:#fff; --borda:#e5e7eb; }
+  html, body { margin: 0; background: #fff; color: #1f2937; font-family: "Inter","Segoe UI","Helvetica Neue",Arial,sans-serif; }
+  .no-print, .rel-toolbar, .rel-ecra { display: none !important; }
+  .so-print { display: inline !important; }
+  .rel { border: 0; border-radius: 0; margin: 0 auto; max-width: 190mm; padding: 0; }
+  .imp-pagina { width: 100%; border-collapse: collapse; }
+  .imp-pagina > thead > tr > td, .imp-pagina > tfoot > tr > td { height: 12mm; padding: 0; }
+  .imp-pagina > tbody > tr > td { padding: 0 12mm; }
+  @page { size: A4 portrait; margin: 0; }
+  @media screen { body { background: #e5e7eb; } .imp-pagina { background:#fff; max-width: 210mm; margin: 0 auto; box-shadow: 0 0 8px rgba(0,0,0,.15);} }
+  .rel { font-size: 10.5px; }
+  .rel-head { flex-direction: row; gap: 16px; padding-bottom: 10px; margin-bottom: 14px; }
+  .rel-cards { grid-template-columns: 1fr 1fr; }
+  .kpi-op { display: block; }
+  .rel-meta { grid-template-columns: auto auto; }
+  .rel-head h1 { font-size: 21px; }
+  .rel-sub { font-size: 12px; }
+  .rel-meta { font-size: 11px; }
+  .rel h2 { font-size: 13.5px; margin: 16px 0 6px; }
+  .kpi { min-width: 0; padding: 8px 10px; flex-basis: 90px; }
+  .kpi .k-t { font-size: 8.5px; }
+  .kpi .k-v { font-size: 16px; }
+  .kpi-op { font-size: 14px; }
+  .rel-table { font-size: 10px; }
+  .rel-table th { font-size: 8.5px; padding: 6px 5px; }
+  .rel-table td { padding: 4px 5px; }
+  .rel-table tr { break-inside: avoid; }
+  .rel-table thead { display: table-header-group; }
+  .rel-cards { gap: 10px; margin-top: 14px; }
+  .rel-card { padding: 9px 12px; break-inside: avoid; }
+  .chip { font-size: 9.5px; padding: 0 6px; }
+  .rel-scroll { overflow: visible; }
+  .rel-table { min-width: 0; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+</style>
+</head>
+<body>
+<table class="imp-pagina"><thead><tr><td></td></tr></thead>
+<tbody><tr><td>
+{% block content %}{% endblock %}
+</td></tr></tbody>
+<tfoot><tr><td></td></tr></tfoot></table>
+<script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });</script>
+</body>
+</html>

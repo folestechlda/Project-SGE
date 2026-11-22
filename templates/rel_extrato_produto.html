@@ -1,0 +1,105 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Extrato · {{ app_name }}{% endblock %}
+{% block page_title %}Extratos{% endblock %}
+
+{% macro tabela(x, ini_txt) %}
+<div class="rel-scroll">
+<table class="rel-table">
+  <thead><tr><th>Data</th><th>Documento</th><th class="col-nome">Tipo</th><th class="num">Entrada</th><th class="num">Saída</th><th class="num">Saldo ({{ x.un }})</th><th class="num">Custo unit.</th><th class="num">Valor do movimento</th><th class="num">Saldo em valor</th></tr></thead>
+  <tbody>
+    <tr class="inicial"><td>{{ ini_txt }}</td><td>—</td><td>Saldo inicial (acumulado até {{ x.dia_anterior }})</td><td></td><td></td><td class="num">{{ x.q_ini|qt(x.un) }}</td><td></td><td></td><td class="num">{{ x.v_ini|mt }}</td></tr>
+    {% for l in x.linhas %}
+    <tr class="{{ 'cinza' if l.cinza }}">
+      <td class="nw">{{ l.data }}</td><td class="nw">{{ l.doc }}</td><td class="col-nome">{{ l.tipo }}</td>
+      <td class="num">{{ l.entrada|qt(x.un) if l.entrada is not none else '' }}</td>
+      <td class="num">{{ l.saida|qt(x.un) if l.saida is not none else '' }}</td>
+      <td class="num">{{ l.saldo|qt(x.un) }}</td><td class="num">{{ l.custo_unit|mt }}</td>
+      <td class="num">{{ l.valor|mts }}</td><td class="num">{{ l.saldo_valor|mt }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="rel-nota">Sem movimentos neste período.</td></tr>
+    {% endfor %}
+    <tr class="total"><td colspan="3">Totais do período</td><td class="num">{{ x.ent_total|qt(x.un) }}</td><td class="num">{{ x.sai_total|qt(x.un) }}</td><td class="num">{{ x.q_fim|qt(x.un) }}</td><td></td><td></td><td class="num">{{ x.v_fim|mt }}</td></tr>
+  </tbody>
+</table>
+</div>
+{% endmacro %}
+
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  <label>Tipo de extrato
+    <select name="modo" onchange="this.form.submit()">
+      <option value="produto" {{ 'selected' if modo=='produto' }}>Por produto</option>
+      <option value="categoria" {{ 'selected' if modo=='categoria' }}>Por categoria</option>
+      <option value="geral" {{ 'selected' if modo=='geral' }}>Geral (todos os produtos)</option>
+    </select></label>
+  {% if modo == 'produto' %}
+  <label class="grow">Produto
+    <select name="id_produto" required><option value="">Escolha o produto…</option>
+      {% for p in produtos %}<option value="{{ p.id_produto }}" {{ 'selected' if id_prod == p.id_produto }}>{{ p.nome }}{{ ' · ' ~ p.categoria if p.categoria }}</option>{% endfor %}
+    </select></label>
+  {% else %}
+  {{ m.filtro_categoria(categorias, id_cat) }}
+  {% endif %}
+  <label>De<input type="date" name="ini" value="{{ d.ini if d else (args.get('ini') or '') }}"></label>
+  <label>Até<input type="date" name="fim" value="{{ d.fim if d else (args.get('fim') or '') }}"></label>
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+
+{% if not d %}
+<div class="rel"><p class="rel-nota">{% if modo == 'produto' %}Escolha um produto e o período para ver o extrato.{% elif modo == 'categoria' %}Escolha uma categoria.{% else %}Sem dados.{% endif %}</p></div>
+{% else %}
+{{ m.acoes(args) }}
+<article class="rel">
+
+{% if modo == 'produto' %}
+  {% call m.cabecalho("Extrato de Produto",
+      d.nome ~ " · unidade: " ~ d.un ~ " · Categoria: " ~ d.categoria ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy),
+      [("Método de custeio", d.metodo), ("Estado do período", m.estado_chip(d.estado)), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+  <h2>Movimentos <small>(quantidade em {{ d.un }} · valores em MT)</small></h2>
+  {{ tabela(d, d.ini[8:10] ~ "/" ~ d.ini[5:7]) }}
+  <p class="rel-linha-estado">Quantidade: {{ d.q_ini|qt(d.un) }} + {{ d.ent_total|qt(d.un) }} − {{ d.sai_total|qt(d.un) }} = <strong>{{ d.q_fim|qt(d.un) }} {{ d.un }}</strong>
+    · Vendas {{ d.vendas|mt }} · Lucro {{ d.lucro|mt }}{% if d.margem is not none %} · Margem {{ d.margem|pct }} %{% endif %}</p>
+  {% if not (d.fecha_q and d.fecha_v) %}<p class="rel-aviso">⚠ A conta deste produto não fecha: confira os movimentos.</p>{% endif %}
+
+{% elif modo == 'categoria' %}
+  {% call m.cabecalho("Extrato por Categoria",
+      d.categoria ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy),
+      [("Método de custeio", d.metodo), ("Estado do período", m.estado_chip(d.estado)), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+  {% for x in d.secoes %}
+    <h2>{{ x.nome }} <small>({{ x.un }})</small></h2>
+    {{ tabela(x, d.ini[8:10] ~ "/" ~ d.ini[5:7]) }}
+  {% else %}
+    <p class="rel-nota">Sem movimentos nesta categoria no período.</p>
+  {% endfor %}
+  <p class="rel-linha-estado">Total da categoria: <strong>{{ d.tot.v_fim|mt }} MT</strong></p>
+
+{% else %}
+  {% call m.cabecalho("Extrato Geral",
+      "Todos os produtos · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy),
+      [("Método de custeio", d.metodo), ("Estado do período", m.estado_chip(d.estado)), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+  <h2>Uma linha por produto <small>(só valor, MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th>Categoria</th><th class="col-nome">Produto</th><th class="num">Valor inicial</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Valor final</th></tr></thead>
+    <tbody>
+    {% for l in d.linhas %}
+      <tr><td>{{ l.categoria }}</td><td class="col-nome"><a href="{{ url_for('rel_extrato_produto', id_produto=l.id_produto, ini=d.ini, fim=d.fim) }}">{{ l.nome }}</a></td>
+        <td class="num">{{ l.v_ini|mt }}</td><td class="num">{{ l.ent_v|mt }}</td><td class="num">{{ l.sai_v|mt }}</td><td class="num">{{ l.v_fim|mt }}</td></tr>
+    {% else %}<tr><td colspan="6" class="rel-nota">Sem movimentos no período.</td></tr>{% endfor %}
+      <tr class="total"><td colspan="2">Total</td><td class="num">{{ d.tot.v_ini|mt }}</td><td class="num">{{ d.tot.ent_v|mt }}</td><td class="num">{{ d.tot.sai_v|mt }}</td><td class="num">{{ d.tot.v_fim|mt }}</td></tr>
+    </tbody>
+  </table>
+  </div>
+{% endif %}
+</article>
+{% call m.navegacao() %}
+  {% if modo == 'produto' and d.id_produto is defined %}<a class="btn btn-secondary" href="{{ url_for('rel_posicao') }}">Posição de estoque</a>{% endif %}
+  <a class="btn btn-primary" href="{{ url_for('movimento_entrada') }}">+ Nova entrada</a>
+  <a class="btn btn-secondary" href="{{ url_for('perdas_list') }}">Registar perda</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral', ini=d.ini, fim=d.fim) }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade', ini=d.ini, fim=d.fim) }}">Perdas</a>
+{% endcall %}
+{% endif %}
+{% endblock %}

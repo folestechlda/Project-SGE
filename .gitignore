@@ -89,3 +89,11 @@ diag_db.py
 # Duplicados JS com maiúsculas (manter só os minúsculos)
 static/js/Login.js
 static/js/Produto_form.js
+.venv/
+__pycache__/
+*.db
+*.db-wal
+*.db-shm
+backups/
+*.rar
+tests/

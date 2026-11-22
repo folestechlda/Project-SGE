@@ -159,11 +159,12 @@
     {% endfor %}
     </tbody>
     <tr class="totais-row">
-      <td colspan="3"><strong>TOTAIS do período</strong></td>
-      <td class="num-right"><strong>{{ totais.subtotais.qtd_entradas + totais.subtotais.qtd_saidas }}</strong></td>
+      <td colspan="4"><strong>TOTAIS do período</strong></td>
+      <td class="num-right">—</td>
       <td></td>
-      <td class="num-right"><strong>{{ "%.2f"|format(totais.subtotais.valor_entradas + totais.subtotais.valor_saidas) }}</strong></td>
-      <td class="num-right"><strong>{{ totais.subtotais.qtd_saldo }}</strong></td>
+      <td></td>
+      <td class="num-right"><strong>{{ "%.2f"|format(totais.subtotais.valor_entradas - totais.subtotais.valor_saidas) }}</strong></td>
+      <td class="num-right">—</td>
     </tr>
   </table>
   {% if totais.subtotais %}
@@ -176,9 +177,7 @@
         <tbody>
           <tr>
             <td><strong>Quantidade</strong></td>
-            <td class="num-right">{{ totais.subtotais.qtd_entradas }}</td>
-            <td class="num-right">{{ totais.subtotais.qtd_saidas }}</td>
-            <td class="num-right text-success"><strong>{{ totais.subtotais.qtd_saldo }}</strong></td>
+            <td colspan="3" class="num-right">Não somada (unidades diferentes)</td>
           </tr>
           <tr>
             <td><strong>Valor (MZN)</strong></td>

@@ -1195,3 +1195,12 @@ tr.inventario-alterado {
 .modal-aviso   { border-top-color: var(--aviso, #C79100); }
 .modal-info    { border-top-color: var(--info, #1976D2); }
 .modal-sucesso { border-top-color: var(--sucesso, #2F5233); }
+
+/* Validação de vendas: linhas com erro e lista de problemas no popup */
+.venda-item-row.linha-erro, .credito-item-row.linha-erro { outline: 2px solid var(--perigo, #B00020); background: #fff5f5 !important; }
+.linha-erro-msg { grid-column: 1 / -1; color: var(--perigo, #B00020); font-size: .9em; }
+.venda-problemas { list-style: none; padding: 0; margin: 10px 0 0; max-height: 50vh; overflow: auto; text-align: left; }
+.venda-problemas li { padding: 8px 10px; border-left: 4px solid var(--perigo, #B00020); background: #fff5f5; margin-bottom: 8px; border-radius: 4px; }
+.venda-problemas li.aviso { border-left-color: var(--aviso, #C79100); background: #fff9e6; }
+.venda-problemas a { margin-right: 12px; font-size: .9em; }
+

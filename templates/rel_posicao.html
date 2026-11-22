@@ -1,0 +1,54 @@
+{% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
+{% import "_rel_macros.html" as m %}
+{% block title %}Posição de Estoque · {{ app_name }}{% endblock %}
+{% block page_title %}Posição de Estoque{% endblock %}
+{% block content %}
+<form method="get" class="rel-toolbar no-print">
+  <label>Posição a<input type="date" name="data" value="{{ d.data }}"></label>
+  {{ m.filtro_categoria(categorias, id_cat) }}
+  <label class="check"><input type="checkbox" name="so_abaixo" value="1" {{ 'checked' if so_abaixo }}> Só abaixo do mínimo</label>
+  <label class="check"><input type="checkbox" name="so_sem_mov" value="1" {{ 'checked' if so_sem_mov }}> Só sem movimento (30 dias)</label>
+  <button class="btn btn-primary" type="submit">Gerar</button>
+</form>
+{{ m.acoes(args) }}
+
+<article class="rel">
+  {% call m.cabecalho("Posição de Estoque",
+        (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Posição a " ~ (d.data|dmy) ~ " · ordenado por urgência",
+        [("Valorização", d.metodo), ("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+
+  <div class="kpis">
+    {{ m.kpi("Valor do estoque", d.valor_total|mt) }}
+    {{ m.kpi("Produtos ativos", d.n_ativos) }}
+    {% if d.n_abaixo %}{{ m.kpi("Abaixo do mínimo", d.n_abaixo) }}{% endif %}
+    {% if d.n_neg %}{{ m.kpi("Saldo negativo", d.n_neg) }}{% endif %}
+  </div>
+
+  <h2>Produtos <small>(valores em MT)</small></h2>
+  <div class="rel-scroll">
+  <table class="rel-table">
+    <thead><tr><th class="col-nome">Produto</th><th>Un.</th><th class="num">Saldo</th><th class="num">Mínimo</th><th class="num">Cobertura</th><th class="num">Custo unit.</th><th class="num">Valor</th><th>Situação</th></tr></thead>
+    <tbody>
+    {% for l in d.linhas %}
+      <tr>
+        <td class="col-nome"><a href="{{ url_for('rel_extrato_produto', id_produto=l.id_produto) }}">{{ l.produto }}</a></td>
+        <td>{{ l.un }}</td><td class="num">{{ l.saldo|qt(l.un) }}</td><td class="num">{{ l.minimo|qt(l.un) }}</td>
+        <td class="num">{{ (l.cobertura ~ ' dias') if l.cobertura is not none else '—' }}</td>
+        <td class="num">{{ l.custo_unit|mt }}</td><td class="num">{{ l.valor|mt }}</td>
+        <td>{% if l.acao.classe not in ['chip-ok','chip-neutro'] %}{{ m.chip(l.acao.texto, l.acao.classe) }}{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="rel-nota">Nenhum produto corresponde aos filtros.</td></tr>
+    {% endfor %}
+      <tr class="total"><td colspan="6">Total do estoque{{ ' listado' if d.filtrado }} (só valor)</td><td class="num">{{ d.total_listado|mt }}</td><td></td></tr>
+    </tbody>
+  </table>
+  </div>
+</article>
+{% call m.navegacao() %}
+  <a class="btn btn-primary" href="{{ url_for('movimento_entrada') }}">+ Nova entrada</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_estoque_geral') }}">Estoque geral</a>
+  <a class="btn btn-secondary" href="{{ url_for('produtos_list') }}">Produtos</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade') }}">Perdas e validade</a>
+{% endcall %}
+{% endblock %}
