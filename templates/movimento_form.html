@@ -52,7 +52,7 @@
               <option value="Unidade">Unidade</option>
               <option value="Caixa">Caixa</option>
               <option value="Embalagem">Embalagem</option>
-              <option value="kg">kg (Quilograma)</option>
+              <option value="kg">kg</option>
             </select>
           </label>
           <label><span class="vd-l">Preço unit. ({{ config.moeda }}) *</span>
@@ -114,69 +114,85 @@
 </form>
 
 {% else %}
-<div class="panel form-panel">
-    <form method="POST" class="grid-form" id="form-movimento"
-        data-confirmar="Registar esta entrada? O custo do produto pode ser recalculado."
-        data-confirmar-ok="Registar">
-    <label class="span-2">Produto *
-      <input type="text" id="busca-produto" placeholder="Digite o nome ou código..." autocomplete="off" required>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/forms_ui.css') }}">
+<form method="POST" id="form-movimento" class="en-ui"
+      data-confirmar="Registar esta entrada? O custo do produto pode ser recalculado."
+      data-confirmar-ok="Registar">
+
+  <section class="en-card">
+    <h3 class="en-tit">Produto comprado</h3>
+    <div class="en-busca">
+      <input type="text" id="busca-produto" placeholder="Digite o nome ou código do produto…" autocomplete="off" required aria-label="Produto">
       <input type="hidden" name="id_produto" id="id_produto" required>
       <div id="sugestoes-produto" class="autocomplete-list"></div>
-    </label>
-    <div class="span-2 produto-info" id="produto-info" style="display:none;">
-      <span>Saldo atual: <strong id="info-saldo">-</strong></span>
-      <span>Unidade: <strong id="info-unidade">-</strong></span>
-      <span>Último custo: <strong id="info-preco">-</strong></span>
     </div>
+    <div class="produto-info en-tiles" id="produto-info" style="display:none;">
+      <span>Saldo atual<strong id="info-saldo">-</strong></span>
+      <span>Unidade<strong id="info-unidade">-</strong></span>
+      <span>Último custo<strong id="info-preco">-</strong></span>
+    </div>
+  </section>
 
-    <!-- PONTO 1: Aviso de alteração de custo em tempo real -->
-    <div class="span-2" id="custo-futuro" style="display:none; padding:10px 14px; background:#F0F7F0; border-radius:6px; border-left:4px solid #2F5233; font-size:13px; margin-bottom: 10px;">
-      <strong>Custo do produto no estoque:</strong>
-      actual <span id="custo-actual" style="font-weight:bold">—</span> →
-      após esta entrada <span id="custo-novo" style="color:#2F5233; font-weight:bold; font-size:14px">—</span>
-      <div class="muted" style="font-size:11px; margin-top:4px">
-        Este valor é apenas para o stock actual. O custo de cadastro do produto não será alterado.
+  <section class="en-card">
+    <h3 class="en-tit">Quantidade e custo</h3>
+    <div class="en-linha3">
+      <label>Quantidade *
+        <input type="number" step="0.001" min="0.001" name="quantidade" id="quantidade-entrada" required>
+        <span class="hint" id="qtd-entrada-hint">Aceita decimais (kg).</span>
+      </label>
+      <label>Unidade da compra *
+        <select name="unidade_original" id="unidade_original" required>
+          <option value="Unidade">Unidade</option>
+          <option value="Caixa">Caixa</option>
+          <option value="Embalagem">Embalagem</option>
+          <option value="kg">kg (Quilograma)</option>
+        </select>
+      </label>
+      <label>Preço de custo ({{ config.moeda }}) *
+        <input type="number" step="0.01" min="0" name="preco_unitario" id="preco_unitario" required>
+      </label>
+    </div>
+    <div id="custo-futuro" class="en-custo" style="display:none;">
+      <div class="en-custo-linha">
+        <span>Custo no estoque <small>(método: <span id="metodo-actual">—</span>)</small></span>
+        <span class="en-seta"><b id="custo-actual">—</b><i aria-hidden="true">→</i><b id="custo-novo" class="novo">—</b></span>
       </div>
+      <div class="muted">Vale só para o stock atual. O custo de cadastro do produto não muda.</div>
     </div>
+  </section>
 
-    <label>Quantidade *
-      <input type="number" step="0.001" min="0.001" name="quantidade" id="quantidade-entrada" required>
-      <span class="hint" id="qtd-entrada-hint">Aceita decimais (kg).</span>
-    </label>
-    <label>Unidade da compra *
-      <select name="unidade_original" id="unidade_original" required>
-        <option value="Unidade">Unidade</option>
-        <option value="Caixa">Caixa</option>
-        <option value="Embalagem">Embalagem</option>
-        <option value="kg">kg (Quilograma)</option>
-      </select>
-    </label>
-    <label>Preço de custo ({{ config.moeda }}) *
-      <input type="number" step="0.01" min="0" name="preco_unitario" id="preco_unitario" required>
-    </label>
-    <label>Data da entrada
-      <input type="date" name="data_entrada" value="{{ hoje }}">
-    </label>
-    <label>Nota fiscal
-      <input type="text" name="nota_fiscal" maxlength="20">
-    </label>
-    <label>Fornecedor
-      <input type="text" name="fornecedor" maxlength="100" id="fornecedor">
-    </label>
-    <label class="span-2">Observações
-      <textarea name="observacoes" rows="2"></textarea>
-    </label>
-    <div class="form-actions span-2">
-      <button type="submit" class="btn btn-primary">Registar Entrada</button>
-      <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost">Ver Movimentações</a>
+  <section class="en-card">
+    <h3 class="en-tit">Documento e fornecedor</h3>
+    <div class="en-linha3">
+      <label>Data da entrada
+        <input type="date" name="data_entrada" value="{{ hoje }}">
+      </label>
+      <label>Nota fiscal
+        <input type="text" name="nota_fiscal" maxlength="20">
+      </label>
+      <label>Fornecedor
+        <input type="text" name="fornecedor" maxlength="100" id="fornecedor">
+      </label>
     </div>
-  </form>
-</div>
+    <label class="en-obs">Observações
+      <textarea name="observacoes" rows="2" placeholder="Opcional"></textarea>
+    </label>
+  </section>
+
+  <div class="en-rodape">
+    <div class="en-valor">Valor da compra <strong><span id="en-valor">0.00</span> <small>{{ config.moeda }}</small></strong></div>
+    <div class="en-acoes">
+      <a href="{{ url_for('movimentos_list') }}" class="btn btn-ghost">Ver movimentações</a>
+      <button type="submit" class="btn btn-primary en-registar">Registar entrada</button>
+    </div>
+  </div>
+</form>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 {% if tipo == 'Entrada' %}
+<script src="{{ url_for('static', filename='js/entrada_ui.js') }}"></script>
 <script>
 const buscaInput = document.getElementById('busca-produto');
 const sugestoesBox = document.getElementById('sugestoes-produto');

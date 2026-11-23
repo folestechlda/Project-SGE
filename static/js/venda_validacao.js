@@ -101,6 +101,13 @@
       }).then(function (r) { return r === 'ok'; });
     }
 
+    function sessaoExpirada(x) {
+      navegando = true;
+      var ir = function () { window.location.href = x.redirect || '/login'; };
+      return window.AppModal.aviso((x.mensagem || 'A sessão terminou.') +
+        ' A venda não foi registada: inicie sessão e volte a registá-la.').then(ir, ir);
+    }
+
     function falhaRede() {
       return window.AppModal.erro('Não foi possível comunicar com o servidor. A venda NÃO foi registada ' +
         'e os dados continuam no formulário. Verifique a sessão e tente de novo.');
@@ -116,11 +123,13 @@
 
       enviar('validar').then(function (v) {
         if (!v) return falhaRede();
+        if (v.estado === 'sessao_expirada') return sessaoExpirada(v);
         if (v.erros && v.erros.length) return mostrarErros(v.erros, snapshot);
         return confirmar(v.avisos).then(function (ok) {
           if (!ok) return;
           return enviar('gravar', { confirmar_avisos: '1' }).then(function (g) {
             if (!g) return falhaRede();
+            if (g.estado === 'sessao_expirada') return sessaoExpirada(g);
             if (g.ok) { navegando = true; window.location.href = g.redirect; return; }
             if (g.estado === 'duplicado') {
               navegando = true;

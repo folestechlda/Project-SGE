@@ -1465,7 +1465,7 @@ def obter_venda_por_codigo(conn, codigo):
                   u.nome AS usuario_nome
            FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
            LEFT JOIN usuarios u ON u.id_usuario=m.id_usuario
-           WHERE m.tipo='Saida' AND UPPER(m.codigo_venda)=UPPER(?) ORDER BY m.id_movimento""",
+           WHERE m.tipo='Saida' AND m.subtipo IS NULL AND UPPER(m.codigo_venda)=UPPER(?) ORDER BY m.id_movimento""",
         (codigo,)).fetchall()
     if not rows:
         return None

@@ -36,6 +36,7 @@ from database import (
 import services
 import reports as reportmod
 import relatorios_dados as rd
+import sessoes
 import re
 import diagnostico as diagmod
 import json
@@ -109,6 +110,8 @@ app = Flask(
     static_url_path="/static",
 )
 app.secret_key = _get_or_create_secret_key()
+# O cookie de sessão não é legível por JavaScript e não segue pedidos de outros sites.
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 app.config["TEMPLATES_AUTO_RELOAD"] = not SERVIDOR
 app.config["MAX_CONTENT_LENGTH"] = 256 * 1024 * 1024  # cabe um backup grande
 
@@ -343,6 +346,8 @@ def inject_globals():
         "hoje": datetime.now().date().isoformat(),
         "diagnostico": diag,
         "nav_pendentes": _contar_pendentes_menu(),
+        "sessao_cfg": ({"limite": sessoes.limite_segundos(), "janela_unica": sessoes.janela_unica()}
+                       if session.get("user_id") else None),
     }
 
 def _formatar_numero_pt(value, decimals=2):
@@ -475,13 +480,17 @@ def login():
         services.registrar_tentativa_login(conn, login_val, sucesso, _client_ip())
 
         if sucesso:
+            token_sessao = sessoes.criar(conn, user["id_usuario"], _client_ip(),
+                                         request.headers.get("User-Agent"))
             registrar_auditoria(conn, user["id_usuario"], "usuarios",
                                 user["id_usuario"], "LOGIN", None, None, _client_ip())
             conn.commit()
             conn.close()
+            session.clear()
             session["user_id"] = user["id_usuario"]
             session["nome"] = user["nome"]
             session["perfil"] = user["perfil"]
+            session["sess_tok"] = token_sessao
             session["_sid"] = str(uuid4())
             if get_config("primeira_instalacao", "1") == "1":
                 set_config("primeira_instalacao", "0")
@@ -593,6 +602,7 @@ def recuperar_senha_token(token):
                 (generate_password_hash(nova), user["id_usuario"]),
             )
             services.consumir_token_recuperacao(conn, user["id_usuario"])
+            sessoes.terminar_outras(conn, user["id_usuario"], None, "senha")
             registrar_auditoria(conn, user["id_usuario"], "usuarios",
                                 user["id_usuario"], "UPDATE",
                                 {"senha": "RECUPERADA"}, {"senha": "ALTERADA"}, _client_ip())
@@ -607,14 +617,92 @@ def recuperar_senha_token(token):
 
 @app.route("/logout")
 def logout():
+    motivo = request.args.get("motivo", "manual")
+    if motivo not in ("manual", "inatividade"):
+        motivo = "manual"
     conn = get_conn()
     if "user_id" in session:
-        registrar_auditoria(conn, session["user_id"], "usuarios",
-                            session["user_id"], "LOGOUT", None, None, _client_ip())
+        if session.get("sess_tok"):
+            sessoes.terminar(conn, session["sess_tok"], motivo)
+        registrar_auditoria(conn, session["user_id"], "usuarios", session["user_id"], "LOGOUT",
+                            {"motivo": motivo} if motivo != "manual" else None, None, _client_ip())
         conn.commit()
     conn.close()
     session.clear()
-    return redirect(url_for("login"))
+    if motivo == "inatividade":
+        flash(sessoes.mensagem("inatividade"), "aviso")
+    # saiu=1: o ecrã de entrada avisa as outras janelas abertas de que a sessão terminou
+    return redirect(url_for("login", saiu=1))
+
+
+# ---------------------------------------------------------------------------
+# Controlo de sessão: inatividade, sessão única e páginas sem cache
+# ---------------------------------------------------------------------------
+# Pedidos de fundo que não contam como actividade do utilizador.
+_SEM_ACTIVIDADE = {"api_sessao_estado"}
+
+
+def _sessao_invalida(motivo):
+    texto = sessoes.mensagem(motivo)
+    session.clear()
+    if request.endpoint in ("login", "logout"):
+        flash(texto, "aviso")
+        return None
+    if _pedido_json() or request.path.startswith("/api/"):
+        resp = jsonify({"ok": False, "estado": "sessao_expirada", "motivo": motivo,
+                        "mensagem": texto, "redirect": url_for("login", saiu=1)})
+        resp.status_code = 401
+        return resp
+    flash(texto, "aviso")
+    destino = request.full_path.rstrip("?") if request.method == "GET" else None
+    return redirect(url_for("login", next=destino, saiu=1) if destino else url_for("login", saiu=1))
+
+
+@app.before_request
+def _controlo_sessao():
+    if request.endpoint in (None, "static") or "user_id" not in session:
+        return None
+    conn = get_conn()
+    try:
+        estado, motivo, linha = sessoes.validar(conn, session.get("sess_tok"))
+        if estado == "ok":
+            if request.endpoint not in _SEM_ACTIVIDADE:
+                sessoes.tocar(conn, session["sess_tok"], row=linha)
+            conn.commit()
+            return None
+        if motivo == "inatividade":
+            registrar_auditoria(conn, session["user_id"], "usuarios", session["user_id"], "LOGOUT",
+                                {"motivo": "inatividade"}, None, _client_ip())
+        conn.commit()
+    finally:
+        conn.close()
+    return _sessao_invalida(motivo)
+
+
+@app.after_request
+def _sem_cache_autenticado(resp):
+    # Depois de terminar a sessão, o botão "Voltar" não deve mostrar páginas guardadas.
+    if "user_id" in session and resp.mimetype == "text/html":
+        resp.headers["Cache-Control"] = "no-store, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
+
+@app.route("/api/sessao/estado")
+@login_required
+def api_sessao_estado():
+    conn = get_conn()
+    _, _, linha = sessoes.validar(conn, session.get("sess_tok"))
+    conn.close()
+    return jsonify({"ok": True, "restante": sessoes.restante_segundos(linha),
+                    "limite": sessoes.limite_segundos()})
+
+
+@app.route("/api/sessao/atividade", methods=["POST"])
+@login_required
+def api_sessao_atividade():
+    # a actividade já foi registada em _controlo_sessao
+    return jsonify({"ok": True, "limite": sessoes.limite_segundos()})
 
 
 @app.route("/api/shutdown", methods=["POST"])
@@ -640,6 +728,28 @@ def shutdown_app():
 @login_required
 def index():
     return redirect(url_for("dashboard"))
+
+
+@app.before_request
+def _bloquear_recuperacao_online():
+    """Online (modo servidor) a recuperação de senha devolvia o token no próprio navegador, sem email:
+    qualquer pessoa que conhecesse um login assumia a conta. Fica desativada; o Admin redefine a senha."""
+    if globals().get("SERVIDOR") and request.path.startswith("/recuperar-senha"):
+        flash("A recuperação automática de senha está desativada online. "
+              "Peça ao Administrador para redefinir a sua senha (Sistema → Utilizadores).", "erro")
+        return redirect(url_for("login"))
+
+
+@app.context_processor
+def _ctx_modo_servidor():
+    return {"modo_servidor": bool(globals().get("SERVIDOR"))}
+
+
+@app.route("/manual")
+@login_required
+def manual():
+    """Manual do utilizador, ilustrado (templates/manual.html)."""
+    return render_template("manual.html")
 
 
 @app.route("/dashboard")
@@ -1458,25 +1568,39 @@ _TOKENS_LOCK = threading.Lock()
 
 
 def _emitir_token_envio():
+    """Token de envio único guardado na base de dados: vale para vários processos (servidor)."""
     tok = secrets.token_urlsafe(16)
     agora = time.time()
-    with _TOKENS_LOCK:
-        for k in [k for k, t in _TOKENS_ENVIO.items() if agora - t > 43200]:
-            del _TOKENS_ENVIO[k]
-        _TOKENS_ENVIO[tok] = agora
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM tokens_envio WHERE criado_em < ?", (agora - 43200,))
+        conn.execute("INSERT INTO tokens_envio (token, criado_em) VALUES (?, ?)", (tok, agora))
+        conn.commit()
+    finally:
+        conn.close()
     return tok
 
 
 def _reservar_token_envio(tok):
     """True se o token ainda não foi usado; fica reservado (um único registo por token)."""
-    with _TOKENS_LOCK:
-        return _TOKENS_ENVIO.pop(tok, None) is not None
+    conn = get_conn()
+    try:
+        cur = conn.execute("DELETE FROM tokens_envio WHERE token=?", (tok,))
+        conn.commit()
+        return cur.rowcount == 1
+    finally:
+        conn.close()
 
 
 def _devolver_token_envio(tok):
-    if tok:
-        with _TOKENS_LOCK:
-            _TOKENS_ENVIO[tok] = time.time()
+    if not tok:
+        return
+    conn = get_conn()
+    try:
+        conn.execute("INSERT OR REPLACE INTO tokens_envio (token, criado_em) VALUES (?, ?)", (tok, time.time()))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _pedido_json():
@@ -3607,6 +3731,7 @@ def trocar_senha():
             registrar_auditoria(conn, session["user_id"], "usuarios",
                                 session["user_id"], "UPDATE",
                                 {"senha": "ALTERADA_PELO_USUARIO"}, None, _client_ip())
+            sessoes.terminar_outras(conn, session["user_id"], session.get("sess_tok"), "senha")
             conn.commit()
             flash("Sua senha foi alterada com sucesso.", "sucesso")
         conn.close()
@@ -3656,6 +3781,9 @@ def usuarios_salvar():
                     (f["nome"], f["login"], f["perfil"], generate_password_hash(senha),
                      dados_novos["email"], dados_novos["telefone"], id_usuario))
                 dados_novos["senha_hash"] = "***"
+                sessoes.terminar_outras(
+                    conn, int(id_usuario),
+                    session.get("sess_tok") if int(id_usuario) == session["user_id"] else None, "senha")
             else:
                 conn.execute(
                     "UPDATE usuarios SET nome=?, login=?, perfil=?, email=?, telefone=? WHERE id_usuario=?",
@@ -3703,6 +3831,8 @@ def usuarios_toggle(id_usuario):
             antigos = dict(row)
             novo_ativo = 0 if antigos["ativo"] else 1
             conn.execute("UPDATE usuarios SET ativo = ? WHERE id_usuario=?", (novo_ativo, id_usuario,))
+            if not novo_ativo:
+                sessoes.terminar_outras(conn, id_usuario, None, "desativado")
             registrar_auditoria(conn, session["user_id"], "usuarios",
                                 id_usuario, "UPDATE", antigos, {"ativo": novo_ativo}, _client_ip())
             conn.commit()
@@ -3726,6 +3856,7 @@ def usuarios_excluir(id_usuario):
                 "SELECT COUNT(*) c FROM movimentos WHERE id_usuario=?", (id_usuario,)
             ).fetchone()["c"]
             antigos = dict(usuario)
+            sessoes.terminar_outras(conn, id_usuario, None, "desativado")
             if movimentos:
                 conn.execute("UPDATE usuarios SET ativo=0 WHERE id_usuario=?", (id_usuario,))
                 registrar_auditoria(conn, session["user_id"], "usuarios",
@@ -3966,6 +4097,10 @@ def configuracoes():
                    "1" if request.form.get("backup_automatico") else "0")
         set_config("max_tentativas_login", request.form.get("max_tentativas_login", "5"))
         set_config("tempo_bloqueio_login_min", request.form.get("tempo_bloqueio_login_min", "5"))
+        set_config("sessao_inatividade_min",
+                   str(sessoes.normalizar_minutos(request.form.get("sessao_inatividade_min"))))
+        set_config("sessao_unica", "1" if request.form.get("sessao_unica") else "0")
+        set_config("janela_unica", "1" if request.form.get("janela_unica") else "0")
 
         # ---- Empresa ----
         set_config("nome_empresa", (request.form.get("nome_empresa") or "").strip())
@@ -4066,6 +4201,9 @@ def configuracoes():
         "codigo_alteracao_produto": get_config("codigo_alteracao_produto", ""),
         "max_tentativas_login": get_config("max_tentativas_login", "5"),
         "tempo_bloqueio_login_min": get_config("tempo_bloqueio_login_min", "5"),
+        "sessao_inatividade_min": str(sessoes.limite_minutos()),
+        "sessao_unica": get_config("sessao_unica", "1"),
+        "janela_unica": get_config("janela_unica", "1"),
         "primeira_instalacao": get_config("primeira_instalacao", "1"),
         "serie_fatura": get_config("serie_fatura", "FT"),
         "proximo_num_fatura": get_config("proximo_num_fatura", "1"),

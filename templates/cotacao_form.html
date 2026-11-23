@@ -3,8 +3,8 @@
 {% block title %}{% if cotacao %}Editar Cotação {{ cotacao.numero }}{% else %}Nova Cotação{% endif %} · {{ app_name }}{% endblock %}
 {% block content %}
 {% macro linha_item(produtos, it=None) %}
-      <div class="cotacao-item-row" style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr 0.5fr auto; gap:8px; align-items:end; margin-bottom:10px;">
-        <label>Produto
+      <div class="cotacao-item-row">
+        <label><span class="ct-l">Produto</span>
           <select name="id_produto[]" class="produto-select" required>
             <option value="">Selecione...</option>
             {% for p in produtos %}
@@ -12,34 +12,38 @@
             {% endfor %}
           </select>
         </label>
-        <label>Quantidade
+        <label><span class="ct-l">Quantidade</span>
           <input type="number" name="quantidade[]" min="0.001" step="any" value="{{ it.quantidade if it else 1 }}" required>
         </label>
-        <label>Preço Unit.
+        <label><span class="ct-l">Preço Unit.</span>
           <input type="number" name="preco_unitario[]" step="0.01" min="0" class="preco-unitario" value="{{ '%.2f'|format(it.preco_unitario) if it else '' }}" required>
         </label>
-        <label>Desconto (%)
+        <label><span class="ct-l">Desconto (%)</span>
           <input type="number" name="desconto[]" step="0.1" min="0" max="100" value="{{ it.desconto_percentual if it and it.desconto_percentual is not none else 0 }}" class="desconto">
         </label>
-        <label>Subtotal
+        <label><span class="ct-l">Subtotal</span>
           <span class="subtotal-display">0.00</span>
         </label>
-        <button type="button" class="btn btn-danger btn-sm remover-item" style="align-self:center;" title="Remover este item">✕</button>
+        <button type="button" class="btn btn-danger btn-sm remover-item ct-remover" title="Remover este item" aria-label="Remover este item">✕</button>
       </div>
 {% endmacro %}
 
-<div class="page-header">
-  <div>
-    <h1>{% if cotacao %}Editar Cotação {{ cotacao.numero }}{% else %}Nova Cotação{% endif %}</h1>
-    <p class="page-sub">{% if cotacao %}Altere os dados do cliente e adicione ou remova produtos{% else %}Preencha os dados do cliente e adicione os produtos{% endif %}</p>
-  </div>
-</div>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/forms_ui.css') }}">
+<form method="POST" id="formCotacao" class="ct-ui"
+      action="{% if cotacao %}{{ url_for('cotacao_atualizar', id_cotacao=cotacao.id_cotacao) }}{% else %}{{ url_for('cotacao_nova') }}{% endif %}">
+  <article class="ct-folha">
+    <header class="ct-topo">
+      <div>
+        <h1>{% if cotacao %}Editar cotação {{ cotacao.numero }}{% else %}Nova cotação{% endif %}</h1>
+        <p>{% if cotacao %}Altere os dados do cliente e os produtos.{% else %}Preencha os dados do cliente e adicione os produtos.{% endif %}</p>
+      </div>
+      <label class="ct-validade">Válida até *
+        <input type="date" name="data_validade" value="{{ validade_default }}" required>
+      </label>
+    </header>
 
-<div class="panel form-panel">
-  <form method="POST" id="formCotacao"
-        action="{% if cotacao %}{{ url_for('cotacao_atualizar', id_cotacao=cotacao.id_cotacao) }}{% else %}{{ url_for('cotacao_nova') }}{% endif %}">
-    <div class="grid-form">
-      <label class="span-2">Nome do Cliente *
+    <div class="ct-cliente">
+      <label class="ct-nome">Cliente *
         <input type="text" name="cliente_nome" required placeholder="Ex.: João da Silva"
                value="{{ cotacao.nome_cliente if cotacao else '' }}">
       </label>
@@ -51,40 +55,33 @@
         <input type="text" name="cliente_telefone" placeholder="+258 84 000 0000"
                value="{{ (cotacao.telefone_cliente or '') if cotacao else '' }}">
       </label>
-      <label>Data de Validade *
-        {# FIX: adicionado `required` — se vazio, o browser bloqueia. #}
-        {# Sem isto, o utilizador podia limpar e o UPDATE falhava com IntegrityError. #}
-        <input type="date" name="data_validade" value="{{ validade_default }}" required>
+    </div>
+
+    <div class="ct-tab">
+      <div class="ct-cab" aria-hidden="true"><span>Produto</span><span>Qtd.</span><span>Preço</span><span>Desc. %</span><span class="r">Subtotal</span><span></span></div>
+      <div id="itens-container">
+        {% if itens %}
+          {% for it in itens %}{{ linha_item(produtos, it) }}{% endfor %}
+        {% else %}
+          {{ linha_item(produtos) }}
+        {% endif %}
+      </div>
+      <button type="button" class="ct-add" id="adicionar-item">+ Adicionar item</button>
+    </div>
+
+    <footer class="ct-fim">
+      <label class="ct-obs">Observações
+        <textarea name="observacoes" rows="3" placeholder="Condições, prazo de entrega…">{{ (cotacao.observacoes or '') if cotacao else '' }}</textarea>
       </label>
-      <label class="span-2">Observações
-        <textarea name="observacoes" rows="3">{{ (cotacao.observacoes or '') if cotacao else '' }}</textarea>
-      </label>
-    </div>
+      <div class="ct-total">Total <strong><span id="total-geral">0.00</span> <small>MZN</small></strong></div>
+    </footer>
+  </article>
 
-    <hr style="margin: 20px 0; border-color: var(--borda);">
-
-    <h3>Itens da Cotação</h3>
-    <div id="itens-container">
-      {% if itens %}
-        {% for it in itens %}{{ linha_item(produtos, it) }}{% endfor %}
-      {% else %}
-        {{ linha_item(produtos) }}
-      {% endif %}
-    </div>
-    <div style="margin:10px 0;">
-      <button type="button" class="btn btn-secondary" id="adicionar-item">+ Adicionar Item</button>
-    </div>
-
-    <div style="text-align:right; font-size:1.2em; font-weight:bold; margin-top:10px;">
-      Total: <span id="total-geral">0.00</span> MZN
-    </div>
-
-    <div class="form-actions" style="margin-top:20px;">
-      <button type="submit" class="btn btn-primary">{% if cotacao %}Guardar Alterações{% else %}Guardar Cotação{% endif %}</button>
-      <a href="{% if cotacao %}{{ url_for('cotacao_detalhe', id_cotacao=cotacao.id_cotacao) }}{% else %}{{ url_for('cotacoes_list') }}{% endif %}" class="btn btn-ghost">Cancelar</a>
-    </div>
-  </form>
-</div>
+  <div class="ct-acoes">
+    <a href="{% if cotacao %}{{ url_for('cotacao_detalhe', id_cotacao=cotacao.id_cotacao) }}{% else %}{{ url_for('cotacoes_list') }}{% endif %}" class="btn btn-ghost">Cancelar</a>
+    <button type="submit" class="btn btn-primary">{% if cotacao %}Guardar alterações{% else %}Guardar cotação{% endif %}</button>
+  </div>
+</form>
 {% endblock %}
 {% block scripts %}
 <script>

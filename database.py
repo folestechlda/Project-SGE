@@ -146,6 +146,23 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     sucesso INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS sessoes (
+    id_sessao        TEXT PRIMARY KEY,
+    id_usuario       INTEGER NOT NULL,
+    criada_em        REAL NOT NULL,
+    ultima_atividade REAL NOT NULL,
+    ip               TEXT,
+    agente           TEXT,
+    terminada_em     REAL,
+    motivo_fim       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessoes_usuario ON sessoes(id_usuario, terminada_em);
+
+CREATE TABLE IF NOT EXISTS tokens_envio (
+    token     TEXT PRIMARY KEY,
+    criado_em REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
     id_auditoria INTEGER PRIMARY KEY AUTOINCREMENT,
     id_usuario INTEGER,
@@ -407,6 +424,9 @@ DEFAULT_CONFIG = {
     "codigo_alteracao_produto": "",
     "max_tentativas_login": "5",
     "tempo_bloqueio_login_min": "5",
+    "sessao_inatividade_min": "30",
+    "sessao_unica": "1",
+    "janela_unica": "1",
     "primeira_instalacao": "1",
     # ---- Fatura ----
     "serie_fatura": "FT",

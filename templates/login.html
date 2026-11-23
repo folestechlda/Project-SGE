@@ -30,7 +30,11 @@
         Entrar
       </button>
     </form>
+    {% if modo_servidor %}
+    <span class="recover-link" style="cursor:default">Esqueceu a senha? Peça ao Administrador.</span>
+    {% else %}
     <a href="{{ url_for('recuperar_senha_inicio') }}" class="recover-link">Recuperar senha →</a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

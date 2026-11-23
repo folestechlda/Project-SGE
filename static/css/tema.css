@@ -175,3 +175,8 @@ body .top-header .top-header-left { flex: 0 1 auto !important; text-align: left 
 .painel .mini-table th.num-right, .painel .mini-table td.num-right { text-align: right; }
 .painel .mini-table th { background: transparent; border-bottom: 1px solid var(--linha); }
 .painel .mini-table .empty-hint { text-align: center; font-style: normal; color: #8a97ab; padding: 18px 6px; }
+
+/* ===== Manual: botão "? Ajuda" e ligação no menu ===== */
+.top-header-right a.btn-ajuda { display:inline-flex; align-items:center; height:32px; padding:0 12px; border-radius:6px; background:#1e4e8c; color:#fff; font-size:13px; font-weight:600; text-decoration:none; }
+.top-header-right a.btn-ajuda:hover { background:#173d70; }
+.nav > a.nav-manual { margin-top:10px; border-top:1px solid rgba(255,255,255,.1); border-radius:0 0 7px 7px; padding-top:12px; color:#cfe0f5; font-weight:500; }

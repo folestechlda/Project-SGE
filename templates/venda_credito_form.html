@@ -2,74 +2,80 @@
 {% block page_title %}Venda a Crédito{% endblock %}
 {% block title %}Nova Venda a Crédito · {{ app_name }}{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/forms_ui.css') }}">
 <div class="page-header">
   <div>
-    <h1>Nova Venda a Crédito</h1>
-    <p class="page-sub">Adicione vários produtos. A venda gera uma fatura; a liquidação gera recibos.</p>
+    <h1>Nova venda a crédito</h1>
+    <p class="page-sub">A venda gera uma fatura; a liquidação gera recibos.</p>
   </div>
 </div>
 
-<div class="panel form-panel">
-  <form method="POST" id="formCredito">
-    <input type="hidden" name="token_envio" value="{{ token_envio }}">
+<form method="POST" id="formCredito" class="cr-ui">
+  <input type="hidden" name="token_envio" value="{{ token_envio }}">
 
-    <h3>Dados do Cliente</h3>
-    <div class="grid-form">
-      <label class="span-2">Nome do cliente *
-        <input type="text" name="cliente" required maxlength="100" placeholder="Ex.: SCA, LDA">
-      </label>
-      <label>NUIT
-        <input type="text" name="cliente_nif" maxlength="30" placeholder="Ex.: 5000183007">
-      </label>
-      <label>Telefone
-        <input type="text" name="cliente_telefone" maxlength="30" placeholder="+258 84 000 0000">
-      </label>
-      <label>Email
-        <input type="email" name="cliente_email" placeholder="cliente@email.com">
-      </label>
-      <label>Localidade
-        <input type="text" name="cliente_localidade" maxlength="60" placeholder="Ex.: Luanda">
-      </label>
-      <label class="span-2">Endereço
-        <input type="text" name="cliente_endereco" maxlength="150" placeholder="Rua, Nº, Bairro">
-      </label>
-      <label>País
-        <input type="text" name="cliente_pais" maxlength="60" placeholder="Ex.: Angola">
-      </label>
-      <label>Data da venda
-        <input type="date" name="data_venda" value="{{ hoje }}">
-      </label>
-      <label>Data de vencimento
-        <input type="date" name="data_vencimento">
-      </label>
-      <label>Condição de pagamento
-        <input type="text" name="condicao_pagamento" maxlength="40" placeholder="Ex.: 30 dias">
-      </label>
-      <label class="checkbox-label span-2">
-        <input type="checkbox" name="isento_iva" value="1" id="chkIsento"
-               onchange="toggleIVA()">
-        Venda isenta de IVA
-      </label>
-      <label id="labelTaxaIVA">Taxa de IVA (%)
-        <input type="number" step="0.01" min="0" max="100"
-               name="taxa_iva" id="inpTaxaIVA" value="16">
-      </label>
-      <label class="span-2">Observações
-        <textarea name="observacoes" rows="2"></textarea>
-      </label>
+  <section class="cr-card">
+    <h3 class="cr-tit">Cliente</h3>
+    <div class="cr-cols">
+      <fieldset><legend>Identificação</legend>
+        <label>Nome do cliente *
+          <input type="text" name="cliente" required maxlength="100" placeholder="Ex.: SCA, LDA">
+        </label>
+        <label>NUIT
+          <input type="text" name="cliente_nif" maxlength="30" placeholder="Ex.: 5000183007">
+        </label>
+      </fieldset>
+      <fieldset><legend>Contacto</legend>
+        <label>Telefone
+          <input type="text" name="cliente_telefone" maxlength="30" placeholder="+258 84 000 0000">
+        </label>
+        <label>Email
+          <input type="email" name="cliente_email" placeholder="cliente@email.com">
+        </label>
+      </fieldset>
+      <fieldset><legend>Morada</legend>
+        <label>Endereço
+          <input type="text" name="cliente_endereco" maxlength="150" placeholder="Rua, Nº, Bairro">
+        </label>
+        <div class="cr-2">
+          <label>Localidade
+            <input type="text" name="cliente_localidade" maxlength="60" placeholder="Ex.: Maputo">
+          </label>
+          <label>País
+            <input type="text" name="cliente_pais" maxlength="60" placeholder="Ex.: Moçambique">
+          </label>
+        </div>
+      </fieldset>
     </div>
+  </section>
 
-    <hr style="margin: 20px 0; border-color: var(--borda);">
+  <section class="cr-cond">
+    <label>Data da venda
+      <input type="date" name="data_venda" value="{{ hoje }}">
+    </label>
+    <label>Vencimento
+      <input type="date" name="data_vencimento">
+    </label>
+    <label>Condição de pagamento
+      <input type="text" name="condicao_pagamento" maxlength="40" placeholder="Ex.: 30 dias">
+    </label>
+    <label class="cr-iva-chk">
+      <span class="cr-chk"><input type="checkbox" name="isento_iva" value="1" id="chkIsento" onchange="toggleIVA()"> Isenta de IVA</span>
+    </label>
+    <label id="labelTaxaIVA">Taxa de IVA (%)
+      <input type="number" step="0.01" min="0" max="100" name="taxa_iva" id="inpTaxaIVA" value="16">
+    </label>
+  </section>
 
-    <h3>Produtos da Venda</h3>
-    <div class="pesq-produto">
+  <section class="cr-card">
+    <h3 class="cr-tit">Produtos da fatura</h3>
+    <div class="pesq-produto cr-pesq">
       <input type="search" id="pesqInput" placeholder="Pesquisar produto por nome ou código e carregar Enter para adicionar" autocomplete="off" aria-label="Pesquisar produto">
       <div class="pesq-lista" id="pesqLista" role="listbox" hidden></div>
     </div>
-    <p class="hint pesq-dica">Também pode escolher o produto na lista de cada linha.</p>
+    <div class="cr-cab" aria-hidden="true"><span>Produto</span><span>Qtd.</span><span>Unidade</span><span>Preço ({{ config.moeda }})</span><span class="r">Subtotal</span><span></span></div>
     <div id="itens-credito">
-      <div class="credito-item-row" style="display:grid; grid-template-columns: 3fr 1fr 1.2fr 1.2fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px; padding:10px; background: var(--fundo-2, #f9f9f9); border-radius:6px;">
-        <label>Produto *
+      <div class="credito-item-row cr-linha">
+        <label class="cr-c-prod"><span class="cr-l">Produto *</span>
           <select name="id_produto[]" class="produto-select" required>
             <option value="">Selecione...</option>
             {% for p in produtos %}
@@ -82,41 +88,40 @@
             {% endfor %}
           </select>
         </label>
-        <label>Quantidade *
+        <label><span class="cr-l">Quantidade *</span>
           <input type="number" name="quantidade[]" step="1" min="1" value="1" required class="qtd-input">
         </label>
-        <label>Unidade *
+        <label><span class="cr-l">Unidade *</span>
           <select name="unidade_original[]" class="unidade-select" required>
             <option value="Unidade">Unidade</option>
             <option value="Caixa">Caixa</option>
             <option value="Embalagem">Embalagem</option>
-            <option value="kg">kg (Quilograma)</option>
+            <option value="kg">kg</option>
           </select>
         </label>
-        <label>Preço Unit. ({{ config.moeda }}) *
+        <label><span class="cr-l">Preço unit. ({{ config.moeda }}) *</span>
           <input type="number" name="preco_unitario[]" step="0.01" min="0" required class="preco-input">
         </label>
-        <label>Subtotal
-          <span class="subtotal-display" style="font-weight:bold;">0.00</span>
+        <label class="cr-c-sub"><span class="cr-l">Subtotal</span>
+          <span class="subtotal-display">0.00</span>
         </label>
-        <button type="button" class="btn btn-danger btn-sm remover-linha" style="align-self:center;">✕</button>
+        <button type="button" class="btn btn-danger btn-sm remover-linha cr-remover" title="Remover linha" aria-label="Remover linha">✕</button>
       </div>
     </div>
+    <button type="button" class="cr-add" id="adicionar-linha">+ Linha em branco</button>
+    <label class="cr-obs">Observações
+      <textarea name="observacoes" rows="2" placeholder="Opcional"></textarea>
+    </label>
+  </section>
 
-    <div style="margin:10px 0;">
-      <button type="button" class="btn btn-secondary" id="adicionar-linha">+ Adicionar Produto</button>
+  <div class="cr-rodape">
+    <div class="cr-total">Total da fatura <strong><span id="total-geral">0.00</span> <small>{{ config.moeda }}</small></strong></div>
+    <div class="cr-acoes">
+      <a href="{{ url_for('contas_receber_list') }}" class="btn btn-ghost">Contas a receber</a>
+      <button type="submit" class="btn btn-primary cr-emitir">Registar venda a crédito</button>
     </div>
-
-    <div style="text-align:right; font-size:1.2em; font-weight:bold; margin-top:10px; padding:10px; background: var(--fundo-2, #f0f0f0); border-radius:6px;">
-      TOTAL DA FATURA: <span id="total-geral">0.00</span> {{ config.moeda }}
-    </div>
-
-    <div class="form-actions" style="margin-top:20px;">
-      <button type="submit" class="btn btn-primary">Registar Venda a Crédito</button>
-      <a href="{{ url_for('contas_receber_list') }}" class="btn btn-ghost">Contas a Receber</a>
-    </div>
-  </form>
-</div>
+  </div>
+</form>
 {% endblock %}
 
 {% block scripts %}
