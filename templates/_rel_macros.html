@@ -4,12 +4,12 @@
 {% set qs = request.query_string.decode() %}
 <div class="no-print" style="display:flex;gap:8px;justify-content:flex-end;max-width:1180px;margin:0 auto 10px">
   <a class="btn btn-secondary" target="_blank" rel="noopener" href="{{ request.path }}?{{ (qs ~ '&') if qs else '' }}imprimir=1">🖨 Imprimir</a>
-  <a class="btn btn-secondary" href="{{ url_for(request.endpoint, exportar='pdf', **dict(va, **args.to_dict())) }}">⬇ PDF</a>
-  <a class="btn btn-secondary" href="{{ url_for(request.endpoint, exportar='excel', **dict(va, **args.to_dict())) }}">⬇ Excel</a>
+  {% set _extra_args = {} %}
+  <a class="btn btn-secondary" href="{{ url_for(request.endpoint, exportar='pdf', **_extra_args) }}">⬇ PDF</a>
+  <a class="btn btn-secondary" href="{{ url_for(request.endpoint, exportar='excel', **_extra_args) }}">⬇ Excel</a>
 </div>
 {% endmacro %}
 
-{# Botões para os painéis relacionados (não imprime) #}
 {% macro navegacao() %}
 <div class="nav-rel no-print"><span class="nav-rel-t">Ir para</span>{{ caller() }}</div>
 {% endmacro %}
@@ -29,8 +29,8 @@
 </div>
 {% endmacro %}
 
-{% macro kpi(titulo, valor, chip=None, chip_classe='') %}
-<div class="kpi"><div class="k-t">{{ titulo }}</div><div class="k-v">{{ valor }}{% if chip %} <span class="chip {{ chip_classe }}">{{ chip }}</span>{% endif %}</div></div>
+{% macro kpi(titulo, valor, chip=None, chip_classe='', class_='') %}
+<div class="kpi {{ class_ }}"><div class="k-t">{{ titulo }}</div><div class="k-v">{{ valor }}{% if chip %} <span class="chip {{ chip_classe }}">{{ chip }}</span>{% endif %}</div></div>
 {% endmacro %}
 
 {% macro op(simbolo) %}<div class="kpi-op">{{ simbolo }}</div>{% endmacro %}

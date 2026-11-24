@@ -1,11 +1,11 @@
 {% extends "rel_print.html" if request.args.get('imprimir') == '1' else "base.html" %}
 {% import "_rel_macros.html" as m %}
-{% block title %}Relatório de Gestão · {{ app_name }}{% endblock %}
-{% block page_title %}Relatório de Gestão{% endblock %}
+{% block title %}Relatório de Gestão / Auditoria · {{ app_name }}{% endblock %}
+{% block page_title %}Relatório de Gestão / Auditoria{% endblock %}
 {% block content %}
 <form method="get" class="rel-toolbar no-print">
-  <label>De<input type="date" name="ini" value="{{ d.ini }}"></label>
-  <label>Até<input type="date" name="fim" value="{{ d.fim }}"></label>
+  <label>De<input type="date" name="ini" value="{{ d.periodo.ini }}"></label>
+  <label>Até<input type="date" name="fim" value="{{ d.periodo.fim }}"></label>
   <button class="btn btn-primary" type="submit">Gerar</button>
   <span class="rel-atalhos">
     <a href="{{ url_for('rel_gestao', periodo='mes') }}">Este mês</a>
@@ -15,139 +15,670 @@
   </span>
 </form>
 {{ m.acoes(args) }}
+
 <article class="rel">
-  {% call m.cabecalho("Relatório de Gestão",
-      (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Período: " ~ (d.ini|dmy) ~ " a " ~ (d.fim|dmy),
-      [("Emitido por", emitido_por ~ " · " ~ emitido_em)]) %}{% endcall %}
+  {% call m.cabecalho("Relatório de Gestão / Auditoria Completa",
+      (emp_nome or "[defina o nome da empresa em Configurações]") ~ " · Período: " ~ d.periodo.ini_fmt ~ " a " ~ d.periodo.fim_fmt,
+      [("Emitido por", emitido_por ~ " · " ~ emitido_em),
+       ("Gerado em", d.periodo.gerado_em)]) %}{% endcall %}
 
-  {% set v = d.vendas %}{% set e = d.estoque %}
+  <!-- VEREDITO EXECUTIVO -->
+  <section class="sec-veredito">
+    <div class="veredito-card veredito-{{ d.veredicto.nivel.lower() }}">
+      <div class="veredito-nivel">{{ d.veredicto.nivel }}</div>
+      <div class="veredito-texto">{{ d.veredicto.texto }}</div>
+      <div class="veredito-detalhes">
+        <span class="badge badge-critico">{{ d.veredicto.graves }} Críticas</span>
+        <span class="badge badge-alerta">{{ d.veredicto.alertas }} Alertas</span>
+        <span class="badge badge-atencao">{{ d.veredicto.atencoes }} Atenções</span>
+      </div>
+    </div>
+  </section>
 
-  <div class="ges-veredicto ges-{{ d.veredicto.nivel }}">{{ d.veredicto.texto }}</div>
-  {% if d.pontos %}
-  <ol class="ges-pontos">
-    {% for p in d.pontos %}<li class="ges-{{ p.nivel }}"><strong>{{ p.area }}.</strong> {{ p.texto }}</li>{% endfor %}
-  </ol>
+  <!-- KPIs PRINCIPAIS -->
+  <section class="sec-kpis">
+    <h2>Indicadores Principais</h2>
+    <div class="kpi-grid">
+      {{ m.kpi("Vendas Totais", d.kpis.vendas_total|mt) }}
+      {{ m.kpi("Custo Vendas", d.kpis.custo_total|mt) }}
+      {{ m.kpi("Lucro Bruto", d.kpis.lucro_total|mt) }}
+      {{ m.kpi("Margem %", d.kpis.margem|pct if d.kpis.margem is not none else "—") }}
+      {{ m.kpi("Compras Totais", d.kpis.compras_total|mt) }}
+      {{ m.kpi("Recebido Esperado", d.kpis.rec_esperado|mt) }}
+      {{ m.kpi("Recebido Conferido", d.kpis.rec_conferido|mt) }}
+      {{ m.kpi("Diferença Caixa", d.kpis.diff_caixa|mts, class_="kpi-" + ("neg" if d.kpis.diff_caixa < -0.004 else ("pos" if d.kpis.diff_caixa > 0.004 else "ok"))) }}
+      {{ m.kpi("A Receber", d.kpis.a_receber|mt) }}
+      {{ m.kpi("Em Atraso", d.kpis.a_receber_atraso|mt) }}
+      {{ m.kpi("Faturas Atraso", d.kpis.n_faturas_atraso) }}
+      {{ m.kpi("Estoque Fecha?", "Sim" if d.kpis.estoque_fecha else "NÃO", class_="kpi-" + ("ok" if d.kpis.estoque_fecha else "neg")) }}
+      {{ m.kpi("Anomalias", d.kpis.n_anomalias, class_="kpi-" + ("neg" if d.kpis.n_anomalias > 0 else "ok")) }}
+    </div>
+  </section>
+
+  <!-- ANOMALIAS (RESUMO TOPO) -->
+  {% if d.anomalias %}
+  <section class="sec-anomalias-resumo">
+    <h2>⚠ Anomalias Detectadas ({{ d.anomalias|length }})</h2>
+    <div class="anomalias-grid">
+      {% for a in d.anomalias %}
+      <div class="anomalia-card anomalia-{{ a.severidade.lower() }}">
+        <span class="anomalia-severidade">{{ a.severidade }}</span>
+        <strong>{{ a.tipo }}</strong>
+        {% if a.produto %}<br><small>{{ a.produto }}{% if a.codigo %} ({{ a.codigo }}){% endif %}</small>{% endif %}
+        <div class="anomalia-detalhe">{{ a.detalhe }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
-  <h2>1. Vendas <small>(MT)</small></h2>
-  <div class="kpis">
-    {{ m.kpi("Total vendido", v.total|mt) }}{{ m.op("−") }}
-    {{ m.kpi("Custo", v.custo|mt) }}{{ m.op("=") }}
-    {{ m.kpi("Lucro bruto", v.lucro|mt) }}
-    {{ m.kpi("Margem", ((v.margem|pct ~ " %") if v.margem is not none else "—")) }}
-  </div>
-  <p class="rel-linha-estado">{{ v.n }} venda(s): à vista <strong>{{ v.vista|mt }}</strong> · a crédito <strong>{{ v.credito|mt }}</strong>
-    {% if d.anuladas %}· {{ d.anuladas|length }} anulada(s) ({{ d.anuladas_total|mt }}), já fora do total{% endif %}</p>
+  <!-- SECÇÃO 1: VENDAS -->
+  <section class="sec-vendas" id="vendas">
+    <h2>1. Vendas <small>(MT)</small></h2>
 
-  <h2>2. Compras <small>(MT)</small></h2>
-  <p class="rel-linha-estado">Total comprado <strong>{{ d.compras.total|mt }}</strong> em {{ d.compras.n }} entrada(s)</p>
-  {% if d.compras.fornecedores|length > 0 and d.compras.total > 0 %}
-  <table class="rel-table"><thead><tr><th>Fornecedor</th><th class="num">Valor</th></tr></thead>
-    <tbody>{% for f in d.compras.fornecedores %}<tr><td>{{ f.fornecedor }}</td><td class="num">{{ f.valor|mt }}</td></tr>{% endfor %}</tbody></table>
-  {% endif %}
-
-  <h2 id="recebimentos">3. Recebimentos: o que o sistema indica vs. o que foi conferido <small>(MT)</small></h2>
-  <form method="post" action="{{ url_for('rel_gestao_conferencia') }}">
-    <input type="hidden" name="ini" value="{{ d.ini }}"><input type="hidden" name="fim" value="{{ d.fim }}">
+    <!-- Vendas por Forma -->
+    <h3>1.1 Por Forma de Pagamento</h3>
     <table class="rel-table">
-      <thead><tr><th>Onde entrou</th><th class="num">Vendas à vista</th><th class="num">Dívidas cobradas</th><th class="num">Esperado</th>
-        <th class="num">Conferido</th><th class="num">Diferença</th><th>Resultado</th></tr></thead>
+      <thead><tr><th>Forma</th><th class="num">Valor</th><th class="num">Qtd Vendas</th><th>Tipo</th></tr></thead>
       <tbody>
-      {% for c in d.canais %}
+      {% for f in d.vendas.por_forma %}
         <tr>
-          <td><strong>{{ c.canal }}</strong></td>
-          <td class="num">{{ c.vista|mt }}</td><td class="num">{{ c.recibos|mt }}</td><td class="num">{{ c.esperado|mt }}</td>
-          <td class="num">
-            {% if c.canal != 'Sem forma indicada' %}
-              <span class="no-print"><input type="text" inputmode="decimal" name="valor_{{ c.canal }}" value="{{ '' if c.conferido is none else ('%.2f'|format(c.conferido)).replace('.', ',') }}" style="width:110px;text-align:right" placeholder="Contado"></span>
-              <span class="so-print">{{ (c.conferido|mt) if c.conferido is not none else '—' }}</span>
-            {% else %}—{% endif %}
-          </td>
-          <td class="num {{ 'ges-neg' if c.diferenca is not none and c.diferenca < -0.004 }}">{{ (c.diferenca|mts) if c.diferenca is not none else '—' }}</td>
-          <td>{{ c.texto }}
-            {% if c.canal != 'Sem forma indicada' %}<span class="no-print"><br><input type="text" name="obs_{{ c.canal }}" value="{{ c.obs }}" placeholder="Justificação da diferença" style="width:100%;margin-top:4px"></span>
-            {% if c.obs %}<span class="so-print"><br><em>{{ c.obs }}</em></span>{% endif %}{% endif %}
-          </td>
+          <td><strong>{{ f.forma }}</strong></td>
+          <td class="num">{{ f.valor|mt }}</td>
+          <td class="num">{{ f.qtd }}</td>
+          <td><span class="badge {{ 'badge-info' if f.credito else 'badge-success' }}">{{ 'Crédito' if f.credito else 'Vista' }}</span></td>
         </tr>
       {% endfor %}
-        <tr class="total"><td>Total</td><td class="num">{{ d.vendas.vista|mt }}</td><td class="num">{{ d.recibos_total|mt }}</td><td class="num">{{ d.rec_esperado_total|mt }}</td>
-          <td class="num">{{ d.rec_conferido_total|mt }}</td><td colspan="2"></td></tr>
+        <tr class="total"><td>Total</td><td class="num">{{ d.kpis.vendas_total|mt }}</td><td class="num">{{ d.vendas.por_forma|sum(attribute='qtd') }}</td><td></td></tr>
       </tbody>
     </table>
-    <p class="no-print" style="margin-top:10px"><button class="btn btn-primary" type="submit">Guardar conferência</button>
-      <span class="muted" style="font-size:12.5px">Escreva o valor realmente contado no caixa, no extrato do banco e nas carteiras móveis. A diferença é calculada e descrita automaticamente.</span></p>
-  </form>
-  <p class="rel-linha-estado">A receber de clientes: <strong>{{ d.a_receber.valor|mt }}</strong> ({{ d.a_receber.n }} fatura(s)){% if d.a_receber.atraso > 0 %} · em atraso <strong>{{ d.a_receber.atraso|mt }}</strong>{% endif %}</p>
 
-  <h2>4. Estoque <small>(MT, a custo)</small></h2>
-  <div class="kpis">
-    {{ m.kpi("Valor inicial", e.inicial|mt) }}{{ m.op("+") }}
-    {{ m.kpi("Compras", e.compras|mt) }}{{ m.op("−") }}
-    {{ m.kpi("Custo das vendas", e.custo_vendas|mt) }}{{ m.op("−") }}
-    {{ m.kpi("Perdas e ajustes", e.perdas_aj|mt) }}{{ m.op("=") }}
-    {{ m.kpi("Valor final", e.final|mt) }}
-  </div>
-  {% if not e.fecha %}<p class="rel-aviso">⚠ A conta do estoque não fecha.</p>{% endif %}
+    <!-- Vendas Abaixo do Custo -->
+    {% if d.vendas.abaixo_custo %}
+    <h3>1.2 Vendas Abaixo do Custo (Prejuízo) <span class="badge badge-danger">{{ d.vendas.abaixo_custo|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Código</th><th>Data</th><th class="col-nome">Produto</th><th class="num">Preço Unit.</th><th class="num">Preço Custo</th><th class="num">Diferença</th><th class="num">Dif. %</th><th class="num">Valor Venda</th><th class="num">Prejuízo</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for v in d.vendas.abaixo_custo %}
+        <tr class="ges-neg">
+          <td class="nw">{{ v.codigo }}</td><td class="nw">{{ v.data }}</td><td class="col-nome">{{ v.produto }}</td>
+          <td class="num">{{ v.preco_unit|mt }}</td><td class="num">{{ v.preco_custo|mt }}</td>
+          <td class="num">{{ v.diferenca|mt }}</td><td class="num">{{ v.diferenca_pct }}%</td>
+          <td class="num">{{ v.valor|mt }}</td><td class="num">{{ v.prejuizo|mt }}</td><td>{{ v.usuario }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
 
-  {% if d.perdas %}
-  <h3>Perdas</h3>
-  <table class="rel-table"><thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Motivo</th><th>Justificação</th><th>Registada por</th><th class="num">Valor</th></tr></thead>
-    <tbody>{% for x in d.perdas %}<tr><td class="nw">{{ x.data }}</td><td class="col-nome">{{ x.produto }}</td><td class="num nw">{{ x.qtd|qt(x.un) }} {{ x.un }}</td><td>{{ x.motivo }}</td><td>{{ x.justificacao or '—' }}</td><td>{{ x.usuario }}</td><td class="num">{{ x.valor|mt }}</td></tr>{% endfor %}
-    <tr class="total"><td colspan="6">Total de perdas</td><td class="num">{{ d.perdas_total|mt }}</td></tr></tbody></table>
-  {% endif %}
+    <!-- Vendas Acima da Tabela -->
+    {% if d.vendas.acima_tabela %}
+    <h3>1.3 Vendas Acima do Preço de Tabela <span class="badge badge-warning">{{ d.vendas.acima_tabela|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Código</th><th>Data</th><th class="col-nome">Produto</th><th class="num">Preço Tabela</th><th class="num">Preço Praticado</th><th class="num">Diferença</th><th class="num">Dif. %</th><th class="num">Valor Venda</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for v in d.vendas.acima_tabela %}
+        <tr>
+          <td class="nw">{{ v.codigo }}</td><td class="nw">{{ v.data }}</td><td class="col-nome">{{ v.produto }}</td>
+          <td class="num">{{ v.preco_tabela|mt }}</td><td class="num">{{ v.preco_praticado|mt }}</td>
+          <td class="num">{{ v.diferenca|mt }}</td><td class="num">{{ v.diferenca_pct }}%</td>
+          <td class="num">{{ v.valor|mt }}</td><td>{{ v.usuario }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
 
-  {% if d.contagens %}
-  <h2>5. Contagens físicas e diferenças de estoque</h2>
-  {% for c in d.contagens %}
-  <h3>Contagem de {{ c.data }} · inventário #{{ c.id }} <small class="muted">({{ c.estado|lower }}; {{ c.n_contados }} produto(s) contado(s), {{ c.n_com }} com diferença)</small></h3>
-  {% if c.linhas %}
-  <table class="rel-table">
-    <thead><tr><th class="col-nome">Produto</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferença</th><th class="num">Valor (MT)</th><th>Justificação</th></tr></thead>
-    <tbody>
-    {% for l in c.linhas %}
-      <tr><td class="col-nome">{{ l.produto }}</td>
-        <td class="num nw">{{ l.sistema|qt(l.un) }} {{ l.un }}</td><td class="num nw">{{ l.contagem|qt(l.un) }} {{ l.un }}</td>
-        <td class="num nw {{ 'ges-neg' if l.dif < 0 }}">{{ l.dif|qt(l.un) }} {{ l.un }}</td><td class="num">{{ l.dif_v|mts }}</td>
-        <td>{% if l.justificada %}{{ l.motivo }}{% if l.motivo and l.obs %}. {% endif %}{{ l.obs }}{% else %}<strong class="ges-neg">Sem justificação</strong>{% endif %}</td></tr>
+    <!-- Vendas Sem Forma -->
+    {% if d.vendas.sem_forma %}
+    <h3>1.4 Vendas Sem Forma de Pagamento <span class="badge badge-danger">{{ d.vendas.sem_forma|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Código</th><th>Data</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for v in d.vendas.sem_forma %}
+        <tr class="ges-neg"><td class="nw">{{ v.codigo }}</td><td class="nw">{{ v.data }}</td><td class="num">{{ v.valor|mt }}</td><td>{{ v.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Faturas a Crédito -->
+    {% if d.vendas.faturas_credito %}
+    <h3>1.5 Faturas a Crédito Emitidas</h3>
+    <table class="rel-table">
+      <thead><tr><th>Nº Fatura</th><th>Cliente</th><th>NUIT</th><th>Emissão</th><th>Vencimento</th><th class="num">Valor</th><th class="num">Pago</th><th class="num">Saldo</th><th>Status</th><th class="num">Dias Atraso</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for f in d.vendas.faturas_credito %}
+        <tr class="{{ 'ges-neg' if f.status_classe == 'atraso' else '' }}">
+          <td class="nw">{{ f.numero }}</td><td>{{ f.cliente }}</td><td>{{ f.nif }}</td>
+          <td class="nw">{{ f.emissao }}</td><td class="nw">{{ f.vencimento }}</td>
+          <td class="num">{{ f.valor|mt }}</td><td class="num">{{ f.pago|mt }}</td><td class="num">{{ f.saldo|mt }}</td>
+          <td><span class="badge badge-{{ f.status_classe }}">{{ f.status }}</span></td>
+          <td class="num">{{ f.dias_atraso if f.dias_atraso > 0 else '—' }}</td><td>{{ f.usuario }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Recibos -->
+    {% if d.vendas.recibos %}
+    <h3>1.6 Recibos de Crédito Recebidos</h3>
+    <table class="rel-table">
+      <thead><tr><th>Nº Recibo</th><th>Fatura</th><th>Cliente</th><th>Data</th><th class="num">Valor</th><th>Forma</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for r in d.vendas.recibos %}
+        <tr><td class="nw">{{ r.numero }}</td><td>{{ r.fatura }}</td><td>{{ r.cliente }}</td><td class="nw">{{ r.data }}</td><td class="num">{{ r.valor|mt }}</td><td>{{ r.forma }}</td><td>{{ r.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <!-- SECÇÃO 2: COMPRAS -->
+  <section class="sec-compras" id="compras">
+    <h2>2. Compras / Entradas <small>(MT)</small></h2>
+
+    <h3>2.1 Por Fornecedor</h3>
+    <table class="rel-table">
+      <thead><tr><th>Fornecedor</th><th class="num">Valor Total</th><th class="num">Nº Entradas</th><th>Última Entrada</th></tr></thead>
+      <tbody>
+      {% for f in d.compras.por_fornecedor %}
+        <tr><td>{{ f.fornecedor }}</td><td class="num">{{ f.valor|mt }}</td><td class="num">{{ f.qtd }}</td><td class="nw">{{ f.ultima }}</td></tr>
+      {% endfor %}
+        <tr class="total"><td>Total</td><td class="num">{{ d.kpis.compras_total|mt }}</td><td class="num">{{ d.compras.por_fornecedor|sum(attribute='qtd') }}</td><td></td></tr>
+      </tbody>
+    </table>
+
+
+    {% if d.compras.acima_ultimo_custo %}
+    <h3>2.3 Entradas Acima do Último Custo <span class="badge badge-warning">{{ d.compras.acima_ultimo_custo|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Último Custo</th><th class="num">Preço Praticado</th><th class="num">Diferença</th><th class="num">Dif. %</th><th>Fornecedor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for c in d.compras.acima_ultimo_custo %}
+        <tr><td class="nw">{{ c.data }}</td><td class="col-nome">{{ c.produto }}</td><td class="num">{{ c.ultimo_custo|mt }}</td><td class="num">{{ c.preco_praticado|mt }}</td><td class="num">{{ c.diferenca|mt }}</td><td class="num">{{ c.diferenca_pct }}%</td><td>{{ c.fornecedor }}</td><td>{{ c.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <!-- SECÇÃO 3: RECEBIMENTOS / CONFERÊNCIA CAIXA -->
+  <section class="sec-recebimentos" id="recebimentos">
+    <h2>3. Recebimentos: Sistema vs. Conferido <small>(MT)</small></h2>
+
+    <form method="post" action="{{ url_for('rel_gestao_conferencia') }}" class="no-print">
+      <input type="hidden" name="ini" value="{{ d.periodo.ini }}"><input type="hidden" name="fim" value="{{ d.periodo.fim }}">
+      <table class="rel-table">
+        <thead>
+          <tr>
+            <th>Onde entrou</th>
+            <th class="num">Vendas à vista</th>
+            <th class="num">Dívidas cobradas</th>
+            <th class="num">Esperado</th>
+            <th class="num">Conferido</th>
+            <th class="num">Diferença</th>
+            <th>Status / Justificativa</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for c in d.recebimentos.canais %}
+          <tr>
+            <td><strong>{{ c.canal }}</strong></td>
+            <td class="num">{{ c.vista|mt }}</td><td class="num">{{ c.recibos|mt }}</td><td class="num">{{ c.esperado|mt }}</td>
+            <td class="num">
+              {% if c.canal != 'Sem forma indicada' %}
+                <span class="no-print"><input type="text" inputmode="decimal" name="valor_{{ c.canal }}" value="{{ '' if c.conferido is none else ('%.2f'|format(c.conferido)).replace('.', ',') }}" style="width:110px;text-align:right" placeholder="Contado"></span>
+                <span class="so-print">{{ (c.conferido|mt) if c.conferido is not none else '—' }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="num {{ 'ges-neg' if c.diferenca is not none and c.diferenca < -0.004 }}">{{ (c.diferenca|mts) if c.diferenca is not none else '—' }}</td>
+            <td>
+              <span class="badge badge-{{ 'danger' if c.diferenca is not none and c.diferenca < -0.004 else ('warning' if c.diferenca is not none and c.diferenca > 0.004 else ('success' if c.diferenca is not none else 'secondary')) }}">
+                {{ 'FALTA' if c.diferenca is not none and c.diferenca < -0.004 else ('SOBRA' if c.diferenca is not none and c.diferenca > 0.004 else ('OK' if c.diferenca is not none else 'PENDENTE')) }}
+              </span>
+              {{ c.texto }}
+              {% if c.canal != 'Sem forma indicada' %}
+                <span class="no-print"><br><input type="text" name="obs_{{ c.canal }}" value="{{ c.obs }}" placeholder="Justificativa" style="width:100%;margin-top:4px"></span>
+                {% if c.obs %}<span class="so-print"><br><em>{{ c.obs }}</em></span>{% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+          <tr class="total"><td>Total</td><td class="num">{{ d.kpis.rec_esperado|mt }}</td><td class="num">{{ d.recebimentos.canais|sum(attribute='recibos')|mt }}</td><td class="num">{{ d.kpis.rec_esperado|mt }}</td>
+            <td class="num">{{ d.kpis.rec_conferido|mt }}</td><td class="num {{ 'ges-neg' if d.kpis.diff_caixa < -0.004 }}">{{ d.kpis.diff_caixa|mts }}</td><td></td></tr>
+        </tbody>
+      </table>
+      <p class="no-print" style="margin-top:10px"><button class="btn btn-primary" type="submit">Guardar conferência</button>
+        <span class="muted" style="font-size:12.5px">Escreva o valor realmente contado no caixa, no extrato do banco e nas carteiras móveis. A diferença é calculada e descrita automaticamente.</span></p>
+    </form>
+
+    <!-- Envelhecimento -->
+    <h3>3.1 Envelhecimento de Contas a Receber</h3>
+    <table class="rel-table">
+      <thead><tr><th>Faixa</th><th class="num">Valor (MT)</th><th class="num">Nº Faturas</th></tr></thead>
+      <tbody>
+        <tr><td>A vencer (0-30 dias)</td><td class="num">{{ d.recebimentos.envelhecimento.a_vencer|mt }}</td><td class="num">{{ d.recebimentos.envelhecimento_n.a_vencer }}</td></tr>
+        <tr><td>1-30 dias atraso</td><td class="num">{{ d.recebimentos.envelhecimento.d1_30|mt }}</td><td class="num">{{ d.recebimentos.envelhecimento_n.d1_30 }}</td></tr>
+        <tr><td>31-60 dias atraso</td><td class="num">{{ d.recebimentos.envelhecimento.d31_60|mt }}</td><td class="num">{{ d.recebimentos.envelhecimento_n.d31_60 }}</td></tr>
+        <tr><td>61-90 dias atraso</td><td class="num">{{ d.recebimentos.envelhecimento.d61_90|mt }}</td><td class="num">{{ d.recebimentos.envelhecimento_n.d61_90 }}</td></tr>
+        <tr class="ges-neg"><td><strong>90+ dias atraso</strong></td><td class="num"><strong>{{ d.recebimentos.envelhecimento.d90_mais|mt }}</strong></td><td class="num"><strong>{{ d.recebimentos.envelhecimento_n.d90_mais }}</strong></td></tr>
+        <tr class="total"><td>Total em atraso</td><td class="num">{{ (d.recebimentos.envelhecimento.d1_30 + d.recebimentos.envelhecimento.d31_60 + d.recebimentos.envelhecimento.d61_90 + d.recebimentos.envelhecimento.d90_mais)|mt }}</td><td class="num">{{ d.recebimentos.envelhecimento_n.d1_30 + d.recebimentos.envelhecimento_n.d31_60 + d.recebimentos.envelhecimento_n.d61_90 + d.recebimentos.envelhecimento_n.d90_mais }}</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Top Devedores -->
+    {% if d.recebimentos.devedores %}
+    <h3>3.2 Top 20 Devedores (em atraso)</h3>
+    <table class="rel-table">
+      <thead><tr><th>Cliente</th><th>NUIT</th><th>Telefone</th><th>Email</th><th class="num">Saldo (MT)</th><th>Vencimento</th><th class="num">Dias Atraso</th><th class="num">Nº Faturas</th><th>Fatura Mais Antiga</th></tr></thead>
+      <tbody>
+      {% for d in d.recebimentos.devedores %}
+        <tr class="ges-neg"><td>{{ d.cliente }}</td><td>{{ d.nif }}</td><td>{{ d.telefone }}</td><td>{{ d.email }}</td><td class="num">{{ d.saldo|mt }}</td><td class="nw">{{ d.vencimento }}</td><td class="num">{{ d.dias_atraso }}</td><td class="num">{{ d.n_faturas }}</td><td class="nw">{{ d.fatura_mais_antiga }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <!-- SECÇÃO 4: ESTOQUE -->
+  <section class="sec-estoque" id="estoque">
+    <h2>4. Estoque — Reconciliação <small>(MT, a custo)</small></h2>
+
+    <!-- Equação -->
+    <h3>4.1 Equação do Estoque (Deve Fechar)</h3>
+    <table class="rel-table">
+      <thead><tr><th>Componente</th><th class="num">Valor (MT)</th></tr></thead>
+      <tbody>
+        <tr><td>Valor Inicial</td><td class="num">{{ d.estoque.equacao.inicial|mt }}</td></tr>
+        <tr><td>+ Compras</td><td class="num">{{ d.estoque.equacao.compras|mt }}</td></tr>
+        <tr><td>− Custo das Vendas</td><td class="num">{{ d.estoque.equacao.custo_vendas|mt }}</td></tr>
+        <tr><td>− Perdas e Ajustes</td><td class="num">{{ d.estoque.equacao.perdas_aj|mt }}</td></tr>
+        <tr class="total"><td>= Valor Final Calculado</td><td class="num">{{ d.estoque.equacao.final_calculado|mt }}</td></tr>
+        <tr><td>Valor Final Sistema</td><td class="num">{{ d.estoque.equacao.final_sistema|mt }}</td></tr>
+        <tr class="{{ 'ges-neg' if not d.estoque.equacao.fecha else 'ges-ok' }}"><td><strong>DIFERENÇA</strong></td><td class="num"><strong>{{ d.estoque.equacao.diferenca|mts }}</strong></td></tr>
+        <tr><td>A conta fecha?</td><td><span class="badge {{ 'badge-success' if d.estoque.equacao.fecha else 'badge-danger' }}">{{ 'Sim' if d.estoque.equacao.fecha else 'NÃO' }}</span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- Diferenças Sistema vs Movimentos -->
+    {% if d.estoque.diferencas %}
+    <h3>4.2 Diferenças: Saldo Sistema vs. Movimentos <span class="badge badge-warning">{{ d.estoque.diferencas|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th class="num">Saldo Movimentos</th><th class="num">Saldo Sistema</th><th class="num">Diff Qtd</th><th class="num">Diff Valor (MT)</th><th>Un.</th></tr></thead>
+      <tbody>
+      {% for diff in d.estoque.diferencas %}
+        <tr class="{{ 'ges-neg' if diff.diff_valor < -0.004 else '' }}"><td class="col-nome">{{ diff.produto }}</td><td>{{ diff.codigo }}</td><td>{{ diff.categoria }}</td><td class="num">{{ diff.saldo_movimentos|qt(diff.un) }} {{ diff.un }}</td><td class="num">{{ diff.saldo_sistema|qt(diff.un) }} {{ diff.un }}</td><td class="num">{{ diff.diff_qtd }}</td><td class="num">{{ diff.diff_valor|mts }}</td><td>{{ diff.un }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Negativos -->
+    {% if d.estoque.negativos %}
+    <h3>4.3 Produtos com Saldo Negativo <span class="badge badge-danger">{{ d.estoque.negativos|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th class="num">Saldo</th><th>Un.</th><th>Último Movimento</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for n in d.estoque.negativos %}
+        <tr class="ges-neg"><td class="col-nome">{{ n.produto }}</td><td>{{ n.codigo }}</td><td>{{ n.categoria }}</td><td class="num">{{ n.saldo|qt(n.un) }} {{ n.un }}</td><td>{{ n.un }}</td><td class="nw">{{ n.ultimo_movimento }}</td><td>{{ n.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Abaixo Mínimo -->
+    {% if d.estoque.abaixo_minimo %}
+    <h3>4.4 Produtos Abaixo do Mínimo <span class="badge badge-warning">{{ d.estoque.abaixo_minimo|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th class="num">Saldo Atual</th><th class="num">Mínimo</th><th>Un.</th></tr></thead>
+      <tbody>
+      {% for a in d.estoque.abaixo_minimo %}
+        <tr><td class="col-nome">{{ a.produto }}</td><td>{{ a.codigo }}</td><td>{{ a.categoria }}</td><td class="num">{{ a.saldo|qt(a.un) }} {{ a.un }}</td><td class="num">{{ a.minimo|qt(a.un) }} {{ a.un }}</td><td>{{ a.un }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Parado -->
+    {% if d.estoque.parado %}
+    <h3>4.5 Produtos Parados (Sem Movimento no Período) <span class="badge badge-info">{{ d.estoque.parado|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Produto</th><th>Código</th><th>Categoria</th><th class="num">Saldo</th><th class="num">Valor Estoque (MT)</th><th>Un.</th><th class="num">Dias Parado</th><th>Último Movimento</th></tr></thead>
+      <tbody>
+      {% for p in d.estoque.parado[:50] %}
+        <tr><td class="col-nome">{{ p.produto }}</td><td>{{ p.codigo }}</td><td>{{ p.categoria }}</td><td class="num">{{ p.saldo|qt(p.un) }} {{ p.un }}</td><td class="num">{{ p.valor|mt }}</td><td>{{ p.un }}</td><td class="num">{{ p.dias_parado }}</td><td class="nw">{{ p.ultimo_movimento }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Por Categoria -->
+    <h3>4.6 Valorização por Categoria</h3>
+    <table class="rel-table">
+      <thead><tr><th>Categoria</th><th class="num">Inicial</th><th class="num">Compras</th><th class="num">Custo Vendas</th><th class="num">Perdas/Ajustes</th><th class="num">Final</th><th class="num">% Total</th></tr></thead>
+      <tbody>
+      {% for c in d.estoque.por_categoria %}
+        <tr><td>{{ c.categoria }}</td><td class="num">{{ c.inicial|mt }}</td><td class="num">{{ c.compras|mt }}</td><td class="num">{{ c.custo_vendas|mt }}</td><td class="num">{{ c.perdas_aj|mt }}</td><td class="num">{{ c.final|mt }}</td><td class="num">{{ c.pct }}%</td></tr>
+      {% endfor %}
+        <tr class="total"><td>Total</td><td class="num">{{ d.estoque.equacao.inicial|mt }}</td><td class="num">{{ d.estoque.equacao.compras|mt }}</td><td class="num">{{ d.estoque.equacao.custo_vendas|mt }}</td><td class="num">{{ d.estoque.equacao.perdas_aj|mt }}</td><td class="num">{{ d.estoque.equacao.final_sistema|mt }}</td><td class="num">100%</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SECÇÃO 5: PERDAS -->
+  <section class="sec-perdas" id="perdas">
+    <h2>5. Perdas <small>(MT)</small></h2>
+
+    <h3>5.1 Por Motivo</h3>
+    <table class="rel-table">
+      <thead><tr><th>Motivo</th><th class="num">Nº Ocorrências</th><th class="num">Qtd Total</th><th class="num">Valor Total (MT)</th><th class="num">% Total Perdas</th></tr></thead>
+      <tbody>
+      {% for p in d.perdas.por_motivo %}
+        <tr><td>{{ p.motivo }}</td><td class="num">{{ p.n }}</td><td class="num">{{ p.qtd }}</td><td class="num">{{ p.valor|mt }}</td><td class="num">{{ p.pct }}%</td></tr>
+      {% endfor %}
+        <tr class="total"><td>Total</td><td class="num">{{ d.perdas.por_motivo|sum(attribute='n') }}</td><td class="num">{{ d.perdas.por_motivo|sum(attribute='qtd') }}</td><td class="num">{{ d.perdas.total|mt }}</td><td class="num">100%</td></tr>
+      </tbody>
+    </table>
+
+    <h3>5.2 Perdas Sem Justificativa <span class="badge badge-danger">{{ d.perdas.sem_justificativa|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Un.</th><th>Motivo</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for p in d.perdas.sem_justificativa %}
+        <tr class="ges-neg"><td class="nw">{{ p.data }}</td><td class="col-nome">{{ p.produto }}</td><td class="num">{{ p.qtd|qt(p.un) }} {{ p.un }}</td><td>{{ p.un }}</td><td>{{ p.motivo }}</td><td class="num">{{ p.valor|mt }}</td><td>{{ p.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>5.3 Perdas por Usuário</h3>
+    <table class="rel-table">
+      <thead><tr><th>Usuário</th><th class="num">Nº Perdas</th><th class="num">Valor Total (MT)</th></tr></thead>
+      <tbody>
+      {% for u in d.perdas.por_usuario %}
+        <tr><td>{{ u.usuario }}</td><td class="num">{{ u.n }}</td><td class="num">{{ u.valor|mt }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>5.4 Detalhamento Completo</h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Un.</th><th>Motivo</th><th>Justificativa</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for p in d.perdas.detalhadas %}
+        <tr><td class="nw">{{ p.data }}</td><td class="col-nome">{{ p.produto }}</td><td class="num">{{ p.qtd|qt(p.un) }} {{ p.un }}</td><td>{{ p.un }}</td><td>{{ p.motivo }}</td><td>{{ p.justificacao or '—' }}</td><td class="num">{{ p.valor|mt }}</td><td>{{ p.usuario }}</td></tr>
+      {% endfor %}
+        <tr class="total"><td colspan="6">Total de perdas</td><td class="num">{{ d.perdas.total|mt }}</td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SECÇÃO 6: AJUSTES -->
+  <section class="sec-ajustes" id="ajustes">
+    <h2>6. Ajustes de Inventário <small>(MT)</small></h2>
+
+    {% if d.ajustes.positivos %}
+    <h3>6.1 Ajustes Positivos (Entradas)</h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Un.</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for a in d.ajustes.positivos %}
+        <tr><td class="nw">{{ a.data }}</td><td class="col-nome">{{ a.produto }}</td><td class="num">{{ a.qtd|qt(a.un) }} {{ a.un }}</td><td>{{ a.un }}</td><td class="num">{{ a.valor|mt }}</td><td>{{ a.usuario }}</td></tr>
+      {% endfor %}
+        <tr class="total"><td colspan="4">Total Positivos</td><td class="num">{{ d.ajustes.total_pos|mt }}</td><td></td></tr>
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if d.ajustes.negativos %}
+    <h3>6.2 Ajustes Negativos (Saídas)</h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Un.</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for a in d.ajustes.negativos %}
+        <tr><td class="nw">{{ a.data }}</td><td class="col-nome">{{ a.produto }}</td><td class="num">{{ a.qtd|qt(a.un) }} {{ a.un }}</td><td>{{ a.un }}</td><td class="num">{{ a.valor|mts }}</td><td>{{ a.usuario }}</td></tr>
+      {% endfor %}
+        <tr class="total"><td colspan="4">Total Negativos</td><td class="num">{{ d.ajustes.total_neg|mts }}</td><td></td></tr>
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if d.ajustes.sem_justificativa %}
+    <h3>6.3 Ajustes Sem Justificativa <span class="badge badge-danger">{{ d.ajustes.sem_justificativa|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Un.</th><th class="num">Valor</th><th>Usuário</th></tr></thead>
+      <tbody>
+      {% for a in d.ajustes.sem_justificativa %}
+        <tr class="ges-neg"><td class="nw">{{ a.data }}</td><td class="col-nome">{{ a.produto }}</td><td class="num">{{ a.qtd|qt(a.un) }} {{ a.un }}</td><td>{{ a.un }}</td><td class="num">{{ a.valor|mts }}</td><td>{{ a.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <!-- SECÇÃO 7: AUDITORIAS / CONTAGENS FÍSICAS -->
+  <section class="sec-auditorias" id="auditorias">
+    <h2>7. Contagens Físicas / Auditorias no Período</h2>
+
+    {% if d.auditorias.contagens %}
+    {% for c in d.auditorias.contagens %}
+    <h3>Inventário #{{ c.id }} · {{ c.data }} <small class="muted">({{ c.estado|lower }}; {{ c.n_contados }} produto(s), {{ c.n_com }} com diferença; Contador: {{ c.contador }})</small></h3>
+    {% if c.linhas %}
+    <table class="rel-table">
+      <thead><tr><th class="col-nome">Produto</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diferença Qtd</th><th class="num">Diferença Valor (MT)</th><th>Justificada?</th><th>Motivo</th><th>Obs.</th></tr></thead>
+      <tbody>
+      {% for l in c.linhas %}
+        <tr class="{{ 'ges-neg' if not l.justificada else '' }}">
+          <td class="col-nome">{{ l.produto }}</td>
+          <td class="num nw">{{ l.sistema|qt(l.un) }} {{ l.un }}</td><td class="num nw">{{ l.contagem|qt(l.un) }} {{ l.un }}</td>
+          <td class="num nw {{ 'ges-neg' if l.dif < 0 }}">{{ l.dif|qt(l.un) }} {{ l.un }}</td><td class="num">{{ l.dif_v|mts }}</td>
+          <td>{% if l.justificada %}<span class="badge badge-success">Sim</span>{% else %}<span class="badge badge-danger">Não</span>{% endif %}</td>
+          <td>{{ l.motivo or '—' }}</td><td>{{ l.obs or '—' }}</td>
+        </tr>
+      {% endfor %}
+        <tr class="total"><td colspan="3">Total (faltas {{ c.perdas|mt }} · sobras {{ c.sobras|mt }})</td><td></td><td class="num">{{ (c.perdas + c.sobras)|mts }}</td><td colspan="3"></td></tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="rel-linha-estado">Sem diferenças: a contagem física coincide com o sistema.</p>
+    {% endif %}
     {% endfor %}
-      <tr class="total"><td colspan="4">Total da contagem (faltas {{ c.perdas|mt }} · sobras {{ c.sobras|mt }})</td><td class="num">{{ (c.perdas + c.sobras)|mts }}</td><td></td></tr>
-    </tbody>
-  </table>
-  {% else %}<p class="rel-linha-estado">Sem diferenças: a contagem física coincide com o sistema.</p>{% endif %}
-  {% endfor %}
-  <p class="rel-linha-estado">Resumo das contagens do período: faltas <strong>{{ d.cont_perdas|mt }}</strong> · sobras <strong>{{ d.cont_sobras|mt }}</strong></p>
+
+    <p class="rel-linha-estado">Resumo do período: faltas <strong>{{ d.auditorias.total_perdas|mt }}</strong> · sobras <strong>{{ d.auditorias.total_sobras|mt }}</strong></p>
+    {% endif %}
+
+    <!-- Diferenças Não Justificadas Consolidadas -->
+    {% if d.auditorias.diffs_nao_justificadas %}
+    <h3>7.1 Diferenças NÃO Justificadas (Todas as Auditorias) <span class="badge badge-danger">{{ d.auditorias.diffs_nao_justificadas|length }}</span></h3>
+    <table class="rel-table">
+      <thead><tr><th>Inventário</th><th>Data</th><th class="col-nome">Produto</th><th class="num">Sistema</th><th class="num">Contado</th><th class="num">Diff Qtd</th><th class="num">Diff Valor</th><th>Motivo</th><th>Obs.</th></tr></thead>
+      <tbody>
+      {% for d in d.auditorias.diffs_nao_justificadas %}
+        <tr class="ges-neg"><td class="nw">#{{ d.inventario }}</td><td class="nw">{{ d.data }}</td><td class="col-nome">{{ d.produto }}</td><td class="num">{{ d.sistema }}</td><td class="num">{{ d.contado }}</td><td class="num">{{ d.diff_qtd }}</td><td class="num">{{ d.diff_valor|mts }}</td><td>{{ d.motivo }}</td><td>{{ d.obs }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Recontagens -->
+    {% if d.auditorias.recontagens %}
+    <h3>7.2 Recontagens Solicitadas</h3>
+    <table class="rel-table">
+      <thead><tr><th>Inventário</th><th>Data</th><th class="col-nome">Produto</th><th>Contador Original</th><th>Contador Recontagem</th><th>Data Recontagem</th></tr></thead>
+      <tbody>
+      {% for r in d.auditorias.recontagens %}
+        <tr><td class="nw">#{{ r.inventario }}</td><td class="nw">{{ r.data }}</td><td class="col-nome">{{ r.produto }}</td><td>{{ r.contador_original }}</td><td>{{ r.contador_recontagem }}</td><td class="nw">{{ r.data_recontagem }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+
+  <!-- SECÇÃO 8: ANOMALIAS DETALHADAS -->
+  <section class="sec-anomalias" id="anomalias">
+    <h2>8. Anomalias e Alertas Automáticos</h2>
+    <table class="rel-table">
+      <thead><tr><th>Severidade</th><th>Tipo</th><th>Referência</th><th>Código</th><th>Detalhe</th></tr></thead>
+      <tbody>
+      {% for a in d.anomalias %}
+        <tr class="anomalia-{{ a.severidade.lower() }}">
+          <td><span class="badge badge-{{ a.severidade.lower() }}">{{ a.severidade }}</span></td>
+          <td><strong>{{ a.tipo }}</strong></td>
+          <td>{{ a.produto }}</td>
+          <td>{{ a.codigo }}</td>
+          <td>{{ a.detalhe }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- SECÇÃO 9: EVOLUÇÃO MENSAL -->
+  {% if d.evolucao_mensal|length > 1 %}
+  <section class="sec-evolucao" id="evolucao">
+    <h2>9. Evolução Mês a Mês <small>(MT)</small></h2>
+    <table class="rel-table">
+      <thead><tr><th>Mês</th><th class="num">Vendas</th><th class="num">Compras</th><th class="num">Lucro</th><th class="num">Recebido</th><th class="num">Perdas</th></tr></thead>
+      <tbody>
+      {% for e in d.evolucao_mensal %}
+        <tr><td>{{ e.mes }}</td><td class="num">{{ e.vendas|mt }}</td><td class="num">{{ e.compras|mt }}</td><td class="num">{{ e.lucro|mt }}</td><td class="num">{{ e.recebido|mt }}</td><td class="num">{{ e.perdas|mt }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
   {% endif %}
 
-  {% if d.ajustes %}
-  <h3>Ajustes de inventário</h3>
-  <table class="rel-table"><thead><tr><th>Data</th><th class="col-nome">Produto</th><th class="num">Qtd</th><th>Feito por</th><th class="num">Valor</th></tr></thead>
-    <tbody>{% for x in d.ajustes %}<tr><td class="nw">{{ x.data }}</td><td class="col-nome">{{ x.produto }}</td><td class="num nw">{{ x.qtd|qt(x.un) }} {{ x.un }}</td><td>{{ x.usuario }}</td><td class="num">{{ x.valor|mts }}</td></tr>{% endfor %}</tbody></table>
-  {% endif %}
+  <!-- SECÇÃO 10: USUÁRIOS / RASTREABILIDADE -->
+  <section class="sec-usuarios" id="usuarios">
+    <h2>10. Rastreabilidade por Usuário</h2>
+    <table class="rel-table">
+      <thead>
+        <tr>
+          <th>Usuário</th><th>Perfil</th>
+          <th class="num">Vendas (MT)</th><th class="num">Nº Vendas</th><th class="num">Lucro (MT)</th>
+          <th class="num">Compras (MT)</th>
+          <th class="num">Perdas (MT)</th><th class="num">Nº Perdas</th>
+          <th class="num">Ajustes (MT)</th><th class="num">Nº Ajustes</th>
+          <th class="num">Anulações</th><th class="num">Recibos</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in d.usuarios %}
+        <tr>
+          <td>{{ u.usuario }}</td><td><span class="badge badge-{{ 'dark' if u.perfil == 'Admin' else ('primary' if u.perfil == 'Gerente' else 'secondary') }}">{{ u.perfil }}</span></td>
+          <td class="num">{{ u.vendas_valor|mt }}</td><td class="num">{{ u.vendas_qtd }}</td><td class="num">{{ u.lucro_total|mt }}</td>
+          <td class="num">{{ u.compras_valor|mt }}</td>
+          <td class="num">{{ u.perdas_valor|mt }}</td><td class="num">{{ u.perdas_registadas }}</td>
+          <td class="num">{{ u.ajustes_valor|mt }}</td><td class="num">{{ u.ajustes_aprovados }}</td>
+          <td class="num">{{ u.anulacoes }}</td><td class="num">{{ u.recibos_emitidos }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
 
+  <!-- SECÇÃO 11: VENDAS ANULADAS -->
   {% if d.anuladas %}
-  <h2>6. Vendas anuladas</h2>
-  <table class="rel-table"><thead><tr><th>Código</th><th>Data</th><th>Cliente</th><th>Motivo</th><th>Anulada por</th><th class="num">Valor</th></tr></thead>
-    <tbody>{% for x in d.anuladas %}<tr><td class="nw">{{ x.numero }}</td><td class="nw">{{ x.data|dmy }}</td><td>{{ x.cliente }}</td><td>{{ x.motivo }}</td><td>{{ x.usuario }}</td><td class="num">{{ x.valor|mt }}</td></tr>{% endfor %}</tbody></table>
+  <section class="sec-anuladas" id="anuladas">
+    <h2>11. Vendas Anuladas</h2>
+    <table class="rel-table">
+      <thead><tr><th>Código</th><th>Data</th><th>Cliente</th><th class="num">Valor</th><th>Motivo</th><th>Vendido por</th><th>Anulado por</th></tr></thead>
+      <tbody>
+      {% for a in d.anuladas %}
+        <tr><td class="nw">{{ a.numero }}</td><td class="nw">{{ a.data }}</td><td>{{ a.cliente }}</td><td class="num">{{ a.valor|mt }}</td><td>{{ a.motivo }}</td><td>{{ a.usuario_venda or '—' }}</td><td>{{ a.usuario }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
   {% endif %}
 
-  {% if d.margem_neg %}
-  <h2>Vendas abaixo do custo</h2>
-  <table class="rel-table"><thead><tr><th>Código</th><th>Data</th><th class="col-nome">Produtos</th><th>Vendedor</th><th class="num">Valor</th><th class="num">Prejuízo</th></tr></thead>
-    <tbody>{% for x in d.margem_neg %}<tr><td class="nw">{{ x.codigo }}</td><td class="nw">{{ x.data }}</td><td class="col-nome">{{ x.itens }}</td><td>{{ x.usuario }}</td><td class="num">{{ x.valor|mt }}</td><td class="num">{{ x.lucro|mt }}</td></tr>{% endfor %}</tbody></table>
-  {% endif %}
-
-  {% if d.evolucao|length > 1 %}
-  <h2>Evolução mês a mês <small>(MT)</small></h2>
-  <table class="rel-table"><thead><tr><th>Mês</th><th class="num">Vendas</th><th class="num">Compras</th><th class="num">Lucro bruto</th><th class="num">Recebido</th><th class="num">Perdas</th></tr></thead>
-    <tbody>{% for x in d.evolucao %}<tr><td>{{ x.mes }}</td><td class="num">{{ x.vendas|mt }}</td><td class="num">{{ x.compras|mt }}</td><td class="num">{{ x.lucro|mt }}</td><td class="num">{{ x.recebido|mt }}</td><td class="num">{{ x.perdas|mt }}</td></tr>{% endfor %}</tbody></table>
-  {% endif %}
 </article>
+
 {% call m.navegacao() %}
-  <a class="btn btn-secondary" href="{{ url_for('rel_vendas', ini=d.ini, fim=d.fim) }}">Vendas</a>
-  <a class="btn btn-secondary" href="{{ url_for('rel_balancete', ini=d.ini, fim=d.fim) }}">Balancete</a>
-  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade', ini=d.ini, fim=d.fim) }}">Perdas</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_vendas', ini=d.periodo.ini, fim=d.periodo.fim) }}">Vendas</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_balancete', ini=d.periodo.ini, fim=d.periodo.fim) }}">Balancete</a>
+  <a class="btn btn-secondary" href="{{ url_for('rel_perdas_validade', ini=d.periodo.ini, fim=d.periodo.fim) }}">Perdas</a>
   <a class="btn btn-secondary" href="{{ url_for('contas_receber_list') }}">Contas a receber</a>
   <a class="btn btn-secondary" href="{{ url_for('auditorias_list') }}">Auditorias de estoque</a>
   <a class="btn btn-secondary" href="{{ url_for('venda_anular') }}">Anular venda</a>
 {% endcall %}
+
+<style>
+/* Estilos específicos do relatório de gestão */
+.sec-veredito { margin-bottom: 20px; }
+.veredito-card {
+  padding: 20px; border-radius: 8px; text-align: center;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid;
+}
+.veredito-card.veredito-critico { border-color: #dc3545; background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%); }
+.veredito-card.veredito-alerta { border-color: #ffc107; background: linear-gradient(135deg, #fffdf5 0%, #fff3d0 100%); }
+.veredito-card.veredito-atencao { border-color: #17a2b8; background: linear-gradient(135deg, #f0fdff 0%, #d0f4ff 100%); }
+.veredito-card.veredito-ok { border-color: #28a745; background: linear-gradient(135deg, #f0fff4 0%, #d0ffe0 100%); }
+.veredito-nivel { font-size: 1.5rem; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; }
+.veredito-critico .veredito-nivel { color: #dc3545; }
+.veredito-alerta .veredito-nivel { color: #ffc107; }
+.veredito-atencao .veredito-nivel { color: #17a2b8; }
+.veredito-ok .veredito-nivel { color: #28a745; }
+.veredito-texto { font-size: 1.1rem; margin-bottom: 12px; font-weight: 500; }
+.veredito-detalhes { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.badge { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+.badge-critico { background: #dc3545; color: white; }
+.badge-alerta { background: #ffc107; color: #333; }
+.badge-atencao { background: #17a2b8; color: white; }
+.badge-success { background: #28a745; color: white; }
+.badge-warning { background: #ffc107; color: #333; }
+.badge-danger { background: #dc3545; color: white; }
+.badge-info { background: #17a2b8; color: white; }
+.badge-secondary { background: #6c757d; color: white; }
+.badge-dark { background: #343a40; color: white; }
+.badge-ges-neg { background: #dc3545; color: white; }
+.badge-ges-pos { background: #28a745; color: white; }
+.badge-ges-ok { background: #28a745; color: white; }
+
+.sec-kpis { margin-bottom: 30px; }
+.sec-kpis h2 { margin-bottom: 15px; font-size: 1.3rem; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+
+.anomalias-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 12px; margin-top: 15px; }
+.anomalia-card { padding: 15px; border-radius: 6px; border-left: 4px solid; background: #fafafa; }
+.anomalia-card.anomalia-critico { border-color: #dc3545; background: #fff5f5; }
+.anomalia-card.anomalia-alerta { border-color: #ffc107; background: #fffdf5; }
+.anomalia-card.anomalia-atencao { border-color: #17a2b8; background: #f0fdff; }
+.anomalia-severidade { font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+.anomalia-critico .anomalia-severidade { background: #dc3545; color: white; }
+.anomalia-alerta .anomalia-severidade { background: #ffc107; color: #333; }
+.anomalia-atencao .anomalia-severidade { background: #17a2b8; color: white; }
+.anomalia-detalhe { margin-top: 8px; font-size: 0.9rem; color: #555; }
+
+.kpi { padding: 12px 16px; border-radius: 6px; background: white; border: 1px solid #dee2e6; }
+.kpi-neg { border-left: 4px solid #dc3545; background: #fff5f5; }
+.kpi-pos { border-left: 4px solid #28a745; background: #f0fff4; }
+.kpi-ok { border-left: 4px solid #28a745; background: #f0fff4; }
+.kpi-label { font-size: 0.8rem; color: #666; text-transform: uppercase; font-weight: 600; }
+.kpi-value { font-size: 1.25rem; font-weight: bold; color: #333; }
+
+section h2 { border-bottom: 2px solid #2F5233; padding-bottom: 8px; margin-top: 30px; margin-bottom: 16px; }
+section h3 { margin-top: 24px; margin-bottom: 12px; font-size: 1.1rem; color: #333; }
+.rel-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.85rem; }
+.rel-table th { background: #2F5233; color: white; padding: 8px 10px; text-align: left; font-weight: 600; }
+.rel-table td { padding: 6px 10px; border-bottom: 1px solid #eee; }
+.rel-table tr:nth-child(even) { background: #fafafa; }
+.rel-table tr.total { background: #f0f0f0; font-weight: bold; }
+.rel-table tr.ges-neg { background: #fff5f5; }
+.rel-table tr.ges-ok { background: #f0fff4; }
+.rel-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.rel-table .col-nome { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel-table .nw { white-space: nowrap; }
+
+@media print {
+  .no-print { display: none !important; }
+  .so-print { display: inline !important; }
+  section { break-inside: avoid; }
+  .rel-table { page-break-inside: auto; }
+  .rel-table tr { page-break-inside: avoid; page-break-after: auto; }
+  .rel-table thead { display: table-header-group; }
+}
+</style>
 {% endblock %}

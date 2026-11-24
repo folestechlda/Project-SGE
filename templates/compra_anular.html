@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block page_title %}Anular compra{% endblock %}
+{% block title %}Anular compra · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Anular compra / entrada</h1>
+    <p class="page-sub">Registou uma compra/entrada por engano? Indique o código da nota fiscal: o estoque é removido e a anulação fica registada.</p>
+  </div>
+</div>
+
+<div class="panel form-panel">
+  <form method="GET" class="grid-form">
+    <label class="span-2">Código da nota fiscal / entrada
+      <input type="text" name="codigo" value="{{ codigo }}" placeholder="Ex.: NF 12345 ou código da entrada" autocomplete="off" autofocus required>
+    </label>
+    <div class="form-actions span-2"><button class="btn btn-primary" type="submit">Procurar compra</button></div>
+  </form>
+</div>
+
+{% if compra %}
+<div class="panel">
+  <h3>Compra/Entrada {{ compra.codigo }}</h3>
+  <p class="muted">{{ compra.data[:16].replace('T',' ') }} · {{ compra.usuario or '—' }} · {{ compra.fornecedor or 'Sem fornecedor' }} · {{ compra.forma or 'Forma não indicada' }}</p>
+  <table class="data-table">
+    <thead><tr><th>Produto</th><th class="num-right">Quantidade</th><th class="num-right">Preço unit.</th><th class="num-right">Total</th></tr></thead>
+    <tbody>
+    {% for i in compra.itens %}
+      <tr><td><strong>{{ i.produto_nome }}</strong> <span class="muted">({{ i.produto_codigo }})</span></td>
+        <td class="num-right">{{ i.quantidade_original|format_num(2) }} {{ i.unidade_original }}</td>
+        <td class="num-right">{{ (i.valor_total / i.quantidade_original)|mt if i.quantidade_original else '—' }}</td>
+        <td class="num-right">{{ i.valor_total|mt }}</td></tr>
+    {% endfor %}
+      <tr><td colspan="3"><strong>Total</strong></td><td class="num-right"><strong>{{ compra.total|mt }} MT</strong></td></tr>
+    </tbody>
+  </table>
+  <form method="POST" class="grid-form" style="margin-top:16px"
+        data-confirmar="Anular a compra/entrada {{ compra.codigo }}? Os produtos saem do estoque. Não é possível desfazer."
+        data-confirmar-tipo="erro" data-confirmar-ok="Anular compra">
+    <input type="hidden" name="codigo" value="{{ compra.codigo }}">
+    <label class="span-2">Motivo da anulação *
+      <textarea name="motivo" rows="2" required minlength="5" placeholder="Ex.: produto errado, quantidade errada, nota duplicada…"></textarea>
+    </label>
+    <div class="form-actions span-2"><button class="btn btn-danger" type="submit">Anular compra e remover do estoque</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3>Entradas recentes</h3>
+  <table class="data-table">
+    <thead><tr><th>Nota Fiscal</th><th>Data</th><th>Fornecedor</th><th class="num-right">Total</th><th></th></tr></thead>
+    <tbody>
+    {% for r in recentes %}
+      <tr><td class="mono">{{ r.codigo }}</td><td class="mono">{{ r.data_hora[:16].replace('T',' ') }}</td><td>{{ r.fornecedor or '—' }}</td><td class="num-right">{{ r.total|mt }}</td><td><a class="btn btn-secondary" href="{{ url_for('compra_anular', codigo=r.codigo) }}">Abrir</a></td></tr>
+    {% else %}<tr><td colspan="5" class="empty-hint">Ainda não há entradas.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if anuladas %}
+<div class="panel">
+  <h3>Anulações registadas</h3>
+  <table class="data-table">
+    <thead><tr><th>Código</th><th>Data</th><th class="num-right">Valor</th><th>Motivo</th><th>Anulada por</th></tr></thead>
+    <tbody>
+    {% for a in anuladas %}
+      <tr><td class="mono">{{ a.codigo_compra }}</td><td class="mono">{{ a.data_anulacao[:16].replace('T',' ') }}</td><td class="num-right">{{ a.valor_total|mt }}</td><td>{{ a.motivo }}</td><td>{{ a.anulou or '—' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

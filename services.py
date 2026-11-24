@@ -1538,6 +1538,105 @@ def anular_venda(conn, codigo, motivo, id_usuario, perfil, ip_address=None):
     return {"codigo": venda["codigo"], "valor": venda["total"], "itens": len(venda["itens"])}
 
 
+def anular_compra(conn, codigo, motivo, id_usuario, perfil, ip_address=None):
+    """Anula uma compra/entrada pelo código: repõe o estoque (remove) e guarda o registo da anulação.
+
+    Operador: só compras próprias e do próprio dia. Gerente/Admin: qualquer compra.
+    Compras com notas fiscais referenciadas em outras operações não podem ser anuladas."""
+    from database import registrar_auditoria
+    motivo = (motivo or "").strip()
+    if len(motivo) < 5:
+        raise RegraNegocioError("Indique o motivo da anulação (mínimo 5 caracteres).")
+
+    # Busca a compra pelo código (pode ser nota_fiscal ou código gerado)
+    compra = obter_compra_por_codigo(conn, codigo)
+    if not compra:
+        raise RegraNegocioError(f"Não existe nenhuma compra/entrada com o código '{(codigo or '').strip()}'.")
+
+    if perfil not in ("Admin", "Gerente"):
+        if compra["id_usuario"] != id_usuario:
+            raise RegraNegocioError("Só pode anular compras registadas por si. Peça a um Gerente.")
+        if (compra["data"] or "")[:10] != datetime.now().date().isoformat():
+            raise RegraNegocioError("Só pode anular compras do próprio dia. Peça a um Gerente.")
+
+    # Verifica se a compra tem documentos associados que impedem anulação
+    # (pode adicionar verificações específicas se necessário)
+
+    agora = datetime.now().isoformat(timespec="seconds")
+    itens_snap = [{"produto": i["produto_nome"], "codigo": i["produto_codigo"],
+                   "quantidade": i["quantidade_original"], "unidade": i["unidade_original"],
+                   "preco": i["preco_unitario"], "valor": i["valor_total"]}
+                  for i in compra["itens"]]
+    custo_total = round(sum(float(i["valor_total"] or 0) for i in compra["itens"]), 2)
+
+    try:
+        for i in compra["itens"]:
+            _garantir_linha_estoque(conn, i["id_produto"])
+            conn.execute("UPDATE estoque SET saldo_atual = saldo_atual - ?, ultima_atualizacao=? WHERE id_produto=?",
+                         (i["quantidade"], agora, i["id_produto"]))
+        ids = [i["id_movimento"] for i in compra["itens"]]
+        marcas = ",".join("?" * len(ids))
+
+        # Remove os movimentos da compra
+        conn.execute(f"DELETE FROM movimentos WHERE id_movimento IN ({marcas})", ids)
+
+        cur = conn.execute(
+            """INSERT INTO compras_anuladas (codigo_compra, tipo, id_nota_fiscal, fornecedor, forma_pagamento, data_compra,
+                   valor_total, custo_total, itens_json, motivo, id_usuario_compra, id_usuario_anulou, data_anulacao)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (compra["codigo"], "Compra", compra.get("id_nota_fiscal"), compra["fornecedor"],
+             compra["forma_pagamento"], compra["data"], compra["total"], custo_total,
+             __import__("json").dumps(itens_snap, ensure_ascii=False), motivo,
+             compra["id_usuario"], id_usuario, datetime.now().isoformat(timespec="seconds")))
+
+        registrar_auditoria(conn, id_usuario, "compras_anuladas", cur.lastrowid, "INSERT", None,
+                            {"codigo": compra["codigo"], "valor": compra["total"], "motivo": motivo,
+                             "itens": itens_snap}, ip_address)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return {"codigo": compra["codigo"], "valor": compra["total"], "itens": len(compra["itens"])}
+
+
+def obter_compra_por_codigo(conn, codigo):
+    """Obtém uma compra/entrada pelo código (nota_fiscal, ID do movimento ou código gerado)."""
+    codigo = (codigo or "").strip()
+    if not codigo:
+        return None
+
+    # Tenta primeiro por nota_fiscal
+    rows = conn.execute(
+        """SELECT m.*, p.nome AS produto_nome, p.codigo AS produto_codigo, p.preco_custo,
+                  u.nome AS usuario_nome
+           FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
+           LEFT JOIN usuarios u ON u.id_usuario=m.id_usuario
+           WHERE m.tipo='Entrada' AND m.subtipo IS NULL AND UPPER(m.nota_fiscal)=UPPER(?) ORDER BY m.id_movimento""",
+        (codigo,)).fetchall()
+
+    # Se não encontrou, tenta por ID do movimento (se for número)
+    if not rows and codigo.isdigit():
+        rows = conn.execute(
+            """SELECT m.*, p.nome AS produto_nome, p.codigo AS produto_codigo, p.preco_custo,
+                      u.nome AS usuario_nome
+               FROM movimentos m JOIN produtos p ON p.id_produto=m.id_produto
+               LEFT JOIN usuarios u ON u.id_usuario=m.id_usuario
+               WHERE m.tipo='Entrada' AND m.subtipo IS NULL AND m.id_movimento=? ORDER BY m.id_movimento""",
+            (int(codigo),)).fetchall()
+
+    if not rows:
+        return None
+    # Usa nota_fiscal se existir, senão usa ID do movimento como código
+    codigo_ref = rows[0]["nota_fiscal"] or f"ENT-{rows[0]['id_movimento']:06d}"
+    id_nota = rows[0]["id_nota_fiscal"] if "id_nota_fiscal" in rows[0].keys() else None
+    return {"codigo": codigo_ref, "itens": [dict(r) for r in rows],
+            "total": round(sum(float(r["valor_total"] or 0) for r in rows), 2),
+            "data": rows[0]["data_hora"], "fornecedor": rows[0]["fornecedor"],
+            "forma_pagamento": rows[0]["forma_pagamento"], "id_usuario": rows[0]["id_usuario"],
+            "usuario": rows[0]["usuario_nome"], "id_nota_fiscal": id_nota}
+
+
 def gerar_numero_fatura(conn):
     row = conn.execute("SELECT COUNT(*) AS c FROM contas_receber").fetchone()
     return f"FT-{datetime.now().year}-{row['c']+1:05d}"

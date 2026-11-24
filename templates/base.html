@@ -52,7 +52,7 @@
     {% set ep = request.endpoint or '' %}
     {% set perfil = current_user.perfil %}
     {% set eh_gestor = perfil in ['Admin','Gerente'] %}
-    {% set g_oper = ep in ['movimento_entrada','movimento_saida','venda_credito','perdas_list','venda_anular'] or ep.startswith('cotacao') %}
+    {% set g_oper = ep in ['movimento_entrada','movimento_saida','venda_credito','perdas_list','venda_anular','compra_anular'] or ep.startswith('cotacao') %}
     {% set g_est = ep in ['rel_estoque_geral','rel_posicao','movimentos_list','estoque_inventario','rel_divergencias'] or ep.startswith('auditoria') or ep.startswith('comparar') %}
     {% set g_fin = ep in ['contas_receber_list','conta_receber_detalhe','contas_receber_extrato_clientes','conta_receber_extrato_cliente'] or ep.startswith('fecho') %}
     {% set g_rel = ep in ['rel_gestao','rel_balancete','rel_vendas','rel_extrato_produto','rel_perdas_validade','rel_curva_abc'] %}
@@ -70,6 +70,7 @@
           <a href="{{ url_for('cotacoes_list') }}" class="{{ 'active' if ep.startswith('cotacao') }}">Cotações</a>
           <a href="{{ url_for('perdas_list') }}" class="{{ 'active' if ep=='perdas_list' }}">Perdas</a>
           <a href="{{ url_for('venda_anular') }}" class="{{ 'active' if ep=='venda_anular' }}">Anular venda</a>
+          <a href="{{ url_for('compra_anular') }}" class="{{ 'active' if ep=='compra_anular' }}">Anular compra</a>
         </div>
       </details>
 

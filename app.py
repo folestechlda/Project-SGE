@@ -2035,6 +2035,865 @@ def _rel_excel(titulo, colunas, linhas, base):
                      as_attachment=True, download_name=f"{base}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
 
 
+def _exportar_gestao_completa(d, fmt):
+    """Exporta relatório de gestão completo para Excel (múltiplas abas) ou PDF."""
+    from database import get_company_info
+    import reports as reportmod
+    emp = get_company_info()
+    nome_emp = emp.get("nome") or "SGE"
+    ini = d["periodo"]["ini_fmt"]
+    fim = d["periodo"]["fim_fmt"]
+
+    if fmt == "excel":
+        wb = reportmod.Workbook()
+        # Aba 1: Resumo / Veredito
+        ws = wb.active
+        ws.title = "Resumo"
+        _escrever_resumo_excel(ws, d, nome_emp, ini, fim)
+
+        # Aba 2: Vendas Detalhadas
+        ws2 = wb.create_sheet("Vendas_Detalhadas")
+        _escrever_vendas_excel(ws2, d["vendas"]["detalhadas"])
+
+        # Aba 3: Vendas por Forma
+        ws3 = wb.create_sheet("Vendas_Por_Forma")
+        _escrever_vendas_forma_excel(ws3, d["vendas"]["por_forma"])
+
+        # Aba 4: Vendas Abaixo Custo
+        ws4 = wb.create_sheet("Vendas_Abaixo_Custo")
+        _escrever_vendas_abaixo_excel(ws4, d["vendas"]["abaixo_custo"])
+
+        # Aba 5: Vendas Acima Tabela
+        ws5 = wb.create_sheet("Vendas_Acima_Tabela")
+        _escrever_vendas_acima_excel(ws5, d["vendas"]["acima_tabela"])
+
+        # Aba 6: Vendas Sem Forma
+        ws6 = wb.create_sheet("Vendas_Sem_Forma")
+        _escrever_vendas_sem_forma_excel(ws6, d["vendas"]["sem_forma"])
+
+        # Aba 7: Faturas Crédito
+        ws7 = wb.create_sheet("Faturas_Credito")
+        _escrever_faturas_excel(ws7, d["vendas"]["faturas_credito"])
+
+        # Aba 8: Recibos
+        ws8 = wb.create_sheet("Recibos_Credito")
+        _escrever_recibos_excel(ws8, d["vendas"]["recibos"])
+
+        # Aba 9: Compras Detalhadas
+        ws9 = wb.create_sheet("Compras_Detalhadas")
+        _escrever_compras_excel(ws9, d["compras"]["detalhadas"])
+
+        # Aba 10: Compras Por Fornecedor
+        ws10 = wb.create_sheet("Compras_Por_Fornecedor")
+        _escrever_fornecedores_excel(ws10, d["compras"]["por_fornecedor"])
+
+        # Aba 12: Recebimentos Canais
+        ws12 = wb.create_sheet("Recebimentos_Canais")
+        _escrever_canais_excel(ws12, d["recebimentos"]["canais"])
+
+        # Aba 13: Envelhecimento
+        ws13 = wb.create_sheet("Envelhecimento")
+        _escrever_envelhecimento_excel(ws13, d["recebimentos"]["envelhecimento"], d["recebimentos"]["envelhecimento_n"])
+
+        # Aba 14: Devedores
+        ws14 = wb.create_sheet("Devedores")
+        _escrever_devedores_excel(ws14, d["recebimentos"]["devedores"])
+
+        # Aba 15: Estoque Equação
+        ws15 = wb.create_sheet("Estoque_Equacao")
+        _escrever_estoque_equacao_excel(ws15, d["estoque"]["equacao"])
+
+        # Aba 16: Estoque Diferenças
+        ws16 = wb.create_sheet("Estoque_Diferencas")
+        _escrever_estoque_diff_excel(ws16, d["estoque"]["diferencas"])
+
+        # Aba 17: Estoque Negativos
+        ws17 = wb.create_sheet("Estoque_Negativos")
+        _escrever_estoque_negativos_excel(ws17, d["estoque"]["negativos"])
+
+        # Aba 18: Estoque Abaixo Mínimo
+        ws18 = wb.create_sheet("Estoque_Abaixo_Min")
+        _escrever_estoque_abaixo_excel(ws18, d["estoque"]["abaixo_minimo"])
+
+        # Aba 19: Estoque Parado
+        ws19 = wb.create_sheet("Estoque_Parado")
+        _escrever_estoque_parado_excel(ws19, d["estoque"]["parado"])
+
+        # Aba 20: Estoque Por Categoria
+        ws20 = wb.create_sheet("Estoque_Por_Categoria")
+        _escrever_estoque_cat_excel(ws20, d["estoque"]["por_categoria"])
+
+        # Aba 21: Perdas Por Motivo
+        ws21 = wb.create_sheet("Perdas_Por_Motivo")
+        _escrever_perdas_motivo_excel(ws21, d["perdas"]["por_motivo"])
+
+        # Aba 22: Perdas Detalhadas
+        ws22 = wb.create_sheet("Perdas_Detalhadas")
+        _escrever_perdas_detalhadas_excel(ws22, d["perdas"]["detalhadas"])
+
+        # Aba 23: Perdas Sem Justificativa
+        ws23 = wb.create_sheet("Perdas_Sem_Justificativa")
+        _escrever_perdas_sem_just_excel(ws23, d["perdas"]["sem_justificativa"])
+
+        # Aba 24: Ajustes
+        ws24 = wb.create_sheet("Ajustes")
+        _escrever_ajustes_excel(ws24, d["ajustes"]["positivos"], d["ajustes"]["negativos"], d["ajustes"]["sem_justificativa"])
+
+        # Aba 25: Auditorias
+        ws25 = wb.create_sheet("Auditorias_Contagens")
+        _escrever_auditorias_excel(ws25, d["auditorias"]["contagens"], d["auditorias"]["diffs_nao_justificadas"])
+
+        # Aba 26: Anomalias
+        ws26 = wb.create_sheet("Anomalias")
+        _escrever_anomalias_excel(ws26, d["anomalias"])
+
+        # Aba 27: Evolução Mensal
+        ws27 = wb.create_sheet("Evolucao_Mensal")
+        _escrever_evolucao_excel(ws27, d["evolucao_mensal"])
+
+        # Aba 28: Usuários
+        ws28 = wb.create_sheet("Usuarios")
+        _escrever_usuarios_excel(ws28, d["usuarios"])
+
+        # Aba 29: Anuladas
+        ws29 = wb.create_sheet("Vendas_Anuladas")
+        _escrever_anuladas_excel(ws29, d["anuladas"])
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                         as_attachment=True, download_name=f"relatorio_gestao_{d['periodo']['ini']}_a_{d['periodo']['fim']}_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
+
+    else:  # PDF - Gerar relatório completo com todas as secções
+        import rel_pdf
+        # Para PDF, gerar relatório consolidado
+        linhas = _gerar_linhas_pdf_gestao(d)
+        from relatorios_dados import fmt_qtd as _fmt_qtd
+
+        # Gerar PDF completo com múltiplas secções
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, HRFlowable
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib import colors
+        from xml.sax.saxutils import escape
+        import io
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=12*mm, rightMargin=12*mm,
+                                topMargin=12*mm, bottomMargin=14*mm, title=f"Relatório de Gestão - {nome_emp}")
+
+        AZUL = colors.HexColor("#1e4e8c")
+        AZUL_CLARO = colors.HexColor("#eaf1fa")
+        CINZA = colors.HexColor("#6b7280")
+        VERDE = colors.HexColor("#28a745")
+        VERMELHO = colors.HexColor("#dc3545")
+        AMARELO = colors.HexColor("#ffc107")
+
+        s_tit = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=14, textColor=AZUL, leading=17, spaceAfter=2)
+        s_sec = ParagraphStyle("sec", fontName="Helvetica-Bold", fontSize=11, textColor=AZUL, leading=14, spaceBefore=8, spaceAfter=4)
+        s_sub = ParagraphStyle("sub", fontName="Helvetica-Bold", fontSize=9, textColor=CINZA, leading=12, spaceBefore=6, spaceAfter=2)
+        s_cel = ParagraphStyle("c", fontName="Helvetica", fontSize=7, leading=8.5)
+        s_celd = ParagraphStyle("cd", parent=s_cel, alignment=2)
+        s_cab = ParagraphStyle("h", fontName="Helvetica-Bold", fontSize=7, leading=8, textColor=colors.white)
+        s_cabd = ParagraphStyle("hd", parent=s_cab, alignment=2)
+        s_tot = ParagraphStyle("tt", parent=s_cel, fontName="Helvetica-Bold")
+        s_totd = ParagraphStyle("td", parent=s_tot, alignment=2)
+        s_small = ParagraphStyle("sm", fontName="Helvetica", fontSize=6.5, leading=8)
+
+        def _txt(v):
+            if v is None or v == "":
+                return ""
+            if isinstance(v, (int, float)):
+                return _filtro_mt(v)
+            return str(v)
+
+        def make_table(headers, rows, col_widths=None):
+            """Cria tabela estilizada."""
+            n = len(headers)
+            textos = [[_txt(c) for c in (list(r) + [''] * n)[:n]] for r in rows]
+
+            # Detectar colunas numéricas
+            def numerica(j):
+                vals = [t[j] for t in textos if t[j]]
+                return bool(vals) and sum(1 for v in vals if any(ch.isdigit() for ch in v) and len(v) < 22) / len(vals) > .7
+            num = [numerica(j) for j in range(n)]
+
+            # Não quebrar números
+            textos = [[t.replace(" ", " ") if num[j] else t for j, t in enumerate(l)] for l in textos]
+            larg_util = A4[0] - 24*mm
+            fixa = {}
+            for j, c in enumerate(headers):
+                if num[j]:
+                    mx = max([max((len(w) for w in str(c).split()), default=4)] + [len(t[j]) for t in textos])
+                    fixa[j] = mx * 4.3 + 8
+            livre = larg_util - sum(fixa.values())
+            txt_cols = [j for j in range(n) if j not in fixa]
+            pesos = {j: min(max(max([len(headers[j])] + [len(t[j]) for t in textos]), 8), 40) for j in txt_cols}
+            larguras = []
+            for j in range(n):
+                if j in fixa:
+                    larguras.append(fixa[j])
+                else:
+                    larguras.append(max(livre, 40 * len(txt_cols)) * pesos[j] / sum(pesos.values()) if pesos else livre / len(txt_cols))
+            esc = larg_util / sum(larguras)
+            if esc < 1:
+                larguras = [w * esc for w in larguras]
+
+            dados = [[Paragraph(escape(str(c)), s_cabd if num[j] else s_cab) for j, c in enumerate(headers)]]
+            estilo = [("BACKGROUND", (0, 0), (-1, 0), AZUL), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                      ("LINEBELOW", (0, 1), (-1, -1), .3, colors.HexColor("#e5e7eb")),
+                      ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                      ("LEFTPADDING", (0, 0), (-1, -1), 2), ("RIGHTPADDING", (0, 0), (-1, -1), 2)]
+            for i, t in enumerate(textos, start=1):
+                primeira = (t[0] or "").upper()
+                e_secao = bool(primeira) and primeira == (t[0] or "") and primeira.isupper() and not any(t[1:])
+                e_total = primeira == "TOTAL" or primeira.startswith("TOTAL ") and not e_secao
+                pt, ptd = (s_tot, s_totd) if e_total else (s_cel, s_celd)
+                dados.append([Paragraph(escape(x), ptd if num[j] else pt) for j, x in enumerate(t)])
+                if e_secao:
+                    estilo += [("BACKGROUND", (0, i), (-1, i), AZUL_CLARO), ("SPAN", (0, i), (-1, i)),
+                               ("LINEBELOW", (0, i), (-1, i), .8, AZUL)]
+                    dados[i] = [Paragraph("<b>" + escape(t[0]) + "</b>", ParagraphStyle("s", parent=s_cel, textColor=AZUL, fontSize=8))] + [""] * (n - 1)
+                if e_total:
+                    estilo += [("BACKGROUND", (0, i), (-1, i), AZUL_CLARO), ("LINEABOVE", (0, i), (-1, i), 1, AZUL)]
+            tabela = Table(dados, colWidths=larguras, repeatRows=1)
+            tabela.setStyle(TableStyle(estilo))
+            return tabela
+
+        def sec_title(txt):
+            return Paragraph(txt, s_sec)
+
+        def sub_title(txt):
+            return Paragraph(txt, s_sub)
+
+        # --- BUILD PDF ---
+        el = []
+
+        # Cabeçalho
+        el.append(Paragraph(f"Relatório de Gestão / Auditoria Completa", s_tit))
+        linha_emp = " · ".join(x for x in [emp.get("nome"), ("NUIT " + emp["nuit"]) if emp.get("nuit") else None] if x)
+        subtitulo = f"Período: {ini} a {fim} · Gerado em {d['periodo']['gerado_em']}"
+        if linha_emp:
+            linha_emp += " · "
+        el.append(Paragraph(escape(linha_emp + subtitulo), ParagraphStyle("emp", fontName="Helvetica", fontSize=9, textColor=CINZA, leading=11)))
+        el.append(Spacer(1, 3*mm))
+        el.append(HRFlowable(width="100%", thickness=1, color=AZUL))
+        el.append(Spacer(1, 3*mm))
+
+        # VEREDITO
+        v = d["veredicto"]
+        el.append(sec_title("VEREDITO EXECUTIVO"))
+        cor_veredito = VERMELHO if v["nivel"] == "CRITICO" else (AMARELO if v["nivel"] == "ALERTA" else (AZUL if v["nivel"] == "ATENCAO" else VERDE))
+        el.append(Paragraph(f"<b>Nível:</b> <font color='{cor_veredito.hexval()}'>{v['nivel']}</font> · {v['texto']}", s_cel))
+        el.append(Paragraph(f"Críticas: {v['graves']} · Alertas: {v['alertas']} · Atenções: {v['atencoes']}", s_small))
+        el.append(Spacer(1, 4*mm))
+
+        # KPIs
+        k = d["kpis"]
+        el.append(sec_title("KPIs PRINCIPAIS"))
+        kpi_data = [
+            ("Vendas Totais", k["vendas_total"]), ("Custo das Vendas", k["custo_total"]),
+            ("Lucro Bruto", k["lucro_total"]), ("Margem (%)", k["margem"] if k["margem"] is not None else "—"),
+            ("Compras Totais", k["compras_total"]), ("Recebido Esperado", k["rec_esperado"]),
+            ("Recebido Conferido", k["rec_conferido"]), ("Diferença Caixa", k["diff_caixa"]),
+            ("A Receber", k["a_receber"]), ("A Receber em Atraso", k["a_receber_atraso"]),
+            ("Faturas em Atraso", k["n_faturas_atraso"]), ("Estoque Fecha?", "Sim" if k["estoque_fecha"] else "NÃO"),
+            ("Anomalias", k["n_anomalias"]),
+        ]
+        rows = [[l, _txt(v)] for l, v in kpi_data]
+        el.append(make_table(["Indicador", "Valor"], rows))
+        el.append(Spacer(1, 4*mm))
+
+        # VENDAS
+        el.append(sec_title("1. VENDAS"))
+        el.append(sub_title("1.1 Por Forma de Pagamento"))
+        rows = [[f["forma"], _txt(f["valor"]), f["qtd"], "Crédito" if f["credito"] else "Vista"] for f in d["vendas"]["por_forma"]]
+        el.append(make_table(["Forma", "Valor", "Qtd", "Tipo"], rows))
+
+        if d["vendas"]["abaixo_custo"]:
+            el.append(sub_title("1.2 Abaixo do Custo (Prejuízo)"))
+            rows = [[v["codigo"], v["data"], v["produto"], _txt(v["preco_unit"]), _txt(v["preco_custo"]),
+                     _txt(v["diferenca"]), f'{v["diferenca_pct"]}%', _txt(v["valor"]), _txt(v["prejuizo"]), v["usuario"]]
+                    for v in d["vendas"]["abaixo_custo"]]
+            el.append(make_table(["Código", "Data", "Produto", "P.Unit", "P.Custo", "Dif.", "Dif.%", "Valor", "Prejuízo", "Usuário"], rows))
+
+        if d["vendas"]["acima_tabela"]:
+            el.append(sub_title("1.3 Acima do Preço de Tabela"))
+            rows = [[v["codigo"], v["data"], v["produto"], _txt(v["preco_tabela"]), _txt(v["preco_praticado"]),
+                     _txt(v["diferenca"]), f'{v["diferenca_pct"]}%', _txt(v["valor"]), v["usuario"]]
+                    for v in d["vendas"]["acima_tabela"]]
+            el.append(make_table(["Código", "Data", "Produto", "P.Tabela", "P.Praticado", "Dif.", "Dif.%", "Valor", "Usuário"], rows))
+
+        if d["vendas"]["sem_forma"]:
+            el.append(sub_title("1.4 Sem Forma de Pagamento"))
+            rows = [[v["codigo"], v["data"], _txt(v["valor"]), v["usuario"]] for v in d["vendas"]["sem_forma"]]
+            el.append(make_table(["Código", "Data", "Valor", "Usuário"], rows))
+
+        if d["vendas"]["faturas_credito"]:
+            el.append(sub_title("1.5 Faturas a Crédito"))
+            rows = [[f["numero"], f["cliente"], f["nif"], f["emissao"], f["vencimento"],
+                     _txt(f["valor"]), _txt(f["pago"]), _txt(f["saldo"]), f["status"], f["dias_atraso"], f["usuario"]]
+                    for f in d["vendas"]["faturas_credito"]]
+            el.append(make_table(["Nº", "Cliente", "NUIT", "Emissão", "Venc.", "Valor", "Pago", "Saldo", "Status", "Atraso", "Usuário"], rows))
+
+        if d["vendas"]["recibos"]:
+            el.append(sub_title("1.6 Recibos"))
+            rows = [[r["numero"], r["fatura"], r["cliente"], r["data"], _txt(r["valor"]), r["forma"], r["usuario"]]
+                    for r in d["vendas"]["recibos"]]
+            el.append(make_table(["Nº", "Fatura", "Cliente", "Data", "Valor", "Forma", "Usuário"], rows))
+
+        # COMPRAS
+        el.append(sec_title("2. COMPRAS / ENTRADAS"))
+        el.append(sub_title("2.1 Por Fornecedor"))
+        rows = [[f["fornecedor"], _txt(f["valor"]), f["qtd"], f["ultima"]] for f in d["compras"]["por_fornecedor"]]
+        el.append(make_table(["Fornecedor", "Valor", "Qtd", "Última"], rows))
+
+        if d["compras"]["acima_ultimo_custo"]:
+            el.append(sub_title("2.2 Acima do Último Custo"))
+            rows = [[c["data"], c["produto"], _txt(c["ultimo_custo"]), _txt(c["preco_praticado"]),
+                     _txt(c["diferenca"]), f'{c["diferenca_pct"]}%', c["fornecedor"], c["usuario"]]
+                    for c in d["compras"]["acima_ultimo_custo"]]
+            el.append(make_table(["Data", "Produto", "Últ.Custo", "Praticado", "Dif.", "Dif.%", "Forn.", "Usuário"], rows))
+
+        # RECEBIMENTOS
+        el.append(sec_title("3. RECEBIMENTOS - CONFERÊNCIA CAIXA"))
+        rows = []
+        for c in d["recebimentos"]["canais"]:
+            diff = _txt(c["diferenca"]) if c["diferenca"] is not None else "—"
+            conf = _txt(c["conferido"]) if c["conferido"] is not None else "—"
+            status = "OK" if c["diferenca"] is not None and abs(c["diferenca"]) < 0.005 else ("FALTA" if (c["diferenca"] or 0) < 0 else ("SOBRA" if (c["diferenca"] or 0) > 0 else "PENDENTE"))
+            rows.append([c["canal"], _txt(c["vista"]), _txt(c["recibos"]), _txt(c["esperado"]), conf, diff, status, c["obs"]])
+        el.append(make_table(["Canal", "Vista", "Cobrado", "Esperado", "Conferido", "Dif.", "Status", "Obs."], rows))
+
+        # Envelhecimento
+        ev = d["recebimentos"]["envelhecimento"]
+        evn = d["recebimentos"]["envelhecimento_n"]
+        rows = [
+            ["A vencer", _txt(ev["a_vencer"]), evn["a_vencer"]],
+            ["1-30 dias", _txt(ev["d1_30"]), evn["d1_30"]],
+            ["31-60 dias", _txt(ev["d31_60"]), evn["d31_60"]],
+            ["61-90 dias", _txt(ev["d61_90"]), evn["d61_90"]],
+            ["90+ dias", _txt(ev["d90_mais"]), evn["d90_mais"]],
+        ]
+        el.append(make_table(["Faixa", "Valor", "Nº Faturas"], rows))
+
+        if d["recebimentos"]["devedores"]:
+            el.append(sub_title("3.2 Top Devedores"))
+            rows = [[d["cliente"], d["nif"], d["telefone"], d["email"], _txt(d["saldo"]), d["vencimento"],
+                     d["dias_atraso"], d["n_faturas"], d["fatura_mais_antiga"]]
+                    for d in d["recebimentos"]["devedores"]]
+            el.append(make_table(["Cliente", "NUIT", "Tel", "Email", "Saldo", "Venc.", "Dias", "Nº", "Antiga"], rows))
+
+        # ESTOQUE
+        el.append(sec_title("4. ESTOQUE - RECONCILIAÇÃO"))
+        eq = d["estoque"]["equacao"]
+        rows = [
+            ["Valor Inicial", _txt(eq["inicial"])],
+            ["+ Compras", _txt(eq["compras"])],
+            ["− Custo Vendas", _txt(eq["custo_vendas"])],
+            ["− Perdas/Ajustes", _txt(eq["perdas_aj"])],
+            ["= Final Calculado", _txt(eq["final_calculado"])],
+            ["Final Sistema", _txt(eq["final_sistema"])],
+            ["DIFERENÇA", _txt(eq["diferenca"])],
+            ["Fecha?", "Sim" if eq["fecha"] else "NÃO"],
+        ]
+        el.append(make_table(["Componente", "Valor"], rows))
+
+        if d["estoque"]["diferencas"]:
+            el.append(sub_title("4.2 Diferenças Sistema vs Movimentos"))
+            rows = [[diff["produto"], diff["codigo"], diff["categoria"],
+                     str(diff["saldo_movimentos"]), str(diff["saldo_sistema"]), _txt(diff["diff_qtd"]),
+                     _txt(diff["diff_valor"]), diff["un"]] for diff in d["estoque"]["diferencas"]]
+            el.append(make_table(["Produto", "Código", "Cat.", "Saldo Mov.", "Saldo Sist.", "Diff Qtd", "Diff Valor", "Un."], rows))
+
+        if d["estoque"]["negativos"]:
+            el.append(sub_title("4.3 Saldo Negativo"))
+            rows = [[n["produto"], n["codigo"], n["categoria"], str(n["saldo"]), n["un"], n["ultimo_movimento"], n["usuario"]]
+                    for n in d["estoque"]["negativos"]]
+            el.append(make_table(["Produto", "Código", "Cat.", "Saldo", "Un.", "Últ.Mov", "Usuário"], rows))
+
+        if d["estoque"]["abaixo_minimo"]:
+            el.append(sub_title("4.4 Abaixo do Mínimo"))
+            rows = [[a["produto"], a["codigo"], a["categoria"], str(a["saldo"]), str(a["minimo"]), a["un"]]
+                    for a in d["estoque"]["abaixo_minimo"]]
+            el.append(make_table(["Produto", "Código", "Cat.", "Saldo", "Mín.", "Un."], rows))
+
+        if d["estoque"]["parado"]:
+            el.append(sub_title("4.5 Parados"))
+            rows = [[p["produto"], p["codigo"], p["categoria"], str(p["saldo"]), _txt(p["valor"]), p["un"], p["dias_parado"], p["ultimo_movimento"]]
+                    for p in d["estoque"]["parado"][:30]]
+            el.append(make_table(["Produto", "Código", "Cat.", "Saldo", "Valor", "Un.", "Dias", "Últ.Mov"], rows))
+
+        el.append(sub_title("4.6 Por Categoria"))
+        rows = [[c["categoria"], _txt(c["inicial"]), _txt(c["compras"]), _txt(c["custo_vendas"]),
+                 _txt(c["perdas_aj"]), _txt(c["final"]), f'{c["pct"]}%'] for c in d["estoque"]["por_categoria"]]
+        el.append(make_table(["Categoria", "Inicial", "Compras", "Custo V.", "Perdas/Aj", "Final", "%"], rows))
+
+        # PERDAS
+        if d["perdas"]["por_motivo"]:
+            el.append(sec_title("5. PERDAS"))
+            el.append(sub_title("5.1 Por Motivo"))
+            rows = [[p["motivo"], p["n"], _txt(p["qtd"]), _txt(p["valor"]), f'{p["pct"]}%'] for p in d["perdas"]["por_motivo"]]
+            el.append(make_table(["Motivo", "Nº", "Qtd", "Valor", "%"], rows))
+
+        if d["perdas"]["sem_justificativa"]:
+            el.append(sub_title("5.2 Sem Justificativa"))
+            rows = [[p["data"], p["produto"], str(p["qtd"]), p["un"], p["motivo"], _txt(p["valor"]), p["usuario"]]
+                    for p in d["perdas"]["sem_justificativa"]]
+            el.append(make_table(["Data", "Produto", "Qtd", "Un.", "Motivo", "Valor", "Usuário"], rows))
+
+        # AJUSTES
+        if d["ajustes"]["positivos"] or d["ajustes"]["negativos"]:
+            el.append(sec_title("6. AJUSTES"))
+            if d["ajustes"]["positivos"]:
+                el.append(sub_title("6.1 Positivos"))
+                rows = [[a["data"], a["produto"], str(a["qtd"]), a["un"], _txt(a["valor"]), a["usuario"]]
+                        for a in d["ajustes"]["positivos"]]
+                el.append(make_table(["Data", "Produto", "Qtd", "Un.", "Valor", "Usuário"], rows))
+            if d["ajustes"]["negativos"]:
+                el.append(sub_title("6.2 Negativos"))
+                rows = [[a["data"], a["produto"], str(a["qtd"]), a["un"], _txt(a["valor"]), a["usuario"]]
+                        for a in d["ajustes"]["negativos"]]
+                el.append(make_table(["Data", "Produto", "Qtd", "Un.", "Valor", "Usuário"], rows))
+
+        # AUDITORIAS
+        if d["auditorias"]["contagens"]:
+            el.append(sec_title("7. AUDITORIAS / CONTAGENS"))
+            for c in d["auditorias"]["contagens"]:
+                el.append(sub_title(f'Inventário #{c["id"]} · {c["data"]}'))
+                rows = [[l["produto"], l["sistema"], l["contagem"], l["dif"], _txt(l["dif_v"]),
+                         "Sim" if l["justificada"] else "Não", l["motivo"] or "—", l["obs"] or "—"]
+                        for l in c["linhas"]]
+                el.append(make_table(["Produto", "Sist.", "Contado", "Dif.Qtd", "Dif.Valor", "Just.", "Motivo", "Obs."], rows))
+
+        if d["auditorias"]["diffs_nao_justificadas"]:
+            el.append(sub_title("7.1 Não Justificadas"))
+            rows = [[d["inventario"], d["data"], d["produto"], d["sistema"], d["contado"],
+                     d["diff_qtd"], _txt(d["diff_valor"]), d["motivo"], d["obs"]]
+                    for d in d["auditorias"]["diffs_nao_justificadas"]]
+            el.append(make_table(["Inv.", "Data", "Produto", "Sist.", "Contado", "Diff.Qtd", "Diff.Valor", "Motivo", "Obs."], rows))
+
+        # ANOMALIAS
+        if d["anomalias"]:
+            el.append(sec_title("8. ANOMALIAS"))
+            rows = [[f'{a["severidade"]}: {a["tipo"]}', a["produto"], a["codigo"], a["detalhe"]] for a in d["anomalias"]]
+            el.append(make_table(["Severidade: Tipo", "Referência", "Código", "Detalhe"], rows))
+
+        # EVOLUÇÃO
+        if len(d["evolucao_mensal"]) > 1:
+            el.append(sec_title("9. EVOLUÇÃO MENSAL"))
+            rows = [[e["mes"], _txt(e["vendas"]), _txt(e["compras"]), _txt(e["lucro"]),
+                     _txt(e["recebido"]), _txt(e["perdas"])] for e in d["evolucao_mensal"]]
+            el.append(make_table(["Mês", "Vendas", "Compras", "Lucro", "Recebido", "Perdas"], rows))
+
+        # USUÁRIOS
+        if d["usuarios"]:
+            el.append(sec_title("10. RASTREABILIDADE POR USUÁRIO"))
+            rows = [[u["usuario"], u["perfil"], _txt(u["vendas_valor"]), u["vendas_qtd"], _txt(u["lucro_total"]),
+                     _txt(u["compras_valor"]), _txt(u["perdas_valor"]), u["perdas_registadas"],
+                     _txt(u["ajustes_valor"]), u["ajustes_aprovados"], u["anulacoes"], u["recibos_emitidos"]]
+                    for u in d["usuarios"]]
+            el.append(make_table(["Usuário", "Perfil", "Vendas", "Nº", "Lucro", "Compras", "Perdas", "NºP", "Ajustes", "NºA", "Anul.", "Recibos"], rows))
+
+        # ANULADAS
+        if d["anuladas"]:
+            el.append(sec_title("11. VENDAS ANULADAS"))
+            rows = [[a["numero"], a["data"], a["cliente"], _txt(a["valor"]), a["motivo"],
+                     a.get("usuario_venda", "—"), a["usuario"]] for a in d["anuladas"]]
+            el.append(make_table(["Código", "Data", "Cliente", "Valor", "Motivo", "Vendido por", "Anulado por"], rows))
+
+        # Rodapé
+        def rodape(c, doc):
+            c.saveState()
+            c.setFont("Helvetica", 7)
+            c.setFillColor(CINZA)
+            c.drawRightString(A4[0] - 12*mm, 8*mm, f"Página {doc.page}")
+            c.restoreState()
+
+        doc.build(el, onFirstPage=rodape, onLaterPages=rodape)
+        buf.seek(0)
+        return send_file(buf, mimetype="application/pdf", as_attachment=True,
+                         download_name=f"relatorio_gestao_{d['periodo']['ini']}_a_{d['periodo']['fim']}_{datetime.now():%Y%m%d_%H%M%S}.pdf")
+def _escrever_resumo_excel(ws, d, nome_emp, ini, fim):
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    header_fill = PatternFill(start_color="2F5233", end_color="2F5233", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    title_font = Font(bold=True, color="2F5233", size=14)
+    critical_fill = PatternFill(start_color="FF4444", end_color="FF4444", fill_type="solid")
+    alert_fill = PatternFill(start_color="FFA500", end_color="FFA500", fill_type="solid")
+    attention_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    ok_fill = PatternFill(start_color="44FF44", end_color="44FF44", fill_type="solid")
+
+    row = 1
+    ws.cell(row=row, column=1, value=f"{nome_emp} - Relatório de Gestão / Auditoria").font = title_font
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+    row += 1
+    ws.cell(row=row, column=1, value=f"Período: {ini} a {fim}").font = Font(size=11)
+    row += 1
+    ws.cell(row=row, column=1, value=f"Gerado em: {d['periodo']['gerado_em']}").font = Font(size=11)
+    row += 2
+
+    # Veredito
+    v = d["veredicto"]
+    ws.cell(row=row, column=1, value="VEREDITO EXECUTIVO").font = Font(bold=True, size=12, color="2F5233")
+    row += 1
+    ws.cell(row=row, column=1, value="Nível").font = header_font
+    ws.cell(row=row, column=1).fill = header_fill
+    ws.cell(row=row, column=2, value=v["nivel"]).font = Font(bold=True, size=12)
+    if v["nivel"] == "CRITICO":
+        ws.cell(row=row, column=2).fill = critical_fill
+    elif v["nivel"] == "ALERTA":
+        ws.cell(row=row, column=2).fill = alert_fill
+    elif v["nivel"] == "ATENCAO":
+        ws.cell(row=row, column=2).fill = attention_fill
+    else:
+        ws.cell(row=row, column=2).fill = ok_fill
+    row += 1
+    ws.cell(row=row, column=1, value="Texto").font = header_font
+    ws.cell(row=row, column=1).fill = header_fill
+    ws.cell(row=row, column=2, value=v["texto"]).font = Font(size=11)
+    ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=4)
+    row += 2
+
+    # KPIs
+    k = d["kpis"]
+    ws.cell(row=row, column=1, value="KPIs PRINCIPAIS").font = Font(bold=True, size=12, color="2F5233")
+    row += 1
+    kpi_items = [
+        ("Vendas Totais", k["vendas_total"]),
+        ("Custo das Vendas", k["custo_total"]),
+        ("Lucro Bruto", k["lucro_total"]),
+        ("Margem (%)", k["margem"] if k["margem"] is not None else "—"),
+        ("Compras Totais", k["compras_total"]),
+        ("Recebido Esperado", k["rec_esperado"]),
+        ("Recebido Conferido", k["rec_conferido"]),
+        ("Diferença Caixa", k["diff_caixa"]),
+        ("A Receber", k["a_receber"]),
+        ("A Receber em Atraso", k["a_receber_atraso"]),
+        ("Faturas em Atraso (nº)", k["n_faturas_atraso"]),
+        ("Estoque Fecha?", "Sim" if k["estoque_fecha"] else "NÃO"),
+        ("Anomalias Detectadas", k["n_anomalias"]),
+    ]
+    for label, val in kpi_items:
+        ws.cell(row=row, column=1, value=label).font = Font(bold=True)
+        ws.cell(row=row, column=2, value=val)
+        row += 1
+
+
+# Funções auxiliares para escrever cada aba
+def _escrever_tabela(ws, headers, rows):
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    header_fill = PatternFill(start_color="2F5233", end_color="2F5233", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    default_font = Font(size=10)
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    for i, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = thin_border
+
+    for r_idx, row_data in enumerate(rows, 2):
+        for c_idx, val in enumerate(row_data, 1):
+            c = ws.cell(row=r_idx, column=c_idx, value=val)
+            c.font = default_font
+            c.border = thin_border
+            if r_idx % 2 == 0:
+                c.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+    for col_cells in ws.columns:
+        max_len = max((len(str(c.value)) if c.value is not None else 0) for c in col_cells)
+        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(max_len + 2, 50)
+
+
+def _escrever_vendas_excel(ws, vendas):
+    headers = ["Código", "Data", "Hora", "Produto", "Código Prod.", "Categoria", "Qtd", "Un.", "Preço Unit.", "Preço Custo", "Preço Tabela", "Valor", "Custo", "Lucro", "Margem %", "Forma", "Crédito?", "Cliente", "Usuário"]
+    rows = []
+    for v in vendas:
+        rows.append([v["codigo"], v["data"], v["hora"], v["produto"], v["produto_codigo"], v["categoria"],
+                     str(v["qtd"]), v["un"], v["preco_unit"], v["preco_custo"], v["preco_venda_tabela"],
+                     v["valor"], v["custo"], v["lucro"], v["margem"] if v["margem"] is not None else "—",
+                     v["forma"], "Sim" if v["eh_credito"] else "Não", v["cliente"], v["usuario"]])
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_vendas_forma_excel(ws, vendas_forma):
+    headers = ["Forma de Pagamento", "Valor (MT)", "Qtd Vendas", "É Crédito?"]
+    rows = [[v["forma"], v["valor"], v["qtd"], "Sim" if v["credito"] else "Não"] for v in vendas_forma]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_vendas_abaixo_excel(ws, vendas):
+    headers = ["Código", "Data", "Produto", "Preço Unit.", "Preço Custo", "Diferença (MT)", "Diferença %", "Valor Venda", "Prejuízo (MT)", "Usuário"]
+    rows = [[v["codigo"], v["data"], v["produto"], v["preco_unit"], v["preco_custo"],
+             v["diferenca"], v["diferenca_pct"], v["valor"], v["prejuizo"], v["usuario"]] for v in vendas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_vendas_acima_excel(ws, vendas):
+    headers = ["Código", "Data", "Produto", "Preço Tabela", "Preço Praticado", "Diferença (MT)", "Diferença %", "Valor Venda", "Usuário"]
+    rows = [[v["codigo"], v["data"], v["produto"], v["preco_tabela"], v["preco_praticado"],
+             v["diferenca"], v["diferenca_pct"], v["valor"], v["usuario"]] for v in vendas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_vendas_sem_forma_excel(ws, vendas):
+    headers = ["Código", "Data", "Valor (MT)", "Usuário"]
+    rows = [[v["codigo"], v["data"], v["valor"], v["usuario"]] for v in vendas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_faturas_excel(ws, faturas):
+    headers = ["Nº Fatura", "Cliente", "NUIT", "Emissão", "Vencimento", "Valor", "Pago", "Saldo", "Status", "Dias Atraso", "Usuário", "Obs."]
+    rows = []
+    for f in faturas:
+        rows.append([f["numero"], f["cliente"], f["nif"], f["emissao"], f["vencimento"],
+                     f["valor"], f["pago"], f["saldo"], f["status"], f["dias_atraso"], f["usuario"], f["observacoes"]])
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_recibos_excel(ws, recibos):
+    headers = ["Nº Recibo", "Fatura", "Cliente", "Data", "Valor", "Forma", "Usuário", "Obs."]
+    rows = [[r["numero"], r["fatura"], r["cliente"], r["data"], r["valor"], r["forma"], r["usuario"], r["observacoes"]] for r in recibos]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_compras_excel(ws, compras):
+    headers = ["Data", "Produto", "Código Prod.", "Categoria", "Qtd", "Un.", "Preço Unit.", "Último Custo", "Valor", "Fornecedor", "Nota Fiscal", "Usuário"]
+    rows = [[c["data"], c["produto"], c["produto_codigo"], c["categoria"], str(c["qtd"]), c["un"],
+             c["preco_unit"], c["ultimo_custo"], c["valor"], c["fornecedor"], c["nota_fiscal"], c["usuario"]] for c in compras]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_fornecedores_excel(ws, fornecedores):
+    headers = ["Fornecedor", "Valor Total (MT)", "Nº Entradas", "Última Entrada"]
+    rows = [[f["fornecedor"], f["valor"], f["qtd"], f["ultima"]] for f in fornecedores]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_compras_sem_nf_excel(ws, compras):
+    headers = ["Data", "Produto", "Qtd", "Un.", "Valor (MT)", "Usuário"]
+    rows = [[c["data"], c["produto"], str(c["qtd"]), c["un"], c["valor"], c["usuario"]] for c in compras]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_canais_excel(ws, canais):
+    headers = ["Canal", "Vendas Vista (MT)", "Dívidas Cobradas (MT)", "Esperado (MT)", "Conferido (MT)", "Diferença (MT)", "Status", "Justificativa"]
+    rows = []
+    for c in canais:
+        status = "OK" if c["diferenca"] is not None and abs(c["diferenca"]) < 0.005 else ("FALTA" if (c["diferenca"] or 0) < 0 else ("SOBRA" if (c["diferenca"] or 0) > 0 else "PENDENTE"))
+        rows.append([c["canal"], c["vista"], c["recibos"], c["esperado"], c["conferido"] if c["conferido"] is not None else "—",
+                     c["diferenca"] if c["diferenca"] is not None else "—", status, c["obs"]])
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_envelhecimento_excel(ws, envel, envel_n):
+    headers = ["Faixa", "Valor (MT)", "Nº Faturas"]
+    faixas = [
+        ("A vencer (0-30 dias)", "a_vencer"),
+        ("1-30 dias atraso", "d1_30"),
+        ("31-60 dias atraso", "d31_60"),
+        ("61-90 dias atraso", "d61_90"),
+        ("90+ dias atraso", "d90_mais"),
+    ]
+    rows = [[label, envel[key], envel_n[key]] for label, key in faixas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_devedores_excel(ws, devedores):
+    headers = ["Cliente", "NUIT", "Telefone", "Email", "Saldo Devedor (MT)", "Vencimento", "Dias Atraso", "Nº Faturas", "Fatura Mais Antiga"]
+    rows = [[d["cliente"], d["nif"], d["telefone"], d["email"], d["saldo"], d["vencimento"],
+             d["dias_atraso"], d["n_faturas"], d["fatura_mais_antiga"]] for d in devedores]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_equacao_excel(ws, eq):
+    headers = ["Componente", "Valor (MT)"]
+    rows = [
+        ["Valor Inicial", eq["inicial"]],
+        ["+ Compras", eq["compras"]],
+        ["- Custo das Vendas", eq["custo_vendas"]],
+        ["- Perdas e Ajustes", eq["perdas_aj"]],
+        ["= Valor Final Calculado", eq["final_calculado"]],
+        ["Valor Final Sistema", eq["final_sistema"]],
+        ["DIFERENÇA", eq["diferenca"]],
+        ["A Conta Fecha?", "Sim" if eq["fecha"] else "NÃO"],
+    ]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_diff_excel(ws, diffs):
+    headers = ["Produto", "Código", "Categoria", "Saldo Movimentos", "Saldo Sistema", "Diferença Qtd", "Diferença Valor (MT)", "Un."]
+    rows = [[d["produto"], d["codigo"], d["categoria"], str(d["saldo_movimentos"]), str(d["saldo_sistema"]),
+             d["diff_qtd"], d["diff_valor"], d["un"]] for d in diffs]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_negativos_excel(ws, negativos):
+    headers = ["Produto", "Código", "Categoria", "Saldo", "Un.", "Último Movimento", "Usuário"]
+    rows = [[n["produto"], n["codigo"], n["categoria"], str(n["saldo"]), n["un"], n["ultimo_movimento"], n["usuario"]] for n in negativos]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_abaixo_excel(ws, abaixo):
+    headers = ["Produto", "Código", "Categoria", "Saldo Atual", "Mínimo", "Un."]
+    rows = [[a["produto"], a["codigo"], a["categoria"], str(a["saldo"]), str(a["minimo"]), a["un"]] for a in abaixo]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_parado_excel(ws, parado):
+    headers = ["Produto", "Código", "Categoria", "Saldo", "Valor Estoque (MT)", "Un.", "Dias Parado", "Último Movimento"]
+    rows = [[p["produto"], p["codigo"], p["categoria"], str(p["saldo"]), p["valor"], p["un"], p["dias_parado"], p["ultimo_movimento"]] for p in parado]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_estoque_cat_excel(ws, cats):
+    headers = ["Categoria", "Inicial (MT)", "Compras (MT)", "Custo Vendas (MT)", "Perdas/Ajustes (MT)", "Final (MT)", "% Total"]
+    rows = [[c["categoria"], c["inicial"], c["compras"], c["custo_vendas"], c["perdas_aj"], c["final"], c["pct"]] for c in cats]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_perdas_motivo_excel(ws, perdas):
+    headers = ["Motivo", "Nº Ocorrências", "Qtd Total", "Valor Total (MT)", "% Total Perdas"]
+    rows = [[p["motivo"], p["n"], p["qtd"], p["valor"], p["pct"]] for p in perdas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_perdas_detalhadas_excel(ws, perdas):
+    headers = ["Data", "Produto", "Qtd", "Un.", "Motivo", "Justificativa", "Valor (MT)", "Usuário"]
+    rows = [[p["data"], p["produto"], str(p["qtd"]), p["un"], p["motivo"], p.get("justificacao", "—"), p["valor"], p["usuario"]] for p in perdas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_perdas_sem_just_excel(ws, perdas):
+    headers = ["Data", "Produto", "Qtd", "Un.", "Motivo", "Valor (MT)", "Usuário"]
+    rows = [[p["data"], p["produto"], str(p["qtd"]), p["un"], p["motivo"], p["valor"], p["usuario"]] for p in perdas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_ajustes_excel(ws, pos, neg, sem_just):
+    headers = ["Tipo", "Data", "Produto", "Qtd", "Un.", "Valor (MT)", "Usuário"]
+    rows = []
+    for a in pos:
+        rows.append(["Positivo", a["data"], a["produto"], str(a["qtd"]), a["un"], a["valor"], a["usuario"]])
+    for a in neg:
+        rows.append(["Negativo", a["data"], a["produto"], str(a["qtd"]), a["un"], a["valor"], a["usuario"]])
+    for a in sem_just:
+        rows.append(["Sem Justificativa", a["data"], a["produto"], str(a["qtd"]), a["un"], a["valor"], a["usuario"]])
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_auditorias_excel(ws, contagens, diffs_nao_just):
+    headers = ["Inventário", "Data", "Produto", "Sistema", "Contado", "Diferença Qtd", "Diferença Valor (MT)", "Justificada?", "Motivo", "Obs."]
+    rows = []
+    for d in diffs_nao_just:
+        rows.append([d["inventario"], d["data"], d["produto"], d["sistema"], d["contado"],
+                     d["diff_qtd"], d["diff_valor"], "Não", d["motivo"], d["obs"]])
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_anomalias_excel(ws, anomalias):
+    headers = ["Tipo", "Severidade", "Produto/Referência", "Código", "Detalhe"]
+    rows = [[a["tipo"], a["severidade"], a["produto"], a["codigo"], a["detalhe"]] for a in anomalias]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_evolucao_excel(ws, evolucao):
+    headers = ["Mês", "Vendas (MT)", "Compras (MT)", "Lucro (MT)", "Recebido (MT)", "Perdas (MT)"]
+    rows = [[e["mes"], e["vendas"], e["compras"], e["lucro"], e["recebido"], e["perdas"]] for e in evolucao]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_usuarios_excel(ws, usuarios):
+    headers = ["Usuário", "Perfil", "Vendas (MT)", "Nº Vendas", "Lucro (MT)", "Compras (MT)", "Perdas (MT)", "Nº Perdas", "Ajustes (MT)", "Nº Ajustes Aprov.", "Anulações", "Recibos Emitidos"]
+    rows = [[u["usuario"], u["perfil"], u["vendas_valor"], u["vendas_qtd"], u["lucro_total"],
+             u["compras_valor"], u["perdas_valor"], u["perdas_registadas"], u["ajustes_valor"],
+             u["ajustes_aprovados"], u["anulacoes"], u["recibos_emitidos"]] for u in usuarios]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _escrever_anuladas_excel(ws, anuladas):
+    headers = ["Código", "Data", "Cliente", "Valor (MT)", "Motivo", "Vendido por", "Anulado por"]
+    rows = [[a["numero"], a["data"], a["cliente"], a["valor"], a["motivo"], a.get("usuario_venda", "—"), a["usuario"]] for a in anuladas]
+    _escrever_tabela(ws, headers, rows)
+
+
+def _gerar_linhas_pdf_gestao(d):
+    """Gera linhas planas para PDF do relatório de gestão."""
+    L = []
+    sec = lambda t: L.append([t.upper(), "", "", ""])
+    k = d["kpis"]
+    v = d["veredicto"]
+
+    sec("VEREDITO")
+    L.append(["Nível", v["nivel"], "", v["texto"]])
+    L.append(["Anomalias Críticas", v["graves"], "", ""])
+    L.append(["Alertas", v["alertas"], "", ""])
+    L.append(["Atenções", v["atencoes"], "", ""])
+
+    sec("KPIs PRINCIPAIS")
+    L.append(["Vendas Totais", k["vendas_total"], "", ""])
+    L.append(["Custo das Vendas", k["custo_total"], "", ""])
+    L.append(["Lucro Bruto", k["lucro_total"], "", ""])
+    L.append(["Margem (%)", k["margem"] if k["margem"] is not None else "—", "", ""])
+    L.append(["Compras Totais", k["compras_total"], "", ""])
+    L.append(["Recebido Esperado", k["rec_esperado"], "", ""])
+    L.append(["Recebido Conferido", k["rec_conferido"], "", ""])
+    L.append(["Diferença Caixa", k["diff_caixa"], "", ""])
+    L.append(["A Receber", k["a_receber"], "", f'{k["n_faturas_atraso"]} fatura(s) em atraso: {k["a_receber_atraso"]} MT'])
+    L.append(["Estoque Fecha?", "Sim" if k["estoque_fecha"] else "NÃO", "", ""])
+    L.append(["Anomalias Detectadas", k["n_anomalias"], "", ""])
+
+    sec("VENDA POR FORMA")
+    for f in d["vendas"]["por_forma"]:
+        L.append([f["forma"], f["valor"], "", f"{f['qtd']} venda(s) {'(Crédito)' if f['credito'] else ''}"])
+
+    sec("VENDA ABAIXO CUSTO")
+    for v in d["vendas"]["abaixo_custo"][:20]:
+        L.append([v["codigo"], v["produto"], v["prejuizo"], f'Preço: {v["preco_unit"]} vs Custo: {v["preco_custo"]} ({v["diferenca_pct"]}%)'])
+
+    sec("VENDA ACIMA TABELA")
+    for v in d["vendas"]["acima_tabela"][:20]:
+        L.append([v["codigo"], v["produto"], v["diferenca"], f'Tabela: {v["preco_tabela"]} → Praticado: {v["preco_praticado"]} ({v["diferenca_pct"]}%)'])
+
+    sec("COMPRAS POR FORNECEDOR")
+    for f in d["compras"]["por_fornecedor"][:20]:
+        L.append([f["fornecedor"], f["valor"], "", f'{f["qtd"]} entrada(s)'])
+
+    sec("RECEBIMENTOS - CANAIS")
+    for c in d["recebimentos"]["canais"]:
+        diff = c["diferenca"] if c["diferenca"] is not None else "—"
+        L.append([c["canal"], f'Esperado: {c["esperado"]} | Conferido: {c["conferido"] if c["conferido"] is not None else "—"}', diff, c["obs"]])
+
+    sec("ESTOQUE - EQUAÇÃO")
+    eq = d["estoque"]["equacao"]
+    L.append(["Inicial", eq["inicial"], "", ""])
+    L.append(["+ Compras", eq["compras"], "", ""])
+    L.append(["- Custo Vendas", eq["custo_vendas"], "", ""])
+    L.append(["- Perdas/Ajustes", eq["perdas_aj"], "", ""])
+    L.append(["= Final Calculado", eq["final_calculado"], "", ""])
+    L.append(["Final Sistema", eq["final_sistema"], "", ""])
+    L.append(["DIFERENÇA", eq["diferenca"], "", "Fecha" if eq["fecha"] else "NÃO FECHA"])
+
+    sec("ANOMALIAS")
+    for a in d["anomalias"]:
+        L.append([f'{a["severidade"]}: {a["tipo"]}', a["produto"], a["codigo"], a["detalhe"]])
+
+    return L
+
+
 def _categorias_ativas(conn):
     return conn.execute("SELECT * FROM categorias WHERE ativo=1 ORDER BY nome").fetchall()
 
@@ -2221,64 +3080,18 @@ def rel_gestao():
     elif p == "mes":
         ini_d, fim_d = hoje.replace(day=1), hoje
     else:
-        ini_d = hoje.replace(day=1); fim_d = hoje
+        # Default: último mês fechado
+        fim_d = hoje.replace(day=1) - timedelta(days=1)
+        ini_d = fim_d.replace(day=1)
     ini = rd._dia(request.args.get("ini"), ini_d.isoformat())
     fim = rd._dia(request.args.get("fim"), fim_d.isoformat())
     if ini > fim:
         ini, fim = fim, ini
     conn = get_conn()
-    d = rd.gestao(conn, ini, fim)
+    d = rd.gestao_completa(conn, ini, fim)
     conn.close()
     if request.args.get("exportar") in ("excel", "pdf"):
-        v, c, e = d["vendas"], d["compras"], d["estoque"]
-        L = []
-        sec = lambda t: L.append([t.upper(), "", "", "", ""])
-        sec("Conclusão"); L.append([d["veredicto"]["texto"], "", "", "", ""])
-        for pt in d["pontos"]:
-            L.append([pt["area"], "", "", "", pt["texto"]])
-        sec("Vendas")
-        L += [["Total vendido", v["total"], "", "", f"{v['n']} venda(s)"], ["Recebido à vista", v["vista"], "", "", ""],
-              ["Faturado a crédito", v["credito"], "", "", ""], ["Custo das vendas", v["custo"], "", "", ""],
-              ["Lucro bruto", v["lucro"], "", "", f"Margem {v['margem'] if v['margem'] is not None else '—'} %"]]
-        sec("Compras"); L.append(["Total comprado", c["total"], "", "", f"{c['n']} entrada(s)"])
-        for f in c["fornecedores"]:
-            L.append(["  " + f["fornecedor"], f["valor"], "", "", ""])
-        sec("Recebimentos: sistema vs conferido")
-        for x in d["canais"]:
-            L.append([x["canal"], x["esperado"], x["conferido"] if x["conferido"] is not None else "—",
-                      x["diferenca"] if x["diferenca"] is not None else "—", x["texto"] + ((" " + x["obs"]) if x["obs"] else "")])
-        L.append(["TOTAL", d["rec_esperado_total"], d["rec_conferido_total"], "", ""])
-        L.append(["A receber de clientes", d["a_receber"]["valor"], "", "", f"{d['a_receber']['n']} fatura(s); em atraso {_filtro_mt(d['a_receber']['atraso'])}"])
-        sec("Estoque")
-        L += [["Valor inicial", e["inicial"], "", "", ""], ["+ Compras", e["compras"], "", "", ""],
-              ["− Custo das vendas", e["custo_vendas"], "", "", ""], ["− Perdas e ajustes", e["perdas_aj"], "", "", ""],
-              ["= Valor final", e["final"], "", "", "A conta fecha." if e["fecha"] else "A CONTA NÃO FECHA."]]
-        if d["perdas"]:
-            sec("Perdas")
-            for x in d["perdas"]:
-                L.append([f"{x['data']} · {x['produto']}", x["valor"], "", "", f"{x['motivo']}. {x['justificacao']} ({x['usuario']})"])
-        if d["contagens"]:
-            sec("Contagens físicas e diferenças de estoque")
-            for c in d["contagens"]:
-                L.append([f"Contagem de {c['data']} (inventário #{c['id']})", c["perdas"] + c["sobras"], "", "",
-                          f"{c['n_com']} diferença(s) em {c['n_contados']} produto(s)"])
-                for l in c["linhas"]:
-                    just = ((l["motivo"] + (". " if l["motivo"] and l["obs"] else "") + l["obs"]) if l["justificada"] else "SEM JUSTIFICAÇÃO")
-                    L.append([f"  {l['produto']}", f"{rd.fmt_qtd(l['sistema'], l['un'])} {l['un']}",
-                              f"{rd.fmt_qtd(l['contagem'], l['un'])} {l['un']}", l["dif_v"], just])
-        if d["ajustes"]:
-            sec("Ajustes de inventário")
-            for x in d["ajustes"]:
-                L.append([f"{x['data']} · {x['produto']}", x["valor"], "", "", f"{x['usuario']}"])
-        if d["anuladas"]:
-            sec("Vendas anuladas")
-            for x in d["anuladas"]:
-                L.append([f"{x['numero']} · {x['cliente']}", x["valor"], "", "", f"{x['motivo']} ({x['usuario']})"])
-        if len(d["evolucao"]) > 1:
-            sec("Evolução mensal (vendas / compras / lucro / recebido)")
-            for x in d["evolucao"]:
-                L.append([x["mes"], x["vendas"], x["compras"], x["lucro"], f"Recebido {_filtro_mt(x['recebido'])}"])
-        return _rel_excel("Relatório de Gestão", ["Item", "Sistema (MT)", "Conferido (MT)", "Diferença (MT)", "Observação"], L, "relatorio_gestao")
+        return _exportar_gestao_completa(d, request.args.get("exportar"))
     return render_template("rel_gestao.html", d=d, args=request.args, canais=rd.CANAIS, **_rel_contexto())
 
 
@@ -3145,6 +3958,39 @@ def venda_anular():
            ORDER BY v.id_anulacao DESC LIMIT 15""").fetchall()
     conn.close()
     return render_template("venda_anular.html", codigo=codigo, venda=venda,
+                           recentes=recentes, anuladas=anuladas)
+
+
+@app.route("/compras/anular", methods=["GET", "POST"])
+@login_required
+def compra_anular():
+    """Anula uma compra/entrada pelo código (nota fiscal) e remove o estoque."""
+    conn = get_conn()
+    codigo = (request.values.get("codigo") or "").strip()
+    if request.method == "POST":
+        try:
+            res = services.anular_compra(conn, codigo, request.form.get("motivo"),
+                                        session["user_id"], session.get("perfil"), _client_ip())
+            flash(f"Compra {res['codigo']} anulada ({_filtro_mt(res['valor'])} MT). "
+                  f"O estoque de {res['itens']} item(ns) foi removido.", "sucesso")
+            conn.close()
+            return redirect(url_for("compra_anular"))
+        except services.RegraNegocioError as e:
+            flash(str(e), "erro")
+    compra = services.obter_compra_por_codigo(conn, codigo) if codigo else None
+    if codigo and not compra and request.method == "GET":
+        flash(f"Não existe nenhuma compra/entrada com o código '{codigo}'.", "erro")
+    recentes = conn.execute(
+        """SELECT nota_fiscal AS codigo, MIN(data_hora) AS data_hora, MAX(fornecedor) AS fornecedor,
+                  SUM(valor_total) AS total, COUNT(*) AS n
+           FROM movimentos WHERE tipo='Entrada' AND subtipo IS NULL AND nota_fiscal IS NOT NULL
+           GROUP BY nota_fiscal ORDER BY MIN(data_hora) DESC, nota_fiscal DESC LIMIT 15""").fetchall()
+    anuladas = conn.execute(
+        """SELECT c.*, u.nome AS anulou FROM compras_anuladas c
+           LEFT JOIN usuarios u ON u.id_usuario=c.id_usuario_anulou
+           ORDER BY c.id_anulacao DESC LIMIT 15""").fetchall()
+    conn.close()
+    return render_template("compra_anular.html", codigo=codigo, compra=compra,
                            recentes=recentes, anuladas=anuladas)
 
 

@@ -376,6 +376,23 @@ CREATE TABLE IF NOT EXISTS vendas_anuladas (
     data_anulacao TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS compras_anuladas (
+    id_anulacao INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo_compra TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'Compra',
+    id_nota_fiscal INTEGER,
+    fornecedor TEXT,
+    forma_pagamento TEXT,
+    data_compra TEXT,
+    valor_total REAL NOT NULL DEFAULT 0,
+    custo_total REAL NOT NULL DEFAULT 0,
+    itens_json TEXT,
+    motivo TEXT NOT NULL,
+    id_usuario_compra INTEGER,
+    id_usuario_anulou INTEGER,
+    data_anulacao TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS conferencias_recebimento (
     id_conferencia INTEGER PRIMARY KEY AUTOINCREMENT,
     data_ini TEXT NOT NULL,
@@ -405,6 +422,7 @@ CREATE INDEX IF NOT EXISTS idx_aud_data ON auditoria(data_hora);
 CREATE INDEX IF NOT EXISTS idx_login_att ON login_attempts(login, data_hora);
 CREATE INDEX IF NOT EXISTS idx_cotacoes_data ON cotacoes(data_emissao);
 CREATE INDEX IF NOT EXISTS idx_cotacoes_status ON cotacoes(status);
+CREATE INDEX IF NOT EXISTS idx_compras_anuladas_data ON compras_anuladas(data_anulacao);
 """
 
 DEFAULT_CONFIG = {

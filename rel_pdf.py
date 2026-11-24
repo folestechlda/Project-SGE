@@ -39,7 +39,7 @@ def gerar(titulo, colunas, linhas, empresa, filtro_mt, fmt_qtd, subtitulo=None):
     s_tot = ParagraphStyle("tt", parent=s_cel, fontName="Helvetica-Bold")
     s_totd = ParagraphStyle("td", parent=s_tot, alignment=2)
 
-    el = [Paragraph(escape(titulo), s_tit)]
+    el: list = [Paragraph(escape(titulo), s_tit)]
     linha_emp = " · ".join(x for x in [empresa.get("nome"), ("NUIT " + empresa["nuit"]) if empresa.get("nuit") else None] if x)
     if subtitulo:
         linha_emp = (linha_emp + " · " if linha_emp else "") + subtitulo
@@ -75,7 +75,7 @@ def gerar(titulo, colunas, linhas, empresa, filtro_mt, fmt_qtd, subtitulo=None):
     if esc < 1:
         larguras = [w * esc for w in larguras]
 
-    dados = [[Paragraph(escape(str(c)), s_cabd if num[j] else s_cab) for j, c in enumerate(colunas)]]
+    dados: list = [[Paragraph(escape(str(c)), s_cabd if num[j] else s_cab) for j, c in enumerate(colunas)]]
     estilo = [("BACKGROUND", (0, 0), (-1, 0), AZUL), ("VALIGN", (0, 0), (-1, -1), "TOP"),
               ("LINEBELOW", (0, 1), (-1, -1), .3, colors.HexColor("#e5e7eb")),
               ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
