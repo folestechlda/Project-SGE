@@ -41,9 +41,19 @@
     <span class="kpi-valor">{{ (valor_venda or 0)|format_currency }}</span>
     <span class="kpi-nota">{{ config.moeda }}</span>
   </div>
-  <div class="kpi {{ 'kpi-pos' if (lucro_mes or 0) > 0 else ('kpi-neg' if (lucro_mes or 0) < 0 else '') }}">
-    <span class="kpi-label">Lucro do mês</span>
-    <span class="kpi-valor">{{ (lucro_mes or 0)|format_currency }}</span>
+  <div class="kpi {{ 'kpi-pos' if (lucro_periodo or 0) > 0 else ('kpi-neg' if (lucro_periodo or 0) < 0 else '') }}">
+    <span class="kpi-label">Lucro do período</span>
+    <span class="kpi-valor">{{ (lucro_periodo or 0)|format_currency }}</span>
+    <span class="kpi-nota">{{ config.moeda }} · margem {{ margem_periodo or 0 }}%</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Vendas do período</span>
+    <span class="kpi-valor">{{ (vendas_periodo or 0)|format_currency }}</span>
+    <span class="kpi-nota">{{ n_vendas_periodo or 0 }} vendas</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Compras do período</span>
+    <span class="kpi-valor">{{ (compras_periodo or 0)|format_currency }}</span>
     <span class="kpi-nota">{{ config.moeda }}</span>
   </div>
   <a class="kpi kpi-alerta {{ 'tem-alertas' if (num_alertas or 0) > 0 }}" href="#alertas">
@@ -59,7 +69,7 @@
     <div class="grafico"><canvas id="chartReceitaDespesa"></canvas></div>
   </div>
   <div class="panel span-4">
-    <div class="panel-cab"><h3>Lucro ou prejuízo</h3><span class="panel-nota">no período</span></div>
+    <div class="panel-cab"><h3>Lucro ou prejuízo</h3><span class="panel-nota">{{ periodo_dias }} dias</span></div>
     <div class="grafico grafico-donut"><canvas id="chartLucroPrejuizo"></canvas></div>
     <div class="grafico-rotulo" id="lblLucroPrejuizo">—</div>
   </div>

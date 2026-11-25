@@ -780,19 +780,41 @@ def dashboard():
             WHERE p.ativo=1{filtro_cat_sql}""", params_cat
     ).fetchone()["v"]
 
-    inicio_mes = datetime.now().replace(day=1).strftime("%Y-%m-%d")
-    lucro_mes = conn.execute(
+    desde = (datetime.now() - timedelta(days=periodo_dias)).strftime("%Y-%m-%d")
+
+    lucro_periodo = conn.execute(
         f"""SELECT COALESCE(SUM(m.lucro),0) v FROM movimentos m
             JOIN produtos p ON p.id_produto=m.id_produto
-            WHERE m.tipo='Saida' AND m.data_hora >= ?{filtro_cat_sql}""",
-        (inicio_mes,) + params_cat,
+            WHERE m.tipo='Saida' AND substr(m.data_hora,1,10) >= ?{filtro_cat_sql}""",
+        (desde,) + params_cat,
     ).fetchone()["v"]
+
+    # Totais do período (não apenas por dia) para os indicadores
+    totais_periodo = conn.execute(
+        f"""SELECT
+              COALESCE(SUM(CASE WHEN m.tipo='Entrada' THEN m.valor_total END), 0) compras,
+              COALESCE(SUM(CASE WHEN m.tipo='Saida' THEN m.valor_total END), 0) vendas
+            FROM movimentos m JOIN produtos p ON p.id_produto = m.id_produto
+            WHERE substr(m.data_hora,1,10) >= ?{filtro_cat_sql}""",
+        (desde,) + params_cat,
+    ).fetchone()
+    vendas_periodo = totais_periodo["vendas"]
+    compras_periodo = totais_periodo["compras"]
+    n_vendas_periodo = conn.execute(
+        f"""SELECT COUNT(DISTINCT m.codigo_venda) c FROM movimentos m
+            JOIN produtos p ON p.id_produto=m.id_produto
+            WHERE m.tipo='Saida' AND substr(m.data_hora,1,10) >= ?{filtro_cat_sql}""",
+        (desde,) + params_cat,
+    ).fetchone()["c"]
+    margem_periodo = round(lucro_periodo / vendas_periodo * 100, 1) if vendas_periodo else None
+
+    inicio_periodo = datetime.strptime(desde, "%Y-%m-%d")
+    fim_periodo = datetime.now()
+    periodo_rotulo = f"{inicio_periodo.strftime('%d/%m/%Y')} a {fim_periodo.strftime('%d/%m/%Y')}"
 
     abaixo_minimo = services.produtos_abaixo_minimo(conn)
     proximos_venc = services.produtos_proximos_validade(conn)
     num_alertas = len(abaixo_minimo) + len(proximos_venc)
-
-    desde = (datetime.now() - timedelta(days=periodo_dias)).strftime("%Y-%m-%d")
     mov_rows = conn.execute(
         f"""SELECT substr(m.data_hora,1,10) dia, m.tipo, SUM(m.quantidade) qtd
             FROM movimentos m JOIN produtos p ON p.id_produto = m.id_produto
@@ -877,7 +899,10 @@ def dashboard():
     return render_template(
         "dashboard.html",
         total_produtos=total_produtos, total_categorias=total_categorias,
-        valor_custo=valor_custo, valor_venda=valor_venda, lucro_mes=lucro_mes,
+        valor_custo=valor_custo, valor_venda=valor_venda,
+        lucro_periodo=lucro_periodo, margem_periodo=margem_periodo,
+        vendas_periodo=vendas_periodo, compras_periodo=compras_periodo,
+        n_vendas_periodo=n_vendas_periodo, periodo_rotulo=periodo_rotulo,
         num_alertas=num_alertas, abaixo_minimo=abaixo_minimo[:8],
         proximos_venc=proximos_venc[:8],
         dias_labels=dias_labels, entradas_serie=entradas_serie, saidas_serie=saidas_serie,
